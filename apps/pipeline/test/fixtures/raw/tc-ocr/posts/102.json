@@ -1,0 +1,22 @@
+{
+  "post": {
+    "number": 102,
+    "subject": "[OCR.Worker] 재처리 의존성 정리",
+    "workflowClass": "working",
+    "createdAt": "2025-02-10T10:00:00+09:00",
+    "body": { "content": "tc-ocr/101 결정 이후 Redis 기반 재처리를 적용한다. RetryComponent:18 참고." },
+    "users": {
+      "from": { "member": { "id": "m-2", "name": "이검토" } },
+      "to": [{ "member": { "id": "m-1", "name": "김개발" } }]
+    },
+    "tags": [{ "id": "tag-type", "dimension": "type" }]
+  },
+  "comments": [
+    {
+      "id": "c-102-1",
+      "createdAt": "2025-02-11T11:00:00+09:00",
+      "content": "원인 근거를 확인했고 tc-ocr/101을 후속한다.",
+      "users": { "from": { "member": { "id": "m-3", "name": "박운영" } } }
+    }
+  ]
+}

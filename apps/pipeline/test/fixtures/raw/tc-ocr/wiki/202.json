@@ -1,0 +1,6 @@
+{
+  "pageId": 202,
+  "subject": "General OCR 장애 대응 정리",
+  "parentId": 201,
+  "body": { "content": "장애 대응 시 General OCR 상태와 RetryComponent:22 를 확인한다." }
+}
