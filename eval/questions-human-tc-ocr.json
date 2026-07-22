@@ -2,7 +2,7 @@
   "project": "tc-ocr",
   "style": "human",
   "updated": "2026-07-22",
-  "note": "gold 는 2026-07-22 원본 데이터(업무 490·위키 47)에서 직접 확인해 작성. 그래프를 보고 만들지 말 것 (순환 검증 금지). 난이도 구성: L1 x2, L2 x2, L3 x4, L4 x2, L5 x2.",
+  "note": "gold 는 2026-07-22 원본 데이터(업무 490·위키 47)에서 직접 확인해 작성. 그래프를 보고 만들지 말 것 (순환 검증 금지). 전체 490건 분석으로 과거 시기(2021 출시·미터링 운영·OOM·CloudTrail)까지 커버. 난이도 구성: L1 x3, L2 x3, L3 x5, L4 x3, L5 x4.",
   "questions": [
     {
       "id": "H-01",
@@ -75,7 +75,10 @@
       "question": "쿠콘 장애 나면 어디 코드 봐야 해?",
       "gold": {
         "tasks": [492, 493],
-        "concepts": ["DocumentIdCardAuthenticityService:82", "ExceptionController:45"]
+        "concepts": [
+          "DocumentIdCardAuthenticityService:82",
+          "ExceptionController:45"
+        ]
       }
     },
     {
@@ -130,6 +133,69 @@
       "gold": {
         "tasks": [491, 483, 498, 494, 504, 505, 506],
         "note": "491(장애)→483(제거 결정)→498(등가성 검증)→494·504·505·506(공인 전환) 순서가 드러나야 함"
+      }
+    },
+    {
+      "id": "H-13",
+      "difficulty": "L1",
+      "pattern": "H1 모호한 지칭",
+      "intent": "문서·참고",
+      "question": "OCR 처음 출시할 때 기획서 어느 업무에 있지?",
+      "gold": {
+        "tasks": [1]
+      }
+    },
+    {
+      "id": "H-14",
+      "difficulty": "L2",
+      "pattern": "H4 행동 지향",
+      "intent": "원인·히스토리",
+      "question": "미터링 누락됐을 때 재전송 처리한 사례들 있었지? 어떻게 했었어?",
+      "gold": {
+        "tasks": [450, 446, 420],
+        "wikis": ["미터링 & 클라우드트레일"]
+      }
+    },
+    {
+      "id": "H-15",
+      "difficulty": "L3",
+      "pattern": "H2 별칭·부분 이름",
+      "intent": "원인·히스토리",
+      "question": "모델 서버 OOM 때문에 했던 조치들 뭐야?",
+      "gold": {
+        "tasks": [433, 435, 441, 442, 448]
+      }
+    },
+    {
+      "id": "H-16",
+      "difficulty": "L4",
+      "pattern": "H1 모호한 지칭",
+      "intent": "원인·히스토리",
+      "question": "신용카드 OCR 출시 때 서비스 이용 신청 흐름은 뭘 만들어서 처리했지?",
+      "gold": {
+        "tasks": [81, 82, 86, 89]
+      }
+    },
+    {
+      "id": "H-17",
+      "difficulty": "L5",
+      "pattern": "H3 상대 시간",
+      "intent": "집계·통계",
+      "question": "성능테스트는 그동안 언제 뭘 대상으로 했는지 시간순으로 정리해줘.",
+      "gold": {
+        "tasks": [63, 76, 499, 500],
+        "note": "2021(사업자등록증 63, 차량번호판 76) → 2026(크기 상향 499, 노드 증설 500) 시간순이 드러나야 함"
+      }
+    },
+    {
+      "id": "H-18",
+      "difficulty": "L5",
+      "pattern": "H5 짧은 질문 깊은 기대",
+      "intent": "원인·히스토리",
+      "question": "CloudTrail 연동이 처음부터 지금까지 어떻게 변해왔는지 정리해줘.",
+      "gold": {
+        "tasks": [26, 83, 206, 396, 481],
+        "note": "2021 연동 시작(26·83) → 2023 정리(206) → 2024 제거(396) → 2026 핸들링 강화(481) 흐름"
       }
     }
   ]

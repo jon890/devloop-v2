@@ -2,7 +2,7 @@
   "project": "tc-ocr",
   "style": "ai",
   "updated": "2026-07-22",
-  "note": "AI 에이전트형 정형 질의. groundTruthCypher 가 있는 항목은 직접 실행한 결과와 답변을 대조한다. 난이도 구성: L1 x2, L2 x3, L3 x3, L4 x2, L5 x2.",
+  "note": "AI 에이전트형 정형 질의. groundTruthCypher 가 있는 항목은 직접 실행한 결과와 답변을 대조한다. 전체 490건 분석 기반으로 과거 시기 포함. 난이도 구성: L1 x2, L2 x4, L3 x4, L4 x3, L5 x3.",
   "questions": [
     {
       "id": "A-01",
@@ -23,7 +23,9 @@
       "intent": "문서·참고",
       "question": "제목에 '도메인 용어'가 들어가는 Wiki 노드와 그 부모 페이지를 반환해줘.",
       "gold": {
-        "wikis": ["OCR 도메인 용어 정리 — General/Document, AppKey, Request-Key"]
+        "wikis": [
+          "OCR 도메인 용어 정리 — General/Document, AppKey, Request-Key"
+        ]
       }
     },
     {
@@ -122,6 +124,44 @@
       "question": "유형 태그가 '장애'인 Task 들을 제품(1:) Concept 별로 집계해 건수와 함께 반환해줘.",
       "gold": {},
       "groundTruthCypher": "MATCH (t:Task)-[:TAGGED]->(:Concept {name:'장애'}) MATCH (t)-[g:TAGGED]->(p:Concept) WHERE g.dimension = '1' RETURN p.name, count(t) AS c ORDER BY c DESC"
+    },
+    {
+      "id": "A-13",
+      "difficulty": "L2",
+      "pattern": "A3 집계",
+      "intent": "집계·통계",
+      "question": "Task 를 createdAt 연도별로 집계해 건수를 반환해줘.",
+      "gold": {},
+      "groundTruthCypher": "MATCH (t:Task) RETURN substring(t.createdAt,0,4) AS year, count(*) AS c ORDER BY year"
+    },
+    {
+      "id": "A-14",
+      "difficulty": "L3",
+      "pattern": "A1 명시적 개체·관계",
+      "intent": "원인·히스토리",
+      "question": "Concept 'CloudTrail' 을 MENTIONS 하는 Task 를 createdAt 오름차순으로 반환해줘.",
+      "gold": {
+        "tasks": [26, 83, 206, 481]
+      }
+    },
+    {
+      "id": "A-15",
+      "difficulty": "L4",
+      "pattern": "A5 체이닝",
+      "intent": "원인·히스토리",
+      "question": "Task 499(크기 상향 부하테스트)의 선행 조건이 되는 Task(RELATES_TO precedes)와 각 담당 Person 을 반환해줘.",
+      "gold": {
+        "tasks": [497, 500]
+      }
+    },
+    {
+      "id": "A-16",
+      "difficulty": "L5",
+      "pattern": "A3 집계",
+      "intent": "집계·통계",
+      "question": "유형 태그 '장애' Task 를 연도별로 집계하고 가장 많은 연도를 알려줘.",
+      "gold": {},
+      "groundTruthCypher": "MATCH (t:Task)-[:TAGGED]->(:Concept {name:'장애'}) RETURN substring(t.createdAt,0,4) AS year, count(*) AS c ORDER BY c DESC"
     }
   ]
 }
