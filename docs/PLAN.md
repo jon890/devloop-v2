@@ -1,6 +1,6 @@
 # 구현 계획 — Dooray 지식그래프 AI Agents MVP
 
-- 스펙: `docs/SPEC.md` (요구사항·인수 기준), 평가 세트: `docs/QUESTIONS.md`
+- 스펙: `docs/SPEC.md` (요구사항·인수 기준), 평가 질문 gold: `eval/questions-{human,ai}-<project>.json` (단일 소스)
 - 실행 모델: **Phase 0 순차 1워커 → Phase 1 병렬 codex subagent 4워커 → Phase 2 파일럿 품질 점검 → Phase 3 순차 통합**
 - 품질 기준: `docs/EVAL-RUBRIC.md` (stage commit 마다 평가 스킬 실행, 통과까지 개선 루프)
 - 상태: pending approval (사용자 승인 후 실행)
@@ -132,7 +132,10 @@ GraphNode = { id, label, key, display, properties }. GraphRel = { id, type, star
 
 ```typescript
 interface LlmCli {
-  complete(prompt: string, opts?: { timeoutMs?: number; model?: string }): Promise<LlmResult>;
+  complete(
+    prompt: string,
+    opts?: { timeoutMs?: number; model?: string },
+  ): Promise<LlmResult>;
 }
 // LlmResult = { text: string, elapsedMs: number, tokens?: { in: number; out: number } }
 // 구현: CodexCliAdapter (codex exec -m <model>), ClaudeCliAdapter (claude -p --model <model>)
@@ -204,7 +207,7 @@ tc-ocr 전용 하드코딩을 금지해, 이후 다른 프로젝트로 색인→
 실측에서 업무 483 본문에 `tc-ocr/NNN` 명시 참조가 0건이었듯,
 업무 간 연결이 LLM 추출 품질에 크게 의존하므로 전량 실행 전 확인이 필수다.
 
-1. `docs/QUESTIONS.md` 의 기대 근거 업무를 포함한 30건 파일럿 색인 (ingest→extract→load).
+1. `eval/questions-{human,ai}-tc-ocr.json` 의 gold 근거 업무를 포함한 30건 파일럿 색인 (ingest→extract→load).
 2. Concept 파편화 측정 — 같은 대상이 다른 이름으로 중복 생성됐는지 확인, 사전·별칭 보완.
 3. 평가 스킬 2종(`kg-eval-human`, `kg-eval-ai`) 첫 실행 — 파일럿 통과 기준은 `docs/EVAL-RUBRIC.md`.
 4. 통과 조건 미달 시 프롬프트·사전·질의 엔진을 보완하고 재실행 — 통과 전 전량 추출 진행 금지.
@@ -245,7 +248,7 @@ tc-ocr 전용 하드코딩을 금지해, 이후 다른 프로젝트로 색인→
 | 위험                                 | 완화                                                                                                 |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------- |
 | 구독 CLI rate limit 로 추출 중단     | 문서 단위 캐시 + 지수 백오프 + 재개 지원, 실패 목록 리포트                                           |
-| LLM 추출 품질 낮음 (관계 누락·환각)  | 구조적 추출 분리로 LLM 의존 최소화, QUESTIONS.md 판정 기준으로 측정, 프롬프트에 스키마·few-shot 고정 |
+| LLM 추출 품질 낮음 (관계 누락·환각)  | 구조적 추출 분리로 LLM 의존 최소화, 질문 은행(eval/)과 rubric 채점으로 측정, 프롬프트에 스키마·few-shot 고정 |
 | LLM 이 낸 Cypher 오류·위험 쿼리      | 읽기 전용 세션 + 오류 피드백 재생성 1회 + cypher 응답 노출로 디버깅                                  |
 | Dooray API 부하·차단                 | dooray CLI 순차 호출 + 원본 캐시 (수집은 1회성)                                                      |
 | 병렬 워커 간 계약 위반               | Phase 0 계약 고정, shared 변경 금지 규칙, Phase 3 통합에서 계약 검증                                 |
