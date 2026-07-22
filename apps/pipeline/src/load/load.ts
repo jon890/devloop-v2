@@ -94,7 +94,7 @@ function normalizeText(value: string): string {
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
-function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string, ConceptEntry> {
+export function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string, ConceptEntry> {
   const aliases = new Map<string, ConceptEntry>();
   for (const entry of dictionary) {
     for (const name of [entry.canonical, ...entry.aliases]) {
@@ -156,7 +156,7 @@ function parseGraphRecords(records: readonly unknown[]): {
   return { nodes, relationships };
 }
 
-function normalizeGraph(
+export function normalizeGraph(
   inputNodes: readonly OntologyNode[],
   inputRelationships: readonly OntologyRelationship[],
   aliasMap: Map<string, ConceptEntry>,
@@ -262,7 +262,8 @@ function mergeNode(existing: OntologyNode | undefined, incoming: OntologyNode): 
 }
 
 function addEndpointAlias(index: Map<string, NodeRef[]>, key: string, ref: NodeRef): void {
-  for (const alias of [key, normalizeText(key)]) {
+  const qualifiedKey = `${ref.label}:${key}`;
+  for (const alias of [key, normalizeText(key), qualifiedKey, normalizeText(qualifiedKey)]) {
     const refs = index.get(alias) ?? [];
     if (!refs.some((existing) => existing.label === ref.label && existing.key === ref.key)) {
       refs.push(ref);
@@ -526,7 +527,9 @@ async function loadGraph(options: LoadOptions): Promise<void> {
   }
 }
 
-void loadGraph(parseArgs(process.argv.slice(2))).catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  void loadGraph(parseArgs(process.argv.slice(2))).catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+}

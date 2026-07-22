@@ -286,10 +286,15 @@ export async function extractStructural(options: StructuralExtractionOptions): P
     addTextReferences(textContent(wiki), 'Wiki', pageId, nodes, relationships);
   }
 
-  const records: GraphRecord[] = [...nodes.values(), ...relationships.values()];
+  const resolvedRelationships = [...relationships.values()].filter(
+    (relationship) =>
+      relationship.type !== 'REFERENCES' ||
+      (nodes.has(relationship.startKey) && nodes.has(relationship.endKey)),
+  );
+  const records: GraphRecord[] = [...nodes.values(), ...resolvedRelationships];
   const outputDir = path.join(options.dataRoot, 'graph', options.project);
   const outputPath = path.join(outputDir, 'structural.jsonl');
   await mkdir(outputDir, { recursive: true });
   await writeFile(outputPath, records.map((record) => JSON.stringify(record)).join('\n') + '\n', 'utf8');
-  return { outputPath, nodes: nodes.size, relationships: relationships.size, records };
+  return { outputPath, nodes: nodes.size, relationships: resolvedRelationships.length, records };
 }

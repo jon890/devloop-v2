@@ -1,5 +1,5 @@
 const assert = require('node:assert/strict');
-const { chmod, cp, mkdtemp, readFile, writeFile } = require('node:fs/promises');
+const { chmod, cp, mkdir, mkdtemp, readFile, writeFile } = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
@@ -82,6 +82,10 @@ function mockExtraction(document) {
 
 test('fixture 5건을 온톨로지 구조 노드와 관계로 추출한다', async () => {
   const dataRoot = await fixtureDataRoot();
+  const postPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts', '101.json');
+  const post = JSON.parse(await readFile(postPath, 'utf8'));
+  post.post.body.content += '\n외부 작업 external-project/999999';
+  await writeFile(postPath, JSON.stringify(post));
   const result = await extractStructural({ dataRoot, project: 'tc-ocr' });
   assert.equal(result.outputPath, path.join(dataRoot, 'graph', 'tc-ocr', 'structural.jsonl'));
   const records = await jsonLines(result.outputPath);
@@ -95,16 +99,66 @@ test('fixture 5건을 온톨로지 구조 노드와 관계로 추출한다', asy
   assert.ok(nodes.some((node) => node.label === 'Concept' && node.key === 'RetryComponent:18' && node.properties.kind === 'code-ref'));
   assert.ok(nodes.some((node) => node.label === 'Concept' && node.key === 'GatewayInterceptor:77' && node.properties.kind === 'code-ref'));
   assert.ok(relationships.some((relationship) => relationship.type === 'REFERENCES' && relationship.startKey === 'Task:102' && relationship.endKey === 'Task:101'));
+  assert.equal(relationships.some((relationship) => relationship.endKey === 'Task:999999'), false);
   assert.ok(relationships.filter((relationship) => relationship.type === 'TAGGED').every((relationship) => typeof relationship.properties.dimension === 'string'));
 });
 
-test('태그·위키 핵심 명사·업무 prefix로 Concept 사전을 시드한다', async () => {
+test('태그 차원·위키 영문 기술어·업무 prefix로 중복 없는 Concept 사전을 시드한다', async () => {
   const dataRoot = await fixtureDataRoot();
+  await writeFile(path.join(dataRoot, 'raw', 'tc-ocr', 'tags.json'), JSON.stringify({
+    'tag-component': '2: API',
+    'tag-product': '1: General OCR',
+    'tag-type': '0: 장애',
+  }));
+  await writeFile(path.join(dataRoot, 'raw', 'tc-ocr', 'wiki', '203.json'), JSON.stringify({
+    pageId: 203,
+    subject: 'Log & Crash / NHN Container Service / X-Request-Id 모델까지',
+    parentId: 0,
+    body: { content: '' },
+  }));
+  const koreanPrefixPostPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts', '102.json');
+  const koreanPrefixPost = JSON.parse(await readFile(koreanPrefixPostPath, 'utf8'));
+  koreanPrefixPost.post.subject = '[배포 Main] 재처리 의존성 정리';
+  await writeFile(koreanPrefixPostPath, JSON.stringify(koreanPrefixPost));
+  const outputPath = path.join(dataRoot, 'concepts', 'tc-ocr.json');
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, JSON.stringify([
+    { canonical: '감싸나', kind: 'type', aliases: [] },
+    { canonical: 'OCR.API', kind: 'tech', aliases: ['API', 'legacy-api', 'shared-alias'] },
+    { canonical: 'OCR.API', kind: 'tech', aliases: ['legacy-api-2'] },
+    { canonical: 'OCR.Console', kind: 'component', aliases: ['Console', 'shared-alias'] },
+  ]));
+
   const result = await seedConcepts({ dataRoot, project: 'tc-ocr' });
   const concepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(result.outputPath, 'utf8')));
+  const byCanonical = new Map(concepts.map((entry) => [entry.canonical, entry]));
+
   assert.ok(concepts.some((entry) => entry.canonical === 'OCR API'));
-  assert.ok(concepts.some((entry) => entry.canonical === '아키텍처'));
-  assert.ok(concepts.some((entry) => entry.canonical === 'OCR.Console' && entry.aliases.includes('Console')));
+  assert.equal(byCanonical.has('아키텍처'), false);
+  assert.equal(byCanonical.has('모델까지'), false);
+  assert.deepEqual(byCanonical.get('장애'), { canonical: '장애', kind: 'type', aliases: ['0: 장애'] });
+  assert.deepEqual(byCanonical.get('General OCR'), {
+    canonical: 'General OCR',
+    kind: 'product',
+    aliases: ['1: General OCR'],
+  });
+  assert.deepEqual(byCanonical.get('OCR.Console'), {
+    canonical: 'OCR.Console',
+    kind: 'component',
+    aliases: ['OCR Console'],
+  });
+  assert.deepEqual(byCanonical.get('OCR.API'), {
+    canonical: 'OCR.API',
+    kind: 'component',
+    aliases: ['legacy-api', 'legacy-api-2'],
+  });
+  assert.ok(byCanonical.has('Log & Crash'));
+  assert.ok(byCanonical.has('NHN Container Service'));
+  assert.ok(byCanonical.has('X-Request-Id'));
+  assert.equal(concepts.filter((entry) => entry.canonical === 'OCR.API').length, 1);
+  assert.equal(byCanonical.has('감싸나'), false);
+  assert.deepEqual(byCanonical.get('배포 Main'), { canonical: '배포 Main', kind: 'component', aliases: [] });
+  assert.equal(concepts.some((entry) => /^[012]:\s/.test(entry.canonical)), false);
 });
 
 test('fixture 문서 5건을 문서당 1회, 동시 4개 이하로 LLM 추출하고 캐시한다', async () => {
