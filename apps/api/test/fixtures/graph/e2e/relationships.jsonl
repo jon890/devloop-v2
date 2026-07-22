@@ -1,0 +1,39 @@
+{"type":"CONTAINS","startKey":"e2e","endKey":"101","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"102","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"103","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"104","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"105","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"106","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"wiki-1","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"wiki-2","properties":{}}
+{"type":"ASSIGNED_TO","startKey":"101","endKey":"member-1","properties":{"role":"to"}}
+{"type":"ASSIGNED_TO","startKey":"102","endKey":"member-2","properties":{"role":"to"}}
+{"type":"AUTHORED","startKey":"member-1","endKey":"101","properties":{}}
+{"type":"AUTHORED","startKey":"member-2","endKey":"102","properties":{}}
+{"type":"HAS_COMMENT","startKey":"102","endKey":"comment-1","properties":{}}
+{"type":"HAS_COMMENT","startKey":"103","endKey":"comment-2","properties":{}}
+{"type":"HAS_COMMENT","startKey":"104","endKey":"comment-3","properties":{}}
+{"type":"HAS_COMMENT","startKey":"105","endKey":"comment-4","properties":{}}
+{"type":"COMMENTED","startKey":"member-3","endKey":"comment-1","properties":{}}
+{"type":"COMMENTED","startKey":"member-1","endKey":"comment-2","properties":{}}
+{"type":"TAGGED","startKey":"101","endKey":"Graph API","properties":{"dimension":"component"}}
+{"type":"TAGGED","startKey":"103","endKey":"Nest.js","properties":{"dimension":"tech"}}
+{"type":"MENTIONS","startKey":"101","endKey":"OCR 모델","properties":{}}
+{"type":"MENTIONS","startKey":"102","endKey":"Neo4J","properties":{}}
+{"type":"MENTIONS","startKey":"105","endKey":"  새   도메인  ","properties":{}}
+{"type":"DOCUMENTS","startKey":"wiki-1","endKey":"OCR 모델","properties":{}}
+{"type":"DOCUMENTS","startKey":"wiki-2","endKey":"Graph API","properties":{}}
+{"type":"DEPENDS_ON","startKey":"Graph API","endKey":"Nest.js","properties":{}}
+{"type":"DEPENDS_ON","startKey":"Graph API","endKey":"Neo4J","properties":{}}
+{"type":"DECIDED_IN","startKey":"101-1","endKey":"101","properties":{}}
+{"type":"DECIDED_IN","startKey":"102-1","endKey":"102","properties":{}}
+{"type":"DECIDED_IN","startKey":"103-1","endKey":"103","properties":{}}
+{"type":"DECIDED_IN","startKey":"104-1","endKey":"104","properties":{}}
+{"type":"AFFECTS","startKey":"101-1","endKey":"Graph API","properties":{}}
+{"type":"AFFECTS","startKey":"104-1","endKey":"OCR 모델","properties":{}}
+{"type":"EVIDENCED_BY","startKey":"102-1","endKey":"comment-1","properties":{}}
+{"type":"REFERENCES","startKey":"105","endKey":"101","properties":{}}
+{"type":"CHILD_OF","startKey":"105","endKey":"101","properties":{}}
+{"type":"RELATES_TO","startKey":"101","endKey":"103","properties":{"kind":"precedes"}}
+{"type":"RELATES_TO","startKey":"101","endKey":"103","properties":{"kind":"causes"}}
+{"type":"RELATES_TO","startKey":"105","endKey":"101","properties":{"kind":"follows-up"}}

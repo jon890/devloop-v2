@@ -1,40 +1,34 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import type {
-  GraphNode,
   GraphSearchResponse,
   GraphStatsResponse,
   NeighborsResponse,
   QueryRequest,
   QueryResponse,
 } from '@devloop/shared';
+import { GraphQueryService } from './graph-query.service';
 
 @Controller('api')
 export class ApiController {
+  constructor(private readonly graphQueryService: GraphQueryService) {}
+
   @Post('query')
-  query(@Body() request: QueryRequest): QueryResponse {
-    void request;
-    return {
-      answer: '',
-      evidence: { nodes: [], relationships: [] },
-      cypher: '',
-    };
+  query(@Body() request: QueryRequest): Promise<QueryResponse> {
+    return this.graphQueryService.query(request);
   }
 
   @Get('graph/stats')
-  stats(): GraphStatsResponse {
-    return { nodes: {}, relationships: {} };
+  stats(): Promise<GraphStatsResponse> {
+    return this.graphQueryService.stats();
   }
 
   @Get('graph/nodes/:id/neighbors')
-  neighbors(@Param('id') id: string, @Query('depth') depth = '1'): NeighborsResponse {
-    void id;
-    void depth;
-    return { nodes: [], relationships: [] };
+  neighbors(@Param('id') id: string, @Query('depth') depth = '1'): Promise<NeighborsResponse> {
+    return this.graphQueryService.neighbors(id, depth);
   }
 
   @Get('graph/search')
-  search(@Query('q') q = ''): GraphSearchResponse {
-    void q;
-    return [] satisfies GraphNode[];
+  search(@Query('q') q = ''): Promise<GraphSearchResponse> {
+    return this.graphQueryService.search(q);
   }
 }

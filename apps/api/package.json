@@ -5,14 +5,20 @@
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/main.js"
+    "start": "node dist/main.js",
+    "test:e2e": "pnpm --filter @devloop/shared build && pnpm --filter pipeline build && pnpm build && node --test --test-concurrency=1 test/api.e2e.test.js"
   },
   "dependencies": {
     "@devloop/shared": "workspace:*",
     "@nestjs/common": "^11.1.0",
     "@nestjs/core": "^11.1.0",
     "@nestjs/platform-express": "^11.1.0",
+    "neo4j-driver": "^5.28.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.0"
+    "rxjs": "^7.8.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^11.1.0"
   }
 }
