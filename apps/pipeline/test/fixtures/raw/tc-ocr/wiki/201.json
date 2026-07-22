@@ -1,0 +1,6 @@
+{
+  "pageId": 201,
+  "subject": "OCR API 아키텍처 가이드",
+  "parentId": 0,
+  "body": { "content": "OCR API는 Redis에 의존한다. 구현 위치는 OcrApiService:55 이다." }
+}

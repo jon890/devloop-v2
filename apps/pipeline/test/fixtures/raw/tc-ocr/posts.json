@@ -1,0 +1,5 @@
+[
+  { "number": 101, "subject": "[OCR.Console] API 게이트웨이 제거" },
+  { "number": 102, "subject": "[OCR.Worker] 재처리 의존성 정리" },
+  { "number": 103, "subject": "[OCR.API] 후속 안정화" }
+]

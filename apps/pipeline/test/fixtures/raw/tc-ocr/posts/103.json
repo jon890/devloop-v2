@@ -1,0 +1,16 @@
+{
+  "post": {
+    "number": 103,
+    "subject": "[OCR.API] 후속 안정화",
+    "workflowClass": "registered",
+    "createdAt": "2025-03-01T12:00:00+09:00",
+    "parentPost": { "number": 101 },
+    "body": { "content": "OCR API와 Redis 연결을 안정화한다. OcrController:31 참고." },
+    "users": {
+      "from": { "member": { "id": "m-1", "name": "김개발" } },
+      "to": [{ "member": { "id": "m-3", "name": "박운영" } }]
+    },
+    "tags": [{ "id": "tag-component", "dimension": "component" }]
+  },
+  "comments": []
+}

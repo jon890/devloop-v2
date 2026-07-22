@@ -1,0 +1,29 @@
+{
+  "post": {
+    "number": 101,
+    "subject": "[OCR.Console] API 게이트웨이 제거",
+    "workflowClass": "closed",
+    "createdAt": "2025-01-02T09:00:00+09:00",
+    "url": "https://dooray.example/tc-ocr/101",
+    "body": {
+      "content": "타임아웃 원인을 제거하기 위해 API Gateway를 제거한다. 위치는 OcrGatewayService:42 이다."
+    },
+    "users": {
+      "from": { "member": { "id": "m-1", "name": "김개발" } },
+      "to": [{ "member": { "id": "m-2", "name": "이검토" } }],
+      "cc": [{ "member": { "id": "m-3", "name": "박운영" } }]
+    },
+    "tags": [
+      { "id": "tag-component", "dimension": "component" },
+      { "id": "tag-product", "dimension": "product" }
+    ]
+  },
+  "comments": [
+    {
+      "id": "c-101-1",
+      "createdAt": "2025-01-03T09:00:00+09:00",
+      "content": "검증 코드는 GatewayInterceptor:77 에 있다.",
+      "users": { "from": { "member": { "id": "m-2", "name": "이검토" } } }
+    }
+  ]
+}
