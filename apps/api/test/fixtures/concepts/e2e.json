@@ -1,0 +1,12 @@
+[
+  {
+    "canonical": "General OCR",
+    "kind": "product",
+    "aliases": ["OCR 모델", "General OCR 모델"]
+  },
+  {
+    "canonical": "Graph API",
+    "kind": "component",
+    "aliases": ["API Graph"]
+  }
+]

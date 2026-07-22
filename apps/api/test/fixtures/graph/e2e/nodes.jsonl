@@ -1,0 +1,25 @@
+{"label":"Project","key":"e2e","properties":{"code":"e2e","name":"E2E Knowledge Graph"}}
+{"label":"Task","key":"101","properties":{"number":"101","subject":"OCR pipeline API migration","workflowClass":"registered","createdAt":"2026-01-01","url":"https://example.test/tasks/101"}}
+{"label":"Task","key":"102","properties":{"number":"102","subject":"Neo4j fulltext search tuning","workflowClass":"working","createdAt":"2026-01-02","url":"https://example.test/tasks/102"}}
+{"label":"Task","key":"103","properties":{"number":"103","subject":"NestJS query endpoint implementation","workflowClass":"closed","createdAt":"2026-01-03","url":"https://example.test/tasks/103"}}
+{"label":"Task","key":"104","properties":{"number":"104","subject":"General OCR model release","workflowClass":"closed","createdAt":"2026-01-04","url":"https://example.test/tasks/104"}}
+{"label":"Task","key":"105","properties":{"number":"105","subject":"Graph API incident follow-up","workflowClass":"working","createdAt":"2026-01-05","url":"https://example.test/tasks/105"}}
+{"label":"Task","key":"106","properties":{"number":"106","subject":"Knowledge graph documentation","workflowClass":"registered","createdAt":"2026-01-06","url":"https://example.test/tasks/106"}}
+{"label":"Wiki","key":"wiki-1","properties":{"pageId":"wiki-1","subject":"OCR architecture","parentId":null}}
+{"label":"Wiki","key":"wiki-2","properties":{"pageId":"wiki-2","subject":"Graph API operation guide","parentId":"wiki-1"}}
+{"label":"Person","key":"member-1","properties":{"memberId":"member-1","name":"Alice"}}
+{"label":"Person","key":"member-2","properties":{"memberId":"member-2","name":"Bob"}}
+{"label":"Person","key":"member-3","properties":{"memberId":"member-3","name":"Carol"}}
+{"label":"Comment","key":"comment-1","properties":{"commentId":"comment-1","createdAt":"2026-01-02","excerpt":"Use the cjk analyzer."}}
+{"label":"Comment","key":"comment-2","properties":{"commentId":"comment-2","createdAt":"2026-01-03","excerpt":"Keep Cypher sessions read only."}}
+{"label":"Comment","key":"comment-3","properties":{"commentId":"comment-3","createdAt":"2026-01-04","excerpt":"The OCR rollout is approved."}}
+{"label":"Comment","key":"comment-4","properties":{"commentId":"comment-4","createdAt":"2026-01-05","excerpt":"Follow up after the API incident."}}
+{"label":"Concept","key":"OCR 모델","properties":{"name":"OCR 모델","kind":"product"}}
+{"label":"Concept","key":"Graph API","properties":{"name":"Graph API","kind":"component"}}
+{"label":"Concept","key":"Nest.js","properties":{"name":"Nest.js","kind":"tech"}}
+{"label":"Concept","key":"Neo4J","properties":{"name":"Neo4J","kind":"tech"}}
+{"label":"Concept","key":"  새   도메인  ","properties":{"name":"  새   도메인  ","kind":"type"}}
+{"label":"Decision","key":"101-1","properties":{"id":"101-1","summary":"Migrate the OCR pipeline to Graph API.","decidedAt":"2026-01-03"}}
+{"label":"Decision","key":"102-1","properties":{"id":"102-1","summary":"Use the cjk fulltext analyzer.","decidedAt":"2026-01-04"}}
+{"label":"Decision","key":"103-1","properties":{"id":"103-1","summary":"Run generated Cypher in read sessions.","decidedAt":"2026-01-05"}}
+{"label":"Decision","key":"104-1","properties":{"id":"104-1","summary":"Release General OCR after validation.","decidedAt":"2026-01-06"}}
