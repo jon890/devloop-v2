@@ -74,7 +74,13 @@ async function bootstrap(): Promise<void> {
         timeoutMs: positiveInteger(process.env.LLM_TIMEOUT_MS, 120_000),
         docFilter: options.docs,
       });
-      console.log(`LLM extraction complete: documents=${result.documents} processed=${result.processed} cacheHits=${result.cacheHits} failed=${result.failed.length} calls=${result.calls} output=${result.outputPath}`);
+      console.log(
+        `LLM extraction complete: documents=${result.documents} processed=${result.processed} ` +
+        `cacheHits=${result.cacheHits} failed=${result.failed.length} calls=${result.calls} ` +
+        `rewrittenRelationships=${result.rewrittenRelationships} ` +
+        `droppedRelationships=${result.droppedRelationships.count} output=${result.outputPath} ` +
+        `droppedReport=${result.droppedRelationshipsReportPath}`,
+      );
     }
   } finally {
     await app.close();

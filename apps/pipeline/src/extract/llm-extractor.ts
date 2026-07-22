@@ -13,6 +13,10 @@ import {
   type ExtractionPromptDocument,
 } from './extraction-prompt';
 import { LlmExtractionSchema, type LlmExtraction } from './llm-extraction.schema';
+import {
+  sanitizeLlmExtractions,
+  type DroppedRelationshipsReport,
+} from './llm-relationship-sanitizer';
 import { firstString, readRawProject, textContent } from './raw-reader';
 
 const CacheEntrySchema = LlmExtractionSchema.transform((result) => result);
@@ -45,11 +49,14 @@ export interface LlmFailure {
 export interface LlmExtractionReport {
   outputPath: string;
   failureReportPath: string;
+  droppedRelationshipsReportPath: string;
   documents: number;
   processed: number;
   cacheHits: number;
   failed: LlmFailure[];
   calls: number;
+  rewrittenRelationships: number;
+  droppedRelationships: DroppedRelationshipsReport;
 }
 
 interface DocumentResult {
@@ -316,22 +323,37 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
   const outputDir = path.join(options.dataRoot, 'graph', options.project);
   const outputPath = path.join(outputDir, 'llm.jsonl');
   const failureReportPath = path.join(outputDir, 'llm-failures.json');
-  const records = results.flatMap((result) => result.extraction
-    ? [...result.extraction.nodes, ...result.extraction.relationships]
-    : []);
+  const droppedRelationshipsReportPath = path.join(outputDir, 'llm-dropped-relationships.json');
+  const sanitized = await sanitizeLlmExtractions(
+    options.dataRoot,
+    options.project,
+    results.flatMap((result) => result.extraction ? [result.extraction] : []),
+  );
+  const records = sanitized.extractions.flatMap((extraction) => [
+    ...extraction.nodes,
+    ...extraction.relationships,
+  ]);
   const failed = results.flatMap((result) => result.failure ? [result.failure] : []);
   await mkdir(outputDir, { recursive: true });
   await Promise.all([
     writeFile(outputPath, records.length ? `${records.map((record) => JSON.stringify(record)).join('\n')}\n` : '', 'utf8'),
     writeFile(failureReportPath, `${JSON.stringify(failed, null, 2)}\n`, 'utf8'),
+    writeFile(
+      droppedRelationshipsReportPath,
+      `${JSON.stringify({ droppedRelationships: sanitized.droppedRelationships }, null, 2)}\n`,
+      'utf8',
+    ),
   ]);
   return {
     outputPath,
     failureReportPath,
+    droppedRelationshipsReportPath,
     documents: documents.length,
     processed: results.filter((result) => result.extraction).length,
     cacheHits: results.filter((result) => result.cacheHit).length,
     failed,
     calls: results.reduce((sum, result) => sum + result.calls, 0),
+    rewrittenRelationships: sanitized.rewrittenRelationships,
+    droppedRelationships: sanitized.droppedRelationships,
   };
 }

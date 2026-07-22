@@ -1,5 +1,5 @@
 import { readdir, readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import neo4j, { type Driver, type Session } from 'neo4j-driver';
 import {
   CORE_CONCEPTS,
@@ -16,16 +16,34 @@ import {
   type OntologyRelationship,
   type RelationshipType,
 } from '@devloop/shared';
+import { sanitizeLlmGraphFile } from '../extract/llm-relationship-sanitizer';
 
 interface LoadOptions {
   project: string;
   dataDir: string;
 }
 
+interface SkippedRelationshipSample {
+  sourceFile: string;
+  relationship: OntologyRelationship;
+  error: string;
+}
+
+interface SkippedRelationshipsReport {
+  count: number;
+  samples: SkippedRelationshipSample[];
+}
+
 interface NormalizedGraph {
   nodes: OntologyNode[];
   relationships: OntologyRelationship[];
   unknownConcepts: Map<string, number>;
+  skippedRelationships: SkippedRelationshipsReport;
+}
+
+interface SourcedRecord {
+  value: unknown;
+  sourceFile: string;
 }
 
 interface NodeRef {
@@ -104,14 +122,14 @@ export function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string,
   return aliases;
 }
 
-async function readJsonlRecords(graphDir: string): Promise<unknown[]> {
+async function readJsonlRecords(graphDir: string): Promise<SourcedRecord[]> {
   const entries = await readdir(graphDir, { withFileTypes: true });
   const jsonlFiles = entries
     .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
     .map((entry) => resolve(graphDir, entry.name))
     .sort();
 
-  const records: unknown[] = [];
+  const records: SourcedRecord[] = [];
   for (const file of jsonlFiles) {
     const content = await readFile(file, 'utf8');
     content
@@ -120,7 +138,7 @@ async function readJsonlRecords(graphDir: string): Promise<unknown[]> {
       .filter(Boolean)
       .forEach((line, index) => {
         try {
-          records.push(JSON.parse(line));
+          records.push({ value: JSON.parse(line), sourceFile: basename(file) });
         } catch (error) {
           throw new Error(`${file}:${index + 1} invalid JSONL record: ${(error as Error).message}`);
         }
@@ -130,37 +148,44 @@ async function readJsonlRecords(graphDir: string): Promise<unknown[]> {
   return records;
 }
 
-function parseGraphRecords(records: readonly unknown[]): {
+function parseGraphRecords(records: readonly SourcedRecord[]): {
   nodes: OntologyNode[];
   relationships: OntologyRelationship[];
+  relationshipSources: string[];
 } {
   const nodes: OntologyNode[] = [];
   const relationships: OntologyRelationship[] = [];
+  const relationshipSources: string[] = [];
 
   for (const record of records) {
-    const node = OntologyNodeSchema.safeParse(record);
+    const node = OntologyNodeSchema.safeParse(record.value);
     if (node.success) {
       nodes.push(node.data);
       continue;
     }
 
-    const relationship = OntologyRelationshipSchema.safeParse(record);
+    const relationship = OntologyRelationshipSchema.safeParse(record.value);
     if (relationship.success) {
       relationships.push(relationship.data);
+      relationshipSources.push(record.sourceFile);
       continue;
     }
 
-    throw new Error(`Unsupported graph record: ${JSON.stringify(record)}`);
+    throw new Error(`Unsupported graph record in ${record.sourceFile}: ${JSON.stringify(record.value)}`);
   }
 
-  return { nodes, relationships };
+  return { nodes, relationships, relationshipSources };
 }
 
 export function normalizeGraph(
   inputNodes: readonly OntologyNode[],
   inputRelationships: readonly OntologyRelationship[],
   aliasMap: Map<string, ConceptEntry>,
+  relationshipSources?: readonly string[],
 ): NormalizedGraph {
+  if (relationshipSources && relationshipSources.length !== inputRelationships.length) {
+    throw new Error('relationshipSources must have the same length as inputRelationships.');
+  }
   const unknownConcepts = new Map<string, number>();
   const nodesByIdentity = new Map<string, OntologyNode>();
   const endpointAliases = new Map<string, NodeRef[]>();
@@ -188,25 +213,41 @@ export function normalizeGraph(
     }
   }
 
-  const relationships = inputRelationships.map((relationship) => {
-    const start = resolveEndpoint(endpointAliases, relationship.startKey, 'startKey', relationship);
-    const end = resolveEndpoint(endpointAliases, relationship.endKey, 'endKey', relationship);
-    return {
-      ...relationship,
-      startKey: start.key,
-      endKey: end.key,
-      properties: {
-        ...relationship.properties,
-        startLabel: start.label,
-        endLabel: end.label,
-      },
-    };
+  const relationships: OntologyRelationship[] = [];
+  const skippedRelationships: SkippedRelationshipsReport = { count: 0, samples: [] };
+  inputRelationships.forEach((relationship, index) => {
+    const sourceFile = relationshipSources?.[index] ?? 'structural.jsonl';
+    try {
+      const start = resolveEndpoint(endpointAliases, relationship.startKey, 'startKey', relationship);
+      const end = resolveEndpoint(endpointAliases, relationship.endKey, 'endKey', relationship);
+      relationships.push({
+        ...relationship,
+        startKey: start.key,
+        endKey: end.key,
+        properties: {
+          ...relationship.properties,
+          startLabel: start.label,
+          endLabel: end.label,
+        },
+      });
+    } catch (error) {
+      if (sourceFile === 'structural.jsonl') throw error;
+      skippedRelationships.count += 1;
+      if (skippedRelationships.samples.length < 10) {
+        skippedRelationships.samples.push({
+          sourceFile,
+          relationship,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
   });
 
   return {
     nodes: [...nodesByIdentity.values()],
     relationships,
     unknownConcepts,
+    skippedRelationships,
   };
 }
 
@@ -491,9 +532,15 @@ async function loadGraph(options: LoadOptions): Promise<void> {
   const graphDir = resolve(options.dataDir, 'graph', options.project);
   const dictionary = await loadConceptDictionary(options.dataDir, options.project);
   const aliasMap = buildConceptAliasMap(dictionary);
+  const llmSanitization = await sanitizeLlmGraphFile(options.dataDir, options.project);
   const records = await readJsonlRecords(graphDir);
   const parsed = parseGraphRecords(records);
-  const graph = normalizeGraph(parsed.nodes, parsed.relationships, aliasMap);
+  const graph = normalizeGraph(
+    parsed.nodes,
+    parsed.relationships,
+    aliasMap,
+    parsed.relationshipSources,
+  );
 
   const uri = process.env.NEO4J_URI ?? 'bolt://localhost:7687';
   const { user, password } = neo4jCredentials();
@@ -516,6 +563,8 @@ async function loadGraph(options: LoadOptions): Promise<void> {
           },
           stats,
           unknownConcepts: Object.fromEntries([...graph.unknownConcepts.entries()].sort()),
+          droppedRelationships: llmSanitization.droppedRelationships,
+          skippedRelationships: graph.skippedRelationships,
         },
         null,
         2,

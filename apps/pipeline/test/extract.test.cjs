@@ -11,6 +11,7 @@ const { LlmResultSchema } = require('../dist/llm/llm-cli');
 const { seedConcepts } = require('../dist/extract/concept-seeder');
 const { LlmNodeSchema, LlmRelationshipSchema } = require('../dist/extract/llm-extraction.schema');
 const { extractLlm } = require('../dist/extract/llm-extractor');
+const { sanitizeLlmGraphFile } = require('../dist/extract/llm-relationship-sanitizer');
 const { extractStructural } = require('../dist/extract/structural-extractor');
 
 async function fixtureDataRoot() {
@@ -206,6 +207,121 @@ test('fixture 문서 5건을 문서당 1회, 동시 4개 이하로 LLM 추출하
   });
   assert.equal(second.cacheHits, 5);
   assert.equal(second.calls, 0);
+});
+
+test('LLM Task/Wiki endpoint를 raw id로 교정하고 미해석 관계를 문서별로 드롭한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  const postsPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts.json');
+  const posts = JSON.parse(await readFile(postsPath, 'utf8'));
+  posts.find((post) => post.number === 101).id = '4000000000000000101';
+  await writeFile(postsPath, JSON.stringify(posts));
+  const wikiPath = path.join(dataRoot, 'raw', 'tc-ocr', 'wiki', '201.json');
+  const wiki = JSON.parse(await readFile(wikiPath, 'utf8'));
+  wiki.id = '4000000000000000201';
+  await writeFile(wikiPath, JSON.stringify(wiki));
+
+  const llm = {
+    async complete(prompt) {
+      const document = sourceDocument(prompt);
+      const extraction = mockExtraction(document);
+      if (document.sourceDocId === 'Task:102') {
+        extraction.relationships.push(
+          {
+            type: 'RELATES_TO',
+            startKey: 'Task:102',
+            endKey: 'Task:4000000000000000101',
+            properties: { kind: 'follows-up', sourceDocId: document.sourceDocId },
+          },
+          {
+            type: 'RELATES_TO',
+            startKey: 'Task:102',
+            endKey: 'Task:4999999999999999999',
+            properties: { kind: 'follows-up', sourceDocId: document.sourceDocId },
+          },
+        );
+      }
+      if (document.sourceDocId === 'Wiki:201') {
+        extraction.relationships.push(
+          {
+            type: 'DOCUMENTS',
+            startKey: 'Wiki:4000000000000000201',
+            endKey: 'Concept:Wiki concept 201',
+            properties: { sourceDocId: document.sourceDocId },
+          },
+          {
+            type: 'DOCUMENTS',
+            startKey: 'Wiki:4999999999999999999',
+            endKey: 'Concept:Wiki concept 201',
+            properties: { sourceDocId: document.sourceDocId },
+          },
+        );
+      }
+      return { text: JSON.stringify(extraction), elapsedMs: 1 };
+    },
+  };
+
+  const result = await extractLlm({
+    dataRoot,
+    project: 'tc-ocr',
+    model: 'endpoint-model',
+    llm,
+    retryDelayMs: 0,
+  });
+  const records = await jsonLines(result.outputPath);
+  const relationships = records.filter((record) => 'type' in record);
+
+  assert.equal(result.rewrittenRelationships, 2);
+  assert.equal(result.droppedRelationships.count, 2);
+  assert.deepEqual(
+    result.droppedRelationships.documents.map(({ sourceDocId, count }) => ({ sourceDocId, count })),
+    [
+      { sourceDocId: 'Task:102', count: 1 },
+      { sourceDocId: 'Wiki:201', count: 1 },
+    ],
+  );
+  assert.ok(relationships.some((relationship) => relationship.endKey === 'Task:101'));
+  assert.ok(relationships.some((relationship) => relationship.startKey === 'Wiki:201'));
+  assert.equal(relationships.some((relationship) => /4999999999999999999/.test(JSON.stringify(relationship))), false);
+  assert.deepEqual(
+    JSON.parse(await readFile(result.droppedRelationshipsReportPath, 'utf8')),
+    { droppedRelationships: result.droppedRelationships },
+  );
+});
+
+test('기존 llm.jsonl을 LLM 재호출 없이 같은 endpoint 규칙으로 정제한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  const postsPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts.json');
+  const posts = JSON.parse(await readFile(postsPath, 'utf8'));
+  posts.find((post) => post.number === 101).id = '4000000000000000101';
+  await writeFile(postsPath, JSON.stringify(posts));
+  const graphDir = path.join(dataRoot, 'graph', 'tc-ocr');
+  await mkdir(graphDir, { recursive: true });
+  const llmPath = path.join(graphDir, 'llm.jsonl');
+  await writeFile(llmPath, [
+    {
+      type: 'RELATES_TO',
+      startKey: 'Task:102',
+      endKey: 'Task:4000000000000000101',
+      properties: { kind: 'follows-up', sourceDocId: 'Task:102' },
+    },
+    {
+      type: 'RELATES_TO',
+      startKey: 'Task:102',
+      endKey: 'Task:4999999999999999999',
+      properties: { kind: 'follows-up', sourceDocId: 'Task:102' },
+    },
+  ].map((record) => JSON.stringify(record)).join('\n') + '\n');
+
+  const result = await sanitizeLlmGraphFile(dataRoot, 'tc-ocr');
+  const records = await jsonLines(llmPath);
+
+  assert.equal(result.rewrittenRelationships, 1);
+  assert.equal(result.droppedRelationships.count, 1);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].endKey, 'Task:101');
+  const repeated = await sanitizeLlmGraphFile(dataRoot, 'tc-ocr');
+  assert.equal(repeated.rewrittenRelationships, 0);
+  assert.equal(repeated.droppedRelationships.count, 1);
 });
 
 test('docFilter에 지정한 sourceDocId 문서만 LLM 추출한다', async () => {
