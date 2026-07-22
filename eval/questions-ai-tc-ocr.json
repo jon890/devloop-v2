@@ -1,0 +1,127 @@
+{
+  "project": "tc-ocr",
+  "style": "ai",
+  "updated": "2026-07-22",
+  "note": "AI 에이전트형 정형 질의. groundTruthCypher 가 있는 항목은 직접 실행한 결과와 답변을 대조한다. 난이도 구성: L1 x2, L2 x3, L3 x3, L4 x2, L5 x2.",
+  "questions": [
+    {
+      "id": "A-01",
+      "difficulty": "L1",
+      "pattern": "A1 명시적 개체·관계",
+      "intent": "담당·사람",
+      "question": "Task 483 의 담당 Person 과 workflowClass 를 노드 id 와 함께 반환해줘.",
+      "gold": {
+        "tasks": [483],
+        "persons": ["김병태"]
+      },
+      "groundTruthCypher": "MATCH (t:Task {number:483}) OPTIONAL MATCH (t)-[:ASSIGNED_TO]->(p:Person) RETURN t.number, t.workflowClass, p.name"
+    },
+    {
+      "id": "A-02",
+      "difficulty": "L1",
+      "pattern": "A1 명시적 개체·관계",
+      "intent": "문서·참고",
+      "question": "제목에 '도메인 용어'가 들어가는 Wiki 노드와 그 부모 페이지를 반환해줘.",
+      "gold": {
+        "wikis": ["OCR 도메인 용어 정리 — General/Document, AppKey, Request-Key"]
+      }
+    },
+    {
+      "id": "A-03",
+      "difficulty": "L2",
+      "pattern": "A3 집계",
+      "intent": "집계·통계",
+      "question": "Concept 'General' 로 TAGGED 된 Task 수를 반환해줘.",
+      "gold": {},
+      "groundTruthCypher": "MATCH (t:Task)-[:TAGGED]->(c:Concept {name:'General'}) RETURN count(t)"
+    },
+    {
+      "id": "A-04",
+      "difficulty": "L2",
+      "pattern": "A3 집계",
+      "intent": "집계·통계",
+      "question": "Person 별 담당(ASSIGNED_TO) Task 수 상위 5명을 건수와 함께 반환해줘.",
+      "gold": {},
+      "groundTruthCypher": "MATCH (t:Task)-[:ASSIGNED_TO]->(p:Person) RETURN p.name, count(t) AS c ORDER BY c DESC LIMIT 5"
+    },
+    {
+      "id": "A-05",
+      "difficulty": "L2",
+      "pattern": "A3 집계 + A5 체이닝",
+      "intent": "상태·진행",
+      "question": "workflowClass 가 working 인 Task 목록과 각 담당 Person, createdAt 을 반환해줘.",
+      "gold": {},
+      "groundTruthCypher": "MATCH (t:Task {workflowClass:'working'}) OPTIONAL MATCH (t)-[:ASSIGNED_TO]->(p:Person) RETURN t.number, t.subject, p.name, t.createdAt"
+    },
+    {
+      "id": "A-06",
+      "difficulty": "L3",
+      "pattern": "A1 명시적 개체·관계",
+      "intent": "원인·히스토리",
+      "question": "Task 483(API Gateway 제거)과 REFERENCES 또는 RELATES_TO 로 연결된 Task 목록과 각 담당 Person 을 노드 id 와 함께 반환해줘.",
+      "gold": {
+        "tasks": [483, 491, 498]
+      }
+    },
+    {
+      "id": "A-07",
+      "difficulty": "L3",
+      "pattern": "A2 multi-hop 경로",
+      "intent": "의존·구조",
+      "question": "Concept 'ingress-nginx' 를 MENTIONS 하는 Task 와 Wiki 를 관계 유형과 함께 나열해줘.",
+      "gold": {
+        "tasks": [494, 495, 496],
+        "wikis": ["ingress-nginx 컨트롤러를 여러 개 둘 때 격리하는 법"]
+      }
+    },
+    {
+      "id": "A-08",
+      "difficulty": "L3",
+      "pattern": "A1 + A2 조합",
+      "intent": "담당·사람",
+      "question": "Person '김병태' 가 담당한 Task 중 Concept 'API Gateway' 를 MENTIONS 하는 Task 를 반환해줘.",
+      "gold": {
+        "tasks": [483]
+      }
+    },
+    {
+      "id": "A-09",
+      "difficulty": "L4",
+      "pattern": "A4 근거 id 요구",
+      "intent": "원인·히스토리",
+      "question": "Concept 'API Gateway' 에 대한 Decision 과 그 EVIDENCED_BY Comment, DECIDED_IN Task 를 출처 문서 id 와 함께 반환해줘.",
+      "gold": {
+        "tasks": [483]
+      }
+    },
+    {
+      "id": "A-10",
+      "difficulty": "L4",
+      "pattern": "A5 체이닝",
+      "intent": "원인·히스토리",
+      "question": "Task 501(AMP FP16 도입)과 RELATES_TO 로 이어지는 후속 Task, 그리고 그 Task 가 MENTIONS 하는 Concept 를 반환해줘.",
+      "gold": {
+        "tasks": [501, 502]
+      }
+    },
+    {
+      "id": "A-11",
+      "difficulty": "L5",
+      "pattern": "A2 multi-hop 경로",
+      "intent": "의존·구조",
+      "question": "Concept 'OCR.API' 가 DEPENDS_ON 으로 연결된 Concept 들과 근거가 되는 Wiki 문서를 반환해줘.",
+      "gold": {
+        "wikis": ["NCS 모델 L4 LB 커넥션 토폴로지와 OCR.API 커넥션 풀"]
+      }
+    },
+    {
+      "id": "A-12",
+      "difficulty": "L5",
+      "pattern": "A3 집계",
+      "intent": "집계·통계",
+      "question": "유형 태그가 '장애'인 Task 들을 제품(1:) Concept 별로 집계해 건수와 함께 반환해줘.",
+      "gold": {},
+      "groundTruthCypher": "MATCH (t:Task)-[:TAGGED]->(:Concept {name:'장애'}) MATCH (t)-[g:TAGGED]->(p:Concept) WHERE g.dimension = '1' RETURN p.name, count(t) AS c ORDER BY c DESC"
+    }
+  ]
+}
