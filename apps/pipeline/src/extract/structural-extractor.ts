@@ -17,6 +17,7 @@ import {
 
 const TASK_REFERENCE_PATTERN = /\b([A-Za-z0-9][A-Za-z0-9_-]*)\/(\d+)\b/g;
 const CODE_REFERENCE_PATTERN = /\b\w+(?:Service|Controller|Interceptor|Component):\d+\b/g;
+const TAG_DIMENSION_PATTERN = /^([012]):\s*/;
 
 export interface StructuralExtractionOptions {
   dataRoot: string;
@@ -44,11 +45,24 @@ function addRelationship(store: Map<string, OntologyRelationship>, relationship:
 }
 
 function memberIdentity(value: unknown): string | undefined {
-  return firstString(value, ['member.id', 'memberId', 'id', 'user.id', 'user.memberId']);
+  return firstString(value, [
+    'member.organizationMemberId',
+    'organizationMemberId',
+    'member.id',
+    'memberId',
+    'id',
+    'user.id',
+    'user.memberId',
+  ]);
 }
 
-function memberName(value: unknown): string | undefined {
-  return firstString(value, ['member.name', 'name', 'user.name']);
+function taskNumber(post: RawDoorayObject): number {
+  const rawNumber = valueAt(post, 'number') ?? valueAt(post, 'postNumber');
+  const number = typeof rawNumber === 'number' ? rawNumber : Number(rawNumber);
+  if (!Number.isSafeInteger(number)) {
+    throw new Error('Raw post is missing an integer number/postNumber.');
+  }
+  return number;
 }
 
 function postAuthor(post: RawDoorayObject): Record<string, unknown> | undefined {
@@ -93,11 +107,18 @@ function tagEntries(post: RawDoorayObject): Array<{ id?: string; name?: string; 
 }
 
 function tagKind(dimension: string): ConceptKind {
+  if (dimension === '0') return 'type';
+  if (dimension === '1') return 'product';
+  if (dimension === '2') return 'component';
   const normalized = dimension.toLowerCase();
   if (/(component|컴포넌트|module|모듈)/.test(normalized)) return 'component';
   if (/(product|제품|서비스)/.test(normalized)) return 'product';
   if (/(tech|기술|platform|플랫폼)/.test(normalized)) return 'tech';
   return 'type';
+}
+
+function tagDimension(name: string, fallback: string): string {
+  return name.match(TAG_DIMENSION_PATTERN)?.[1] ?? fallback;
 }
 
 function parentTaskNumber(post: RawDoorayObject): string | undefined {
@@ -154,14 +175,14 @@ export async function extractStructural(options: StructuralExtractionOptions): P
 
   for (const document of raw.posts) {
     const post = document.post;
-    const number = firstString(post, ['number', 'postNumber', 'id']);
-    if (!number) throw new Error('Raw post is missing number/postNumber/id.');
+    const numericNumber = taskNumber(post);
+    const number = String(numericNumber);
     const subject = firstString(post, ['subject', 'title']) ?? `Task ${number}`;
     addNode(nodes, {
       label: 'Task',
       key: number,
       properties: {
-        number,
+        number: numericNumber,
         subject,
         workflowClass: firstString(post, ['workflowClass', 'workflowClass.name', 'status']),
         createdAt: firstString(post, ['createdAt', 'createdDate']),
@@ -181,7 +202,7 @@ export async function extractStructural(options: StructuralExtractionOptions): P
       addNode(nodes, {
         label: 'Person',
         key: authorId,
-        properties: { memberId: authorId, name: memberName(author) ?? raw.members[authorId] ?? authorId },
+        properties: { memberId: authorId, name: raw.members[authorId] ?? authorId },
       });
       addRelationship(relationships, {
         type: 'AUTHORED',
@@ -197,7 +218,7 @@ export async function extractStructural(options: StructuralExtractionOptions): P
       addNode(nodes, {
         label: 'Person',
         key: memberId,
-        properties: { memberId, name: memberName(assignee.value) ?? raw.members[memberId] ?? memberId },
+        properties: { memberId, name: raw.members[memberId] ?? memberId },
       });
       addRelationship(relationships, {
         type: 'ASSIGNED_TO',
@@ -210,12 +231,13 @@ export async function extractStructural(options: StructuralExtractionOptions): P
     for (const tag of tagEntries(post)) {
       const name = tag.name ?? (tag.id ? raw.tags[tag.id] : undefined);
       if (!name) continue;
-      addNode(nodes, { label: 'Concept', key: name, properties: { name, kind: tagKind(tag.dimension) } });
+      const dimension = tagDimension(name, tag.dimension);
+      addNode(nodes, { label: 'Concept', key: name, properties: { name, kind: tagKind(dimension) } });
       addRelationship(relationships, {
         type: 'TAGGED',
         startKey: nodeRef('Task', number),
         endKey: nodeRef('Concept', name),
-        properties: { dimension: tag.dimension },
+        properties: { dimension },
       });
     }
 
@@ -254,7 +276,7 @@ export async function extractStructural(options: StructuralExtractionOptions): P
         addNode(nodes, {
           label: 'Person',
           key: commenterId,
-          properties: { memberId: commenterId, name: memberName(commenter) ?? raw.members[commenterId] ?? commenterId },
+          properties: { memberId: commenterId, name: raw.members[commenterId] ?? commenterId },
         });
         addRelationship(relationships, {
           type: 'COMMENTED',

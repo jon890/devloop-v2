@@ -104,6 +104,82 @@ test('fixture 5건을 온톨로지 구조 노드와 관계로 추출한다', asy
   assert.ok(relationships.filter((relationship) => relationship.type === 'TAGGED').every((relationship) => typeof relationship.properties.dimension === 'string'));
 });
 
+test('실제 Dooray 구조에서 사람 관계·태그 차원·정수 업무 번호를 추출한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  const postPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts', '101.json');
+  const document = JSON.parse(await readFile(postPath, 'utf8'));
+  document.post.users = {
+    from: {
+      type: 'member',
+      member: { organizationMemberId: 'm-1', name: '원본 이름은 사용하지 않음' },
+    },
+    to: [{
+      type: 'member',
+      member: { organizationMemberId: 'm-2' },
+    }],
+    cc: [
+      { type: 'member', member: { organizationMemberId: 'm-3' } },
+      { type: 'member', member: { organizationMemberId: 'm-unknown', name: '미등록 사용자' } },
+    ],
+  };
+  document.post.tags = [{ id: 'tag-product' }];
+  document.comments[0].creator = {
+    type: 'member',
+    member: { organizationMemberId: 'm-3' },
+  };
+  delete document.comments[0].users;
+  await writeFile(postPath, JSON.stringify(document));
+  await writeFile(
+    path.join(dataRoot, 'raw', 'tc-ocr', 'tags.json'),
+    JSON.stringify({
+      'tag-type': '0: 장애',
+      'tag-product': '1: General OCR',
+      'tag-component': '2: API',
+    }),
+  );
+
+  const result = await extractStructural({ dataRoot, project: 'tc-ocr' });
+  const records = await jsonLines(result.outputPath);
+  const nodes = records.filter((record) => 'label' in record);
+  const relationships = records.filter((record) => 'type' in record);
+
+  const task = nodes.find((node) => node.label === 'Task' && node.key === '101');
+  assert.equal(task.properties.number, 101);
+  assert.equal(typeof task.properties.number, 'number');
+  assert.ok(nodes.filter((node) => node.label === 'Comment').every((node) => typeof node.properties.commentId === 'string'));
+  assert.ok(nodes.filter((node) => node.label === 'Wiki').every((node) => typeof node.properties.pageId === 'string'));
+
+  assert.ok(relationships.some((relationship) =>
+    relationship.type === 'AUTHORED' &&
+    relationship.startKey === 'Person:m-1' &&
+    relationship.endKey === 'Task:101'));
+  assert.ok(relationships.some((relationship) =>
+    relationship.type === 'ASSIGNED_TO' &&
+    relationship.startKey === 'Task:101' &&
+    relationship.endKey === 'Person:m-2' &&
+    relationship.properties.role === 'to'));
+  assert.ok(relationships.some((relationship) =>
+    relationship.type === 'ASSIGNED_TO' &&
+    relationship.startKey === 'Task:101' &&
+    relationship.endKey === 'Person:m-3' &&
+    relationship.properties.role === 'cc'));
+  assert.ok(relationships.some((relationship) =>
+    relationship.type === 'COMMENTED' &&
+    relationship.startKey === 'Person:m-3' &&
+    relationship.endKey === 'Comment:c-101-1'));
+  assert.deepEqual(
+    new Set(
+      relationships
+        .filter((relationship) => relationship.type === 'TAGGED')
+        .map((relationship) => relationship.properties.dimension),
+    ),
+    new Set(['0', '1', '2']),
+  );
+
+  assert.equal(nodes.find((node) => node.label === 'Person' && node.key === 'm-1').properties.name, '김개발');
+  assert.equal(nodes.find((node) => node.label === 'Person' && node.key === 'm-unknown').properties.name, 'm-unknown');
+});
+
 test('태그 차원·위키 영문 기술어·업무 prefix로 중복 없는 Concept 사전을 시드한다', async () => {
   const dataRoot = await fixtureDataRoot();
   await writeFile(path.join(dataRoot, 'raw', 'tc-ocr', 'tags.json'), JSON.stringify({

@@ -1,6 +1,6 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
-import neo4j, { type Driver, type Session } from 'neo4j-driver';
+import neo4j, { type Driver, type Integer, type Session } from 'neo4j-driver';
 import {
   CORE_CONCEPTS,
   ConceptDictionarySchema,
@@ -52,12 +52,14 @@ interface NodeRef {
 }
 
 interface RelationshipRow {
-  startKey: string;
-  endKey: string;
+  startKey: DatabaseKey;
+  endKey: DatabaseKey;
   startLabel: unknown;
   endLabel: unknown;
   properties: Record<string, unknown>;
 }
+
+type DatabaseKey = string | Integer;
 
 const CONCEPT_LABEL: NodeLabel = 'Concept';
 const RELATIONSHIP_IDENTITY_PROPERTIES: Partial<Record<RelationshipType, string>> = {
@@ -259,7 +261,10 @@ function normalizeNode(
   if (node.label !== CONCEPT_LABEL) {
     return {
       ...node,
-      properties: { ...node.properties, [NODE_KEY_PROPERTIES[node.label]]: node.key },
+      properties: {
+        ...node.properties,
+        [NODE_KEY_PROPERTIES[node.label]]: normalizedKey(node.label, node.key),
+      },
     };
   }
 
@@ -286,6 +291,20 @@ function normalizeNode(
       kind: entry.kind,
     },
   };
+}
+
+function normalizedKey(label: NodeLabel, key: string): string | number {
+  if (label !== 'Task') return key;
+  const number = Number(key);
+  if (!Number.isSafeInteger(number)) {
+    throw new Error(`Task key must be a safe integer: ${key}`);
+  }
+  return number;
+}
+
+function databaseKey(label: NodeLabel, key: string): DatabaseKey {
+  const normalized = normalizedKey(label, key);
+  return typeof normalized === 'number' ? neo4j.int(normalized) : normalized;
 }
 
 function mergeNode(existing: OntologyNode | undefined, incoming: OntologyNode): OntologyNode {
@@ -341,8 +360,11 @@ async function mergeNodes(session: Session, nodes: readonly OntologyNode[]): Pro
     const rows = nodes
       .filter((node) => node.label === label)
       .map((node) => ({
-        key: node.key,
-        properties: sanitizeProperties({ ...node.properties, [keyProperty]: node.key }),
+        key: databaseKey(label, node.key),
+        properties: sanitizeProperties({
+          ...node.properties,
+          [keyProperty]: databaseKey(label, node.key),
+        }),
       }));
     if (rows.length === 0) {
       continue;
@@ -411,8 +433,8 @@ async function mergeRelationshipRows(
   rows: readonly RelationshipRow[],
 ): Promise<void> {
   const preparedRows = rows.map((row) => ({
-    startKey: row.startKey,
-    endKey: row.endKey,
+    startKey: databaseKey(startLabel, String(row.startKey)),
+    endKey: databaseKey(endLabel, String(row.endKey)),
     properties: stripResolverProperties(row.properties),
   }));
   const identityProperty = RELATIONSHIP_IDENTITY_PROPERTIES[type];
@@ -474,7 +496,7 @@ async function mergeRowsWithoutIdentity(
   endLabel: NodeLabel,
   startKeyProperty: string,
   endKeyProperty: string,
-  rows: readonly { startKey: string; endKey: string; properties: Record<string, unknown> }[],
+  rows: readonly { startKey: DatabaseKey; endKey: DatabaseKey; properties: Record<string, unknown> }[],
 ): Promise<void> {
   if (rows.length === 0) {
     return;
@@ -488,6 +510,28 @@ async function mergeRowsWithoutIdentity(
     SET r += row.properties
     `,
     { rows },
+  );
+}
+
+async function migrateTaskNumberType(session: Session): Promise<void> {
+  await session.run(`
+    MATCH (task:Task)
+    WHERE valueType(task.number) STARTS WITH 'STRING'
+       OR valueType(task.number) STARTS WITH 'FLOAT'
+    WITH task, toInteger(task.number) AS integerNumber
+    WHERE integerNumber IS NOT NULL
+    SET task.number = integerNumber
+  `);
+}
+
+async function removeLegacyUnknownTagDimensions(session: Session, project: string): Promise<void> {
+  await session.run(
+    `
+    MATCH (:Project { code: $project })-[:CONTAINS]->(task:Task)
+    MATCH (task)-[tagged:TAGGED { dimension: 'unknown' }]->()
+    DELETE tagged
+    `,
+    { project },
   );
 }
 
@@ -548,6 +592,8 @@ async function loadGraph(options: LoadOptions): Promise<void> {
   const session = driver.session({ database: 'neo4j' });
 
   try {
+    await migrateTaskNumberType(session);
+    await removeLegacyUnknownTagDimensions(session, options.project);
     await mergeNodes(session, graph.nodes);
     await mergeRelationships(session, graph.relationships);
     const stats = await collectStats(session);
