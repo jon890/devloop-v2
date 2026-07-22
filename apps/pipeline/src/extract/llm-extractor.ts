@@ -33,6 +33,8 @@ export interface LlmExtractionOptions {
   timeoutMs?: number;
   maxAttempts?: number;
   retryDelayMs?: number;
+  /** 파일럿·부분 재실행용 sourceDocId 허용 목록 (예: "Task:483", "Wiki:123"). 비우면 전체. */
+  docFilter?: readonly string[];
 }
 
 export interface LlmFailure {
@@ -298,10 +300,14 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3) {
     throw new Error('maxAttempts must be an integer between 1 and 3.');
   }
-  const [documents, concepts] = await Promise.all([
+  const [allDocuments, concepts] = await Promise.all([
     buildLlmDocuments(options.dataRoot, options.project),
     readProjectConcepts(options.dataRoot, options.project),
   ]);
+  const docFilter = options.docFilter?.length ? new Set(options.docFilter) : undefined;
+  const documents = docFilter
+    ? allDocuments.filter((document) => docFilter.has(document.sourceDocId))
+    : allDocuments;
   const results = await mapConcurrent(documents, concurrency, (document) => extractOne(document, concepts, {
     ...options,
     maxAttempts,

@@ -4,12 +4,15 @@ export interface PipelineOptions {
   project: string;
   stage?: string;
   limit?: number;
+  /** LLM 추출 부분 실행용 sourceDocId 목록 (--docs Task:483,Wiki:123) */
+  docs?: string[];
 }
 
 export function parsePipelineOptions(args: readonly string[]): PipelineOptions {
   const project = optionValue(args, '--project');
   const limitValue = optionValue(args, '--limit');
-  const optionValues = new Set([project, limitValue].filter((value): value is string => !!value));
+  const docsValue = optionValue(args, '--docs');
+  const optionValues = new Set([project, limitValue, docsValue].filter((value): value is string => !!value));
   const stage = args.find((arg) => !arg.startsWith('-') && !optionValues.has(arg));
 
   let limit: number | undefined;
@@ -20,10 +23,16 @@ export function parsePipelineOptions(args: readonly string[]): PipelineOptions {
     }
   }
 
+  const docs = docsValue?.split(',').map((value) => value.trim()).filter(Boolean);
+  if (docsValue !== undefined && docs?.length === 0) {
+    throw new Error('--docs 값에는 sourceDocId를 하나 이상 입력해야 합니다.');
+  }
+
   return {
     project: project?.trim() || DEFAULT_PROJECT,
     stage,
     limit,
+    ...(docs ? { docs } : {}),
   };
 }
 

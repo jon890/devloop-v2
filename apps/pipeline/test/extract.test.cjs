@@ -154,6 +154,38 @@ test('fixture 문서 5건을 문서당 1회, 동시 4개 이하로 LLM 추출하
   assert.equal(second.calls, 0);
 });
 
+test('docFilter에 지정한 sourceDocId 문서만 LLM 추출한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  const extractedDocIds = [];
+  const llm = {
+    async complete(prompt) {
+      const document = sourceDocument(prompt);
+      extractedDocIds.push(document.sourceDocId);
+      return { text: JSON.stringify(mockExtraction(document)), elapsedMs: 1 };
+    },
+  };
+
+  const result = await extractLlm({
+    dataRoot,
+    project: 'tc-ocr',
+    model: 'filtered-model',
+    llm,
+    docFilter: ['Task:102', 'Wiki:201'],
+    retryDelayMs: 0,
+  });
+
+  assert.equal(result.documents, 2);
+  assert.equal(result.processed, 2);
+  assert.equal(result.calls, 2);
+  assert.equal(result.failed.length, 0);
+  assert.deepEqual(new Set(extractedDocIds), new Set(['Task:102', 'Wiki:201']));
+  const records = await jsonLines(result.outputPath);
+  assert.deepEqual(
+    new Set(records.map((record) => record.properties.sourceDocId)),
+    new Set(['Task:102', 'Wiki:201']),
+  );
+});
+
 test('JSON 파싱 실패는 한 번만 교정 요청한다', async () => {
   const dataRoot = await fixtureDataRoot();
   let calls = 0;

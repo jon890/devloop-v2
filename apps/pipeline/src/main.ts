@@ -72,6 +72,7 @@ async function bootstrap(): Promise<void> {
         llm: llmAdapter(),
         concurrency: positiveInteger(process.env.LLM_CONCURRENCY, 4),
         timeoutMs: positiveInteger(process.env.LLM_TIMEOUT_MS, 120_000),
+        docFilter: options.docs,
       });
       console.log(`LLM extraction complete: documents=${result.documents} processed=${result.processed} cacheHits=${result.cacheHits} failed=${result.failed.length} calls=${result.calls} output=${result.outputPath}`);
     }
