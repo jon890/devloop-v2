@@ -1,13 +1,27 @@
 node_modules/
+.pnpm-store/
 dist/
+*.tsbuildinfo
 .env
 .env.local
 
 # 사내 데이터 (Dooray 원문·추출 결과·캐시) — 절대 커밋 금지
-apps/pipeline/data/
+apps/pipeline/data/*
+!apps/pipeline/data/raw/
+!apps/pipeline/data/graph/
+!apps/pipeline/data/cache/
+apps/pipeline/data/raw/*
+apps/pipeline/data/graph/*
+apps/pipeline/data/cache/*
+!apps/pipeline/data/raw/.gitkeep
+!apps/pipeline/data/graph/.gitkeep
+!apps/pipeline/data/cache/.gitkeep
 data/
 
 # 로그·임시
 *.log
 .DS_Store
 eval/reports/*.tmp.md
+
+# 세션 상태
+.omc/

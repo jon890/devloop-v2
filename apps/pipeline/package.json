@@ -1,0 +1,21 @@
+{
+  "name": "pipeline",
+  "version": "0.0.0",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && cp src/load/schema.cy dist/load/schema.cy",
+    "pipeline": "pnpm build && node dist/main.js",
+    "start": "node dist/main.js",
+    "schema:apply": "pnpm build && node dist/load/apply-schema.js"
+  },
+  "dependencies": {
+    "@devloop/shared": "workspace:*",
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/core": "^11.1.0",
+    "neo4j-driver": "^5.28.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.0",
+    "zod": "^3.25.0"
+  }
+}
