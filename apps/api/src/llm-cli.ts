@@ -4,7 +4,10 @@ import { spawn } from 'node:child_process';
 export interface LlmOptions {
   timeoutMs?: number;
   model?: string;
+  effort?: LlmReasoningEffort;
 }
+
+export type LlmReasoningEffort = 'minimal' | 'low' | 'medium' | 'high';
 
 export interface LlmResult {
   text: string;
@@ -74,7 +77,18 @@ abstract class ChildProcessCliAdapter implements LlmCli {
 export class CodexCliAdapter extends ChildProcessCliAdapter {
   protected command(opts?: LlmOptions): { bin: string; args: string[] } {
     const model = opts?.model ?? process.env.LLM_MODEL;
-    return { bin: 'codex', args: ['exec', ...(model ? ['-m', model] : [])] };
+    const effort = opts?.effort ?? process.env.LLM_REASONING_EFFORT;
+    if (effort && !['minimal', 'low', 'medium', 'high'].includes(effort)) {
+      throw new Error(`Unsupported LLM reasoning effort: ${effort}`);
+    }
+    return {
+      bin: 'codex',
+      args: [
+        'exec',
+        ...(model ? ['-m', model] : []),
+        ...(effort ? ['-c', `model_reasoning_effort=${effort}`] : []),
+      ],
+    };
   }
 }
 

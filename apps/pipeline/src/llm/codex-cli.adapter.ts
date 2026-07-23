@@ -1,13 +1,15 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import type { LlmCli, LlmOptions, LlmResult } from './llm-cli';
+import { LlmOptionsSchema, type LlmCli, type LlmOptions, type LlmResult } from './llm-cli';
 import { runCliProcess } from './cli-process';
 
 export class CodexCliAdapter implements LlmCli {
   async complete(prompt: string, opts?: LlmOptions): Promise<LlmResult> {
     const model = opts?.model ?? process.env.LLM_MODEL;
     if (!model) throw new Error('CodexCliAdapter requires opts.model or LLM_MODEL.');
+    const effort = opts?.effort ?? process.env.LLM_REASONING_EFFORT;
+    const parsedOptions = LlmOptionsSchema.parse({ ...opts, effort });
     const tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'devloop-codex-'));
     const outputPath = path.join(tempDirectory, 'last-message.json');
     const startedAt = performance.now();
@@ -18,8 +20,9 @@ export class CodexCliAdapter implements LlmCli {
         '--ephemeral',
         '--output-last-message', outputPath,
         '-m', model,
+        ...(parsedOptions.effort ? ['-c', `model_reasoning_effort=${parsedOptions.effort}`] : []),
         prompt,
-      ], { timeoutMs: opts?.timeoutMs });
+      ], { timeoutMs: parsedOptions.timeoutMs });
       const text = await readFile(outputPath, 'utf8');
       return { text, elapsedMs: performance.now() - startedAt };
     } finally {

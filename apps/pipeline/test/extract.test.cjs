@@ -298,6 +298,57 @@ test('fixture 문서 5건을 문서당 1회, 동시 4개 이하로 LLM 추출하
   assert.equal(second.calls, 0);
 });
 
+test('reasoning effort를 LLM mock에 전달하고 effort별 추출 캐시를 분리한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  const observedOptions = [];
+  const llm = {
+    async complete(prompt, options) {
+      observedOptions.push(options);
+      return { text: JSON.stringify(mockExtraction(sourceDocument(prompt))), elapsedMs: 1 };
+    },
+  };
+  const baseOptions = {
+    dataRoot,
+    project: 'tc-ocr',
+    model: 'effort-model',
+    docFilter: ['Task:101'],
+    retryDelayMs: 0,
+  };
+
+  const low = await extractLlm({ ...baseOptions, effort: 'low', llm });
+  assert.equal(low.cacheHits, 0);
+  assert.equal(low.calls, 1);
+  assert.deepEqual(observedOptions, [{ model: 'effort-model', effort: 'low', timeoutMs: undefined }]);
+
+  const cachedLow = await extractLlm({
+    ...baseOptions,
+    effort: 'low',
+    llm: { complete: async () => { throw new Error('low effort cache miss'); } },
+  });
+  assert.equal(cachedLow.cacheHits, 1);
+  assert.equal(cachedLow.calls, 0);
+
+  const high = await extractLlm({ ...baseOptions, effort: 'high', llm });
+  assert.equal(high.cacheHits, 0);
+  assert.equal(high.calls, 1);
+  assert.deepEqual(observedOptions.at(-1), {
+    model: 'effort-model',
+    effort: 'high',
+    timeoutMs: undefined,
+  });
+
+  const lowCache = JSON.parse(await readFile(
+    path.join(dataRoot, 'cache', 'effort-model@low', 'Task_3A101.json'),
+    'utf8',
+  ));
+  const highCache = JSON.parse(await readFile(
+    path.join(dataRoot, 'cache', 'effort-model@high', 'Task_3A101.json'),
+    'utf8',
+  ));
+  assert.equal(lowCache.model, 'effort-model@low');
+  assert.equal(highCache.model, 'effort-model@high');
+});
+
 test('LLM Task/Wiki endpoint를 raw id로 교정하고 미해석 관계를 문서별로 드롭한다', async () => {
   const dataRoot = await fixtureDataRoot();
   const postsPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts.json');
@@ -503,17 +554,29 @@ process.stdin.on('end', () => process.stdout.write(JSON.stringify({ result: inpu
 `, 'utf8');
   await Promise.all([chmod(codexPath, 0o755), chmod(claudePath, 0o755)]);
   const previousPath = process.env.PATH;
+  const previousEffort = process.env.LLM_REASONING_EFFORT;
   process.env.PATH = `${temporary}:${previousPath}`;
   process.env.WP2_ARGS_FILE = argsFile;
+  process.env.LLM_REASONING_EFFORT = 'low';
   try {
     const codex = LlmResultSchema.parse(await new CodexCliAdapter().complete('codex prompt', { model: 'codex-model' }));
     assert.equal(codex.text, '{"nodes":[],"relationships":[]}');
     const codexArgs = JSON.parse(await readFile(argsFile, 'utf8'));
     assert.deepEqual(codexArgs.slice(0, 5), ['exec', '--sandbox', 'read-only', '--ephemeral', '--output-last-message']);
     assert.match(codexArgs[5], /devloop-codex-.+\/last-message\.json$/);
-    assert.deepEqual(codexArgs.slice(6), ['-m', 'codex-model', 'codex prompt']);
+    assert.deepEqual(codexArgs.slice(6), [
+      '-m', 'codex-model', '-c', 'model_reasoning_effort=low', 'codex prompt',
+    ]);
 
-    const claude = LlmResultSchema.parse(await new ClaudeCliAdapter().complete('claude prompt', { model: 'claude-model' }));
+    await new CodexCliAdapter().complete('override prompt', { model: 'codex-model', effort: 'high' });
+    assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')).slice(6), [
+      '-m', 'codex-model', '-c', 'model_reasoning_effort=high', 'override prompt',
+    ]);
+
+    const claude = LlmResultSchema.parse(await new ClaudeCliAdapter().complete('claude prompt', {
+      model: 'claude-model',
+      effort: 'high',
+    }));
     assert.equal(claude.text, 'claude prompt');
     assert.deepEqual(claude.tokens, { in: 2, out: 3 });
     assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
@@ -521,6 +584,8 @@ process.stdin.on('end', () => process.stdout.write(JSON.stringify({ result: inpu
     ]);
   } finally {
     process.env.PATH = previousPath;
+    if (previousEffort === undefined) delete process.env.LLM_REASONING_EFFORT;
+    else process.env.LLM_REASONING_EFFORT = previousEffort;
     delete process.env.WP2_ARGS_FILE;
   }
 });

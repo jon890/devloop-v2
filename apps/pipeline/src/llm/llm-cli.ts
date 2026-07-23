@@ -1,10 +1,14 @@
 import { z } from 'zod';
 
+export const LlmReasoningEffortSchema = z.enum(['minimal', 'low', 'medium', 'high']);
+
 export const LlmOptionsSchema = z.object({
   timeoutMs: z.number().int().positive().optional(),
   model: z.string().min(1).optional(),
+  effort: LlmReasoningEffortSchema.optional(),
 });
 export type LlmOptions = z.infer<typeof LlmOptionsSchema>;
+export type LlmReasoningEffort = z.infer<typeof LlmReasoningEffortSchema>;
 
 export const LlmResultSchema = z.object({
   text: z.string(),

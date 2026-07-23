@@ -5,7 +5,7 @@ import {
   ConceptDictionarySchema,
   type ConceptDictionary,
 } from '@devloop/shared';
-import type { LlmCli } from '../llm';
+import { LlmReasoningEffortSchema, type LlmCli, type LlmReasoningEffort } from '../llm';
 import {
   buildExtractionPrompt,
   buildJsonRepairPrompt,
@@ -32,6 +32,7 @@ export interface LlmExtractionOptions {
   dataRoot: string;
   project: string;
   model: string;
+  effort?: LlmReasoningEffort;
   llm: LlmCli;
   concurrency?: number;
   timeoutMs?: number;
@@ -148,6 +149,7 @@ async function completeWithBackoff(
   llm: LlmCli,
   prompt: string,
   model: string,
+  effort: LlmReasoningEffort | undefined,
   timeoutMs: number | undefined,
   maxAttempts: number,
   retryDelayMs: number,
@@ -155,7 +157,7 @@ async function completeWithBackoff(
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     try {
-      const result = await llm.complete(prompt, { model, timeoutMs });
+      const result = await llm.complete(prompt, { model, effort, timeoutMs });
       return { text: result.text, calls: attempt };
     } catch (error) {
       lastError = error;
@@ -173,15 +175,18 @@ async function extractOne(
   concepts: ConceptDictionary,
   options: Required<Pick<LlmExtractionOptions, 'maxAttempts' | 'retryDelayMs'>> & LlmExtractionOptions,
 ): Promise<DocumentResult> {
+  const effort = options.effort;
+  const modelIdentity = `${options.model}@${effort ?? 'default'}`;
+  const cacheModelSegment = `${cacheSegment(options.model)}@${cacheSegment(effort ?? 'default')}`;
   const cachePath = path.join(
     options.dataRoot,
     'cache',
-    cacheSegment(options.model),
+    cacheModelSegment,
     `${cacheSegment(document.sourceDocId)}.json`,
   );
   const cacheIdentity = {
     docId: document.sourceDocId,
-    model: options.model,
+    model: modelIdentity,
     promptVersion: EXTRACTION_PROMPT_VERSION,
   };
   const cached = await readCache(cachePath, cacheIdentity);
@@ -205,6 +210,7 @@ async function extractOne(
       options.llm,
       prompt,
       options.model,
+      effort,
       options.timeoutMs,
       options.maxAttempts,
       options.retryDelayMs,
@@ -218,6 +224,7 @@ async function extractOne(
         options.llm,
         buildJsonRepairPrompt(prompt, first.text),
         options.model,
+        effort,
         options.timeoutMs,
         options.maxAttempts,
         options.retryDelayMs,
@@ -303,6 +310,9 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
   const concurrency = options.concurrency ?? 4;
   const maxAttempts = options.maxAttempts ?? 3;
   const retryDelayMs = options.retryDelayMs ?? 1_000;
+  const effort = LlmReasoningEffortSchema.optional().parse(
+    options.effort ?? process.env.LLM_REASONING_EFFORT,
+  );
   if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error('concurrency must be a positive integer.');
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3) {
     throw new Error('maxAttempts must be an integer between 1 and 3.');
@@ -317,6 +327,7 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
     : allDocuments;
   const results = await mapConcurrent(documents, concurrency, (document) => extractOne(document, concepts, {
     ...options,
+    effort,
     maxAttempts,
     retryDelayMs,
   }));
