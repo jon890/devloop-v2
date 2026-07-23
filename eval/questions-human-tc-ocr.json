@@ -99,7 +99,11 @@
       "question": "게이트웨이 뺀 거 왜 그랬지?",
       "gold": {
         "tasks": [483, 491],
-        "wikis": ["OCR API Gateway 제거 — 외부 전용 ingress 로 분리한 작업"]
+        "wikis": ["OCR API Gateway 제거 — 외부 전용 ingress 로 분리한 작업"],
+        "expectedFacts": [
+          "데이터 전송량(파일 크기, 5MB) 제한이 사유",
+          "OCR 사용성 개선 목적"
+        ]
       }
     },
     {
@@ -173,7 +177,11 @@
       "intent": "원인·히스토리",
       "question": "신용카드 OCR 출시 때 서비스 이용 신청 흐름은 뭘 만들어서 처리했지?",
       "gold": {
-        "tasks": [81, 82, 86, 89]
+        "tasks": [81, 82, 86, 89],
+        "expectedFacts": [
+          "이용목적 확인 인터셉터",
+          "운영자(또는 사용자)에게 메일 발송"
+        ]
       }
     },
     {
