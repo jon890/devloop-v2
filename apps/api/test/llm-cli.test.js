@@ -5,6 +5,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const { ClaudeCliAdapter, CodexCliAdapter } = require('../dist/llm-cli');
+const { GraphQueryService } = require('../dist/graph-query.service');
 
 test('API CLI 어댑터가 Codex effort를 전달하고 Claude에서는 무시한다', async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'devloop-api-cli-test-'));
@@ -61,4 +62,28 @@ process.stdin.on('end', () => process.stdout.write('mock response'));
     delete process.env.DEVLOOP_API_ARGS_FILE;
     await rm(temporary, { recursive: true, force: true });
   }
+});
+
+test('Cypher 생성 프롬프트가 TAGGED 차원과 차원 조합 집계 패턴을 설명한다', async () => {
+  let generationPrompt;
+  const llmCli = {
+    async complete(prompt) {
+      generationPrompt = prompt;
+      return { text: JSON.stringify({ cypher: 'MATCH (n) RETURN n LIMIT 1' }) };
+    },
+  };
+  const service = new GraphQueryService({}, llmCli);
+
+  await service.generateCypher('한 태그 차원으로 Task를 고르고 다른 태그 차원별로 집계', []);
+
+  assert.match(generationPrompt, /TAGGED\.dimension은 문자열/);
+  assert.match(generationPrompt, /"0"은 유형, "1"은 제품, "2"는 컴포넌트/);
+  assert.match(generationPrompt, /한 Task는 서로 다른 차원의 여러 Concept에 TAGGED될 수 있다/);
+  assert.match(
+    generationPrompt,
+    /MATCH \(t:Task\)-\[typeTag:TAGGED\]->\(:Concept \{name:"개선"\}\).*MATCH \(t\)-\[groupTag:TAGGED\]->\(c:Concept\)/,
+  );
+  assert.match(generationPrompt, /typeTag\.dimension = "0"/);
+  assert.match(generationPrompt, /groupTag\.dimension = "2"/);
+  assert.match(generationPrompt, /RETURN c\.name, count\(t\)/);
 });
