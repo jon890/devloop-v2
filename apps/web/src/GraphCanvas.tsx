@@ -130,8 +130,20 @@ export function GraphCanvas({
     const cy = cyRef.current;
     if (!cy) return;
 
+    const nodeIds = new Set(nodes.map((node) => node.id));
+    const visibleRelationships = relationships.filter(
+      (relationship) =>
+        nodeIds.has(relationship.startId) && nodeIds.has(relationship.endId),
+    );
+    const connectedNodeIds = new Set(
+      visibleRelationships.flatMap((relationship) => [
+        relationship.startId,
+        relationship.endId,
+      ]),
+    );
+    const visibleNodes = nodes.filter((node) => connectedNodeIds.has(node.id));
     const elements: ElementDefinition[] = [
-      ...nodes.map((node) => ({
+      ...visibleNodes.map((node) => ({
         data: {
           id: node.id,
           display: node.display,
@@ -140,7 +152,7 @@ export function GraphCanvas({
         },
         classes: evidenceIds.has(node.id) ? 'evidence' : 'context',
       })),
-      ...relationships.map((relationship) => ({
+      ...visibleRelationships.map((relationship) => ({
         data: {
           id: relationship.id,
           source: relationship.startId,
@@ -155,7 +167,7 @@ export function GraphCanvas({
 
     cy.elements().remove();
     cy.add(elements);
-    if (nodes.length > 0) {
+    if (visibleNodes.length > 0) {
       cy.layout({
         name: 'cose',
         animate: false,

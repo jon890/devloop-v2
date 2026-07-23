@@ -26,6 +26,8 @@ process.stdin.on('end', () => process.stdout.write('mock response'));
 
   const previousPath = process.env.PATH;
   const previousEffort = process.env.LLM_REASONING_EFFORT;
+  const previousQueryModel = process.env.QUERY_LLM_MODEL;
+  const previousModel = process.env.LLM_MODEL;
   process.env.PATH = `${temporary}:${previousPath}`;
   process.env.DEVLOOP_API_ARGS_FILE = argsFile;
   process.env.LLM_REASONING_EFFORT = 'low';
@@ -55,10 +57,28 @@ process.stdin.on('end', () => process.stdout.write('mock response'));
     assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
       '-p', '--model', 'claude-model',
     ]);
+
+    process.env.LLM_REASONING_EFFORT = 'low';
+    process.env.QUERY_LLM_MODEL = 'query-model';
+    process.env.LLM_MODEL = 'extraction-model';
+    await new CodexCliAdapter().complete('prompt');
+    assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
+      'exec', '-m', 'query-model', '-c', 'model_reasoning_effort=low',
+    ]);
+
+    process.env.QUERY_LLM_MODEL = '';
+    await new ClaudeCliAdapter().complete('prompt');
+    assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
+      '-p', '--model', 'extraction-model',
+    ]);
   } finally {
     process.env.PATH = previousPath;
     if (previousEffort === undefined) delete process.env.LLM_REASONING_EFFORT;
     else process.env.LLM_REASONING_EFFORT = previousEffort;
+    if (previousQueryModel === undefined) delete process.env.QUERY_LLM_MODEL;
+    else process.env.QUERY_LLM_MODEL = previousQueryModel;
+    if (previousModel === undefined) delete process.env.LLM_MODEL;
+    else process.env.LLM_MODEL = previousModel;
     delete process.env.DEVLOOP_API_ARGS_FILE;
     await rm(temporary, { recursive: true, force: true });
   }

@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, Injectable } from '@nestjs/common';
 import type {
   GraphNode,
+  GraphRel,
   GraphSearchResponse,
   GraphStatsResponse,
   NeighborsResponse,
@@ -21,6 +22,7 @@ const FULLTEXT_INDEXES = ['task_subject_fulltext', 'wiki_subject_fulltext', 'con
 const AnchorResponseSchema = z.object({ terms: z.array(z.string().min(1)).min(1) });
 const CypherResponseSchema = z.object({ cypher: z.string().trim().min(1) });
 const AnswerResponseSchema = z.object({ answer: z.string().trim().min(1) });
+const EVIDENCE_NODE_LIMIT = 30;
 
 @Injectable()
 export class GraphQueryService {
@@ -106,8 +108,8 @@ export class GraphQueryService {
           [`생성 오류: ${formatError(error)}`, ...diagnostics],
         ),
         evidence: fallback.ok
-          ? mergeEvidence(fallback.evidence, { nodes: anchors, relationships: [] })
-          : { nodes: anchors, relationships: [] },
+          ? await this.buildQueryEvidence(fallback.evidence, emptyEvidence(), anchors)
+          : refineQueryEvidence(emptyEvidence(), emptyEvidence(), anchors),
         cypher: fallbackCypher,
       };
     }
@@ -129,7 +131,7 @@ export class GraphQueryService {
             anchors.length,
             [`재생성 오류: ${formatError(error)}`, ...diagnostics],
           ),
-          evidence: { nodes: anchors, relationships: [] },
+          evidence: refineQueryEvidence(emptyEvidence(), emptyEvidence(), anchors),
           cypher: execution.cypher,
         };
       }
@@ -142,18 +144,18 @@ export class GraphQueryService {
           anchors.length,
           diagnostics,
         ),
-        evidence: { nodes: anchors, relationships: [] },
+        evidence: refineQueryEvidence(emptyEvidence(), emptyEvidence(), anchors),
         cypher: final.cypher,
       };
     }
 
-    let evidence = mergeEvidence(final.evidence, { nodes: anchors, relationships: [] });
+    let supportingEvidence = emptyEvidence();
     if (isAggregationCypher(final.cypher)) {
       try {
         const evidenceCypher = await this.generateEvidenceCypher(question, final.cypher, final.rows, anchors);
         const evidenceExecution = await this.executeGeneratedCypher(evidenceCypher);
         if (evidenceExecution.ok) {
-          evidence = mergeEvidence(evidence, evidenceExecution.evidence);
+          supportingEvidence = evidenceExecution.evidence;
         } else {
           diagnostics.push(`근거 Cypher 실행 실패: ${evidenceExecution.error}`);
         }
@@ -161,6 +163,7 @@ export class GraphQueryService {
         diagnostics.push(`근거 Cypher 생성 실패: ${formatError(error)}`);
       }
     }
+    const evidence = await this.buildQueryEvidence(final.evidence, supportingEvidence, anchors);
 
     try {
       const answer = await this.synthesizeAnswer(question, final.rows, evidence);
@@ -209,7 +212,7 @@ export class GraphQueryService {
     return (
       await this.completeStructured(prompt, AnchorResponseSchema, {
         timeoutMs: 60_000,
-        model: process.env.LLM_MODEL,
+        model: queryLlmModel(),
       })
     ).terms;
   }
@@ -240,7 +243,7 @@ export class GraphQueryService {
     return (
       await this.completeStructured(prompt, CypherResponseSchema, {
         timeoutMs: 90_000,
-        model: process.env.LLM_MODEL,
+        model: queryLlmModel(),
       })
     ).cypher.trim();
   }
@@ -266,7 +269,7 @@ export class GraphQueryService {
     return (
       await this.completeStructured(prompt, CypherResponseSchema, {
         timeoutMs: 90_000,
-        model: process.env.LLM_MODEL,
+        model: queryLlmModel(),
       })
     ).cypher.trim();
   }
@@ -293,6 +296,37 @@ export class GraphQueryService {
     }
   }
 
+  private async buildQueryEvidence(
+    answerEvidence: NeighborsResponse,
+    supportingEvidence: NeighborsResponse,
+    anchors: GraphNode[],
+  ): Promise<NeighborsResponse> {
+    const refined = refineQueryEvidence(answerEvidence, supportingEvidence, anchors);
+    if (refined.nodes.length === 0) return refined;
+
+    const nodeIds = refined.nodes.map((node) => node.id);
+    const anchorIds = anchors.map((anchor) => anchor.id);
+    const relationshipsBetweenNodes = await this.neo4jService.executeRead(async (session) => {
+      const result = await session.run(
+        `
+        MATCH (start)-[relationship]-(end)
+        WHERE
+          (elementId(start) IN $nodeIds AND elementId(end) IN $nodeIds)
+          OR (elementId(start) IN $nodeIds AND elementId(end) IN $anchorIds)
+          OR (elementId(start) IN $anchorIds AND elementId(end) IN $nodeIds)
+        RETURN relationship
+        `,
+        { nodeIds, anchorIds },
+      );
+      return this.neo4jService.evidenceFromResult(result);
+    });
+    return refineQueryEvidence(
+      answerEvidence,
+      mergeEvidence(supportingEvidence, relationshipsBetweenNodes),
+      anchors,
+    );
+  }
+
   private async synthesizeAnswer(
     question: string,
     rows: Record<string, unknown>[],
@@ -308,7 +342,7 @@ export class GraphQueryService {
     return (
       await this.completeStructured(prompt, AnswerResponseSchema, {
         timeoutMs: 90_000,
-        model: process.env.LLM_MODEL,
+        model: queryLlmModel(),
       })
     ).answer;
   }
@@ -343,6 +377,10 @@ function uniqueNodes(nodes: GraphNode[]): GraphNode[] {
   return [...new Map(nodes.map((node) => [node.id, node])).values()];
 }
 
+function emptyEvidence(): NeighborsResponse {
+  return { nodes: [], relationships: [] };
+}
+
 function anchorSummaries(anchors: GraphNode[]): Array<Pick<GraphNode, 'label' | 'key' | 'display'>> {
   return anchors.map(({ label, key, display }) => ({ label, key, display }));
 }
@@ -363,6 +401,82 @@ function mergeEvidence(left: NeighborsResponse, right: NeighborsResponse): Neigh
       ...new Map([...left.relationships, ...right.relationships].map((relationship) => [relationship.id, relationship])).values(),
     ],
   };
+}
+
+export function refineQueryEvidence(
+  answerEvidence: NeighborsResponse,
+  supportingEvidence: NeighborsResponse,
+  anchors: GraphNode[],
+): NeighborsResponse {
+  const answerNodeIds = new Set(answerEvidence.nodes.map((node) => node.id));
+  const base = mergeEvidence(answerEvidence, supportingEvidence);
+  const connectedNodeIds = new Set(
+    base.relationships.flatMap((relationship) => [relationship.startId, relationship.endId]),
+  );
+  const baseNodeIds = new Set(base.nodes.map((node) => node.id));
+  const connectedAnchors = anchors.filter(
+    (anchor) =>
+      connectedNodeIds.has(anchor.id) &&
+      base.relationships.some(
+        (relationship) =>
+          (relationship.startId === anchor.id && baseNodeIds.has(relationship.endId)) ||
+          (relationship.endId === anchor.id && baseNodeIds.has(relationship.startId)),
+      ),
+  );
+  const nodes = uniqueNodes([...base.nodes, ...connectedAnchors])
+    .sort((left, right) => compareEvidenceNodes(left, right, answerNodeIds))
+    .slice(0, EVIDENCE_NODE_LIMIT);
+  const selectedNodeIds = new Set(nodes.map((node) => node.id));
+  const relationships = uniqueRelationships(base.relationships)
+    .filter(
+      (relationship) =>
+        selectedNodeIds.has(relationship.startId) && selectedNodeIds.has(relationship.endId),
+    )
+    .sort((left, right) => compareEvidenceRelationships(left, right, answerNodeIds));
+  return { nodes, relationships };
+}
+
+function compareEvidenceNodes(
+  left: GraphNode,
+  right: GraphNode,
+  answerNodeIds: ReadonlySet<string>,
+): number {
+  const answerPriority = Number(!answerNodeIds.has(left.id)) - Number(!answerNodeIds.has(right.id));
+  if (answerPriority !== 0) return answerPriority;
+
+  const labelPriority = evidenceLabelPriority(left.label) - evidenceLabelPriority(right.label);
+  if (labelPriority !== 0) return labelPriority;
+  return left.display.localeCompare(right.display, 'ko') || left.id.localeCompare(right.id);
+}
+
+function compareEvidenceRelationships(
+  left: GraphRel,
+  right: GraphRel,
+  answerNodeIds: ReadonlySet<string>,
+): number {
+  const leftAnswerEndpoints =
+    Number(answerNodeIds.has(left.startId)) + Number(answerNodeIds.has(left.endId));
+  const rightAnswerEndpoints =
+    Number(answerNodeIds.has(right.startId)) + Number(answerNodeIds.has(right.endId));
+  return rightAnswerEndpoints - leftAnswerEndpoints || left.id.localeCompare(right.id);
+}
+
+function evidenceLabelPriority(label: GraphNode['label']): number {
+  if (label === 'Task') return 0;
+  if (label === 'Decision') return 1;
+  if (label === 'Wiki') return 2;
+  if (label === 'Concept') return 3;
+  return 4;
+}
+
+function uniqueRelationships(relationships: GraphRel[]): GraphRel[] {
+  return [
+    ...new Map(relationships.map((relationship) => [relationship.id, relationship])).values(),
+  ];
+}
+
+function queryLlmModel(): string | undefined {
+  return process.env.QUERY_LLM_MODEL || process.env.LLM_MODEL;
 }
 
 function failureAnswer(

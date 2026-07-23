@@ -19,6 +19,7 @@ const fixtureDir = resolve(__dirname, 'fixtures');
 class MockLlmCli {
   constructor() {
     this.prompts = [];
+    this.options = [];
     this.responses = [];
   }
 
@@ -26,8 +27,9 @@ class MockLlmCli {
     this.responses.push(...responses);
   }
 
-  async complete(prompt) {
+  async complete(prompt, options) {
     this.prompts.push(prompt);
+    this.options.push(options);
     const text = this.responses.shift();
     assert.notEqual(text, undefined, `Unexpected LlmCli call:\n${prompt}`);
     return { text, elapsedMs: 1 };
@@ -41,9 +43,13 @@ let mockLlm;
 let loadOutput;
 
 before(async () => {
-  process.env.NEO4J_URI ??= 'bolt://localhost:7687';
-  process.env.NEO4J_USER ??= 'neo4j';
-  process.env.NEO4J_PASSWORD ??= 'devloop-password';
+  process.env.NEO4J_TEST_URI ??= 'bolt://localhost:7688';
+  assertTestDatabaseUri(process.env.NEO4J_TEST_URI);
+  process.env.NEO4J_URI = process.env.NEO4J_TEST_URI;
+  process.env.NEO4J_USER = 'neo4j';
+  process.env.NEO4J_PASSWORD = 'devloop-test-password';
+  process.env.LLM_MODEL = 'extraction-test-model';
+  process.env.QUERY_LLM_MODEL = 'query-test-model';
 
   driver = neo4j.driver(
     process.env.NEO4J_URI,
@@ -191,7 +197,7 @@ test('query executes anchor, Cypher, and synthesis stages with a mock LlmCli', a
     JSON.stringify({ terms: ['General OCR'] }),
     JSON.stringify({
       cypher:
-        "MATCH (t:Task)-[r:MENTIONS]->(c:Concept) WHERE c.name = 'General OCR' RETURN t, r, c LIMIT 10",
+        "MATCH (t:Task)-[:MENTIONS]->(:Concept {name: 'General OCR'}) RETURN t LIMIT 10",
     }),
     JSON.stringify({ answer: 'General OCR는 업무 101에서 언급됐습니다.' }),
   );
@@ -208,8 +214,11 @@ test('query executes anchor, Cypher, and synthesis stages with a mock LlmCli', a
   assert.ok(response.evidence.nodes.some((node) => node.key === '101'));
   assert.ok(response.evidence.nodes.some((node) => node.key === 'General OCR'));
   assert.ok(response.evidence.relationships.some((relationship) => relationship.type === 'MENTIONS'));
+  assert.deepEqual(response.evidence.nodes.map((node) => node.label), ['Task', 'Concept']);
 
   const prompts = mockLlm.prompts.slice(-3);
+  const options = mockLlm.options.slice(-3);
+  assert.ok(options.every((option) => option.model === 'query-test-model'));
   assert.match(prompts[0], /fulltext/);
   assert.match(prompts[1], /Task: number\(int\), subject, workflowClass, createdAt/);
   assert.match(prompts[1], /Wiki: pageId, subject, parentId/);
@@ -222,6 +231,7 @@ test('query executes anchor, Cypher, and synthesis stages with a mock LlmCli', a
 
 test('query prompt exposes Wiki subject and fulltext anchor identity', async () => {
   const promptStart = mockLlm.prompts.length;
+  const configuredQueryModel = process.env.QUERY_LLM_MODEL;
   mockLlm.enqueue(
     JSON.stringify({ terms: ['Graph API'] }),
     JSON.stringify({
@@ -230,13 +240,19 @@ test('query prompt exposes Wiki subject and fulltext anchor identity', async () 
     JSON.stringify({ answer: '제목에 Graph API가 들어간 위키를 찾았습니다.' }),
   );
 
-  const response = QueryResponseSchema.parse(
-    await jsonRequest('/api/query', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ question: '제목에 Graph API가 들어가는 Wiki' }),
-    }),
-  );
+  let response;
+  delete process.env.QUERY_LLM_MODEL;
+  try {
+    response = QueryResponseSchema.parse(
+      await jsonRequest('/api/query', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ question: '제목에 Graph API가 들어가는 Wiki' }),
+      }),
+    );
+  } finally {
+    process.env.QUERY_LLM_MODEL = configuredQueryModel;
+  }
 
   assert.equal(response.answer, '제목에 Graph API가 들어간 위키를 찾았습니다.');
   assert.match(response.cypher, /w\.subject CONTAINS/);
@@ -244,6 +260,13 @@ test('query prompt exposes Wiki subject and fulltext anchor identity', async () 
   assert.match(generationPrompt, /Wiki: pageId, subject, parentId/);
   assert.doesNotMatch(generationPrompt, /Wiki:.*\btitle\b/);
   assert.match(generationPrompt, /"label":"Wiki","key":"wiki-2","display":"Graph API operation guide"/);
+  assert.deepEqual(response.evidence.nodes.map((node) => node.label), ['Wiki', 'Concept']);
+  assert.ok(response.evidence.nodes.every((node) => node.label !== 'Task'));
+  assert.ok(
+    mockLlm.options
+      .slice(promptStart, promptStart + 3)
+      .every((option) => option.model === 'extraction-test-model'),
+  );
 });
 
 test('query regenerates Cypher exactly once after an execution error', async () => {
@@ -371,3 +394,12 @@ test('query falls back to a non-empty answer when answer synthesis stays blank',
   assert.match(response.answer, /결과를 찾지 못했습니다/);
   assert.equal(response.cypher, cypher);
 });
+
+function assertTestDatabaseUri(uri) {
+  const parsed = new URL(uri);
+  assert.notEqual(
+    parsed.port || '7687',
+    '7687',
+    'NEO4J_TEST_URI must never target the production Neo4j port 7687.',
+  );
+}
