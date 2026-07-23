@@ -117,6 +117,29 @@ test('fixture 5건을 온톨로지 구조 노드와 관계로 추출한다', asy
   assert.ok(relationships.filter((relationship) => relationship.type === 'TAGGED').every((relationship) => typeof relationship.properties.dimension === 'string'));
 });
 
+test('Task bodyExcerpt는 raw 마크다운과 개행을 유지하고 앞 300자만 저장한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  const postPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts', '101.json');
+  const document = JSON.parse(await readFile(postPath, 'utf8'));
+  const rawBody = [
+    '## 개요',
+    '',
+    '* API Gateway를 제거한 이유를 기록한다.',
+    '',
+    `후속 내용 ${'가'.repeat(320)}`,
+  ].join('\n');
+  document.post.body.content = rawBody;
+  await writeFile(postPath, JSON.stringify(document));
+
+  const result = await extractStructural({ dataRoot, project: 'tc-ocr' });
+  const records = await jsonLines(result.outputPath);
+  const task = records.find((record) => record.label === 'Task' && record.key === '101');
+
+  assert.equal(task.properties.bodyExcerpt, rawBody.slice(0, 300));
+  assert.equal(task.properties.bodyExcerpt.length, 300);
+  assert.match(task.properties.bodyExcerpt, /^## 개요\n\n\* API Gateway/);
+});
+
 test('실제 Dooray 구조에서 사람 관계·태그 차원·정수 업무 번호를 추출한다', async () => {
   const dataRoot = await fixtureDataRoot();
   const postPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts', '101.json');

@@ -65,6 +65,14 @@ function taskNumber(post: RawDoorayObject): number {
   return number;
 }
 
+function taskBodyExcerpt(post: RawDoorayObject): string {
+  for (const candidatePath of ['body.content', 'body.text', 'content', 'text', 'description']) {
+    const candidate = valueAt(post, candidatePath);
+    if (typeof candidate === 'string') return candidate.slice(0, 300);
+  }
+  return '';
+}
+
 function postAuthor(post: RawDoorayObject): Record<string, unknown> | undefined {
   const candidates = [
     valueAt(post, 'users.from'),
@@ -188,6 +196,7 @@ export async function extractStructural(options: StructuralExtractionOptions): P
         workflowClass: firstString(post, ['workflowClass', 'workflowClass.name', 'status']),
         createdAt: firstString(post, ['createdAt', 'createdDate']),
         url: firstString(post, ['url', 'webUrl']),
+        bodyExcerpt: taskBodyExcerpt(post),
       },
     });
     addRelationship(relationships, {

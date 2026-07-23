@@ -22,7 +22,18 @@ const FULLTEXT_INDEXES = ['task_subject_fulltext', 'wiki_subject_fulltext', 'con
 const AnchorResponseSchema = z.object({ terms: z.array(z.string().min(1)).min(1) });
 const CypherResponseSchema = z.object({ cypher: z.string().trim().min(1) });
 const AnswerResponseSchema = z.object({ answer: z.string().trim().min(1) });
+const ANCHOR_CANDIDATE_LIMIT = 8;
 const EVIDENCE_NODE_LIMIT = 30;
+
+interface FulltextMatch {
+  node: GraphNode;
+  score: number;
+}
+
+interface AnchorCandidate {
+  node: GraphNode;
+  decisionCount?: number | null;
+}
 
 @Injectable()
 export class GraphQueryService {
@@ -52,7 +63,7 @@ export class GraphQueryService {
     const { q } = GraphSearchQuerySchema.parse({ q: rawQ });
     if (!q.trim()) return [];
     const results = await this.fulltextSearch(q, 25);
-    return uniqueNodes(results);
+    return uniqueNodes(results.map(({ node }) => node));
   }
 
   async neighbors(id: string, rawDepth = '1'): Promise<NeighborsResponse> {
@@ -85,18 +96,26 @@ export class GraphQueryService {
       diagnostics.push(`anchor 용어 추출 실패: ${formatError(error)}`);
     }
 
-    const searchResults = await Promise.allSettled(terms.map((term) => this.fulltextSearch(term, 5)));
-    const anchors = uniqueNodes(
-      searchResults.flatMap((result, index) => {
-        if (result.status === 'fulfilled') return result.value;
-        diagnostics.push(`anchor 검색 실패(${terms[index]}): ${formatError(result.reason)}`);
-        return [];
-      }),
+    const searchResults = await Promise.allSettled(
+      terms.map((term) => this.fulltextSearch(term, ANCHOR_CANDIDATE_LIMIT)),
     );
+    const fulfilledSearchResults = searchResults.flatMap((result, index) => {
+      if (result.status === 'fulfilled') return [result.value];
+      diagnostics.push(`anchor 검색 실패(${terms[index]}): ${formatError(result.reason)}`);
+      return [];
+    });
+    const anchors = rankAnchorCandidates(fulfilledSearchResults, ANCHOR_CANDIDATE_LIMIT);
+    let decisionCounts: ReadonlyMap<string, number> | undefined;
+    try {
+      decisionCounts = await this.countTaskDecisions(anchors);
+    } catch (error) {
+      diagnostics.push(`anchor Decision 연결 수 조회 실패: ${formatError(error)}`);
+    }
+    const anchorCandidates = withDecisionCounts(anchors, decisionCounts);
 
     let cypher: string;
     try {
-      cypher = await this.generateCypher(question, anchors);
+      cypher = await this.generateCypher(question, anchorCandidates);
     } catch (error) {
       const fallbackCypher = anchorFallbackCypher(anchors);
       const fallback = await this.executeGeneratedCypher(fallbackCypher);
@@ -118,7 +137,7 @@ export class GraphQueryService {
     let final = execution;
     if (execution.ok !== true) {
       try {
-        const retryCypher = await this.generateCypher(question, anchors, {
+        const retryCypher = await this.generateCypher(question, anchorCandidates, {
           previousCypher: cypher,
           error: execution.error,
         });
@@ -152,7 +171,12 @@ export class GraphQueryService {
     let supportingEvidence = emptyEvidence();
     if (isAggregationCypher(final.cypher)) {
       try {
-        const evidenceCypher = await this.generateEvidenceCypher(question, final.cypher, final.rows, anchors);
+        const evidenceCypher = await this.generateEvidenceCypher(
+          question,
+          final.cypher,
+          final.rows,
+          anchorCandidates,
+        );
         const evidenceExecution = await this.executeGeneratedCypher(evidenceCypher);
         if (evidenceExecution.ok) {
           supportingEvidence = evidenceExecution.evidence;
@@ -180,7 +204,7 @@ export class GraphQueryService {
     }
   }
 
-  private async fulltextSearch(q: string, limit: number): Promise<GraphNode[]> {
+  private async fulltextSearch(q: string, limit: number): Promise<FulltextMatch[]> {
     return this.neo4jService.executeRead(async (session) => {
       const result = await session.run(
         `
@@ -198,15 +222,48 @@ export class GraphQueryService {
           limit: neo4j.int(limit),
         },
       );
-      return result.records.map((record) => this.neo4jService.nodeToGraphNode(record.get('node')));
+      return result.records.map((record) => ({
+        node: this.neo4jService.nodeToGraphNode(record.get('node')),
+        score: toSafeNumber(record.get('score') as number),
+      }));
+    });
+  }
+
+  private async countTaskDecisions(anchors: GraphNode[]): Promise<Map<string, number>> {
+    const taskIds = anchors
+      .filter((anchor) => anchor.label === 'Task')
+      .map((anchor) => anchor.id);
+    if (taskIds.length === 0) return new Map();
+
+    return this.neo4jService.executeRead(async (session) => {
+      const result = await session.run(
+        `
+        MATCH (t:Task)
+        WHERE elementId(t) IN $taskIds
+        OPTIONAL MATCH (d:Decision)-[:DECIDED_IN]->(t)
+        RETURN elementId(t) AS taskId, count(DISTINCT d) AS decisionCount
+        `,
+        { taskIds },
+      );
+      return new Map(
+        result.records.map((record) => [
+          String(record.get('taskId')),
+          toSafeNumber(record.get('decisionCount')),
+        ]),
+      );
     });
   }
 
   private async extractAnchorTerms(question: string): Promise<string[]> {
     const prompt = [
-      '질문에서 Neo4j fulltext 검색 anchor로 쓸 핵심 용어를 3~7개 추출하라.',
+      '질문에서 Neo4j fulltext 검색 anchor로 쓸 핵심 용어를 추출하라.',
+      '각 핵심 용어가 기술 외래어 또는 제품명이면 같은 대상을 가리키는 한국어·영어 표기 변형을 양방향으로 생성하라.',
+      '한국어로 적힌 기술 용어에는 원어 영어 표기와 널리 쓰이는 영어 제품명 표기를 포함하고, 영어 용어에는 통용되는 한국어 음역 표기를 포함하라.',
+      '예: 게이트웨이 → gateway, API Gateway / 쿠버네티스 → kubernetes, Kubernetes / ingress → 잉그레스.',
+      '원문 핵심 용어와 생성한 모든 표기 변형을 각각 독립된 검색어로 terms 배열에 넣고, 중복은 제거하라.',
+      '일반적인 조사·서술어·의문 표현은 제외하라.',
       '응답은 반드시 JSON 하나만 출력한다.',
-      '형식: {"terms":["용어"]}',
+      '형식: {"terms":["원문 핵심 용어","영어 또는 한국어 표기 변형"]}',
       `질문: ${question}`,
     ].join('\n');
     return (
@@ -219,7 +276,7 @@ export class GraphQueryService {
 
   private async generateCypher(
     question: string,
-    anchors: GraphNode[],
+    anchorCandidates: AnchorCandidate[],
     retry?: { previousCypher: string; error: string },
   ): Promise<string> {
     const prompt = [
@@ -228,13 +285,19 @@ export class GraphQueryService {
       '쓰기 구문 CREATE, MERGE, SET, DELETE, REMOVE, DROP, LOAD CSV, CALL dbms/admin/apoc 는 금지한다.',
       '아래 허용 속성만 사용하고, 목록에 없는 속성(예: Wiki.title)은 절대 만들지 마라.',
       ontologySummary(),
+      '질문이 이유·배경·결정 계열(왜, 이유, 사유, 배경, 어떻게 결정, why)이거나 모호한 지칭으로 변경·선택의 근거를 묻는다면, fulltext 1위 후보 하나만 정답으로 확정하지 마라.',
+      '이유·배경·결정 질의에서는 후보 Task들의 실제 정수 key를 number 목록으로 만들고, MATCH (d:Decision)-[:DECIDED_IN]->(t:Task) WHERE t.number IN [...] 형태로 후보 전체의 Decision을 조회하라. 특정 Task 한 건의 {number: ...} 패턴으로 먼저 좁히지 마라.',
+      '각 Task 후보의 decisionCount는 Decision이 있는 후보를 놓치지 않기 위한 탐색 신호다. 개수만으로 정답을 확정하지 말고, 조회한 d.summary와 EVIDENCED_BY Comment를 질문과 비교해 가장 관련성 높은 결정을 답하게 하라.',
+      '이유·결정 질의 few-shot 질문: "그 구성 요소를 뺀 건 왜였지?"',
+      'few-shot 후보: Task key 123 / decisionCount 0 / 장애 대응, Task key 117 / decisionCount 6 / 구성 요소 제거, Task key 109 / decisionCount 1 / 주변 정리.',
+      'few-shot Cypher: MATCH (d:Decision)-[decided:DECIDED_IN]->(t:Task) WHERE t.number IN [123, 117, 109] OPTIONAL MATCH (d)-[evidenced:EVIDENCED_BY]->(comment:Comment) RETURN t, d, decided, evidenced, comment LIMIT 50',
       '태그 차원 조합 집계는 한 차원의 Concept로 Task를 필터링하고 같은 Task의 다른 TAGGED 관계를 별도로 MATCH해 다른 차원의 Concept별로 묶는 패턴이다.',
       '예시 질문: 유형 태그가 개선인 Task를 컴포넌트 Concept별로 집계해줘',
       '예시 Cypher: MATCH (t:Task)-[typeTag:TAGGED]->(:Concept {name:"개선"}) WHERE typeTag.dimension = "0" MATCH (t)-[groupTag:TAGGED]->(c:Concept) WHERE groupTag.dimension = "2" RETURN c.name, count(t)',
       '집계 질의의 Cypher는 집계 결과 행만 반환하라. 집계 뒤 근거 node/path를 재확장하거나 근거 수집용 LIMIT를 같은 쿼리에 넣지 마라. LIMIT는 집계 그룹에 적용한다.',
       '비집계 질의는 가능하면 node, relationship, path를 RETURN해서 근거 그래프를 포함하라.',
-      'fulltext 검색으로 이미 찾은 anchor를 우선 사용하라. 관련 anchor는 label과 key에 맞는 실제 노드로 제한하고, display를 질문 용어 해석에 활용하라.',
-      `Anchor nodes (label/key/display): ${JSON.stringify(anchorSummaries(anchors))}`,
+      'fulltext 검색으로 찾은 순위화된 anchor 후보를 우선 사용하라. 관련 anchor는 label과 key에 맞는 실제 노드로 제한하고, display를 질문 용어 해석에 활용하라.',
+      `Anchor candidates (label/key/display; Task includes decisionCount): ${JSON.stringify(anchorSummaries(anchorCandidates))}`,
       retry
         ? `이전 Cypher는 오류가 났다. 오류를 반영해 한 번만 고쳐라.\nPrevious: ${retry.previousCypher}\nError: ${retry.error}`
         : '',
@@ -252,7 +315,7 @@ export class GraphQueryService {
     question: string,
     answerCypher: string,
     rows: Record<string, unknown>[],
-    anchors: GraphNode[],
+    anchorCandidates: AnchorCandidate[],
   ): Promise<string> {
     const prompt = [
       '집계 답변의 결과 행을 바꾸지 않는 읽기 전용 근거 수집 전용 Cypher 하나를 작성하라.',
@@ -264,7 +327,7 @@ export class GraphQueryService {
       `Question: ${question}`,
       `Answer Cypher: ${answerCypher}`,
       `Complete aggregate rows: ${JSON.stringify(rows, jsonSafeReplacer)}`,
-      `Anchor nodes (label/key/display): ${JSON.stringify(anchorSummaries(anchors))}`,
+      `Anchor candidates (label/key/display; Task includes decisionCount): ${JSON.stringify(anchorSummaries(anchorCandidates))}`,
     ].join('\n\n');
     return (
       await this.completeStructured(prompt, CypherResponseSchema, {
@@ -335,6 +398,7 @@ export class GraphQueryService {
     const prompt = [
       '질문과 Cypher 결과, 근거 그래프를 바탕으로 한국어 답변을 작성하라.',
       '응답은 반드시 JSON 하나만 출력한다. 형식: {"answer":"답변"}',
+      '여러 Task 후보의 Decision이 함께 조회되었다면 행 순서나 fulltext 1위만으로 단정하지 말고, Task subject·Decision summary·Comment excerpt를 질문과 비교해 가장 관련성 높은 근거로 답하라.',
       `Question: ${question}`,
       `Rows: ${JSON.stringify(rows, jsonSafeReplacer)}`,
       `Evidence: ${JSON.stringify(evidence).slice(0, 20_000)}`,
@@ -377,12 +441,66 @@ function uniqueNodes(nodes: GraphNode[]): GraphNode[] {
   return [...new Map(nodes.map((node) => [node.id, node])).values()];
 }
 
+export function rankAnchorCandidates(
+  resultSets: FulltextMatch[][],
+  limit = ANCHOR_CANDIDATE_LIMIT,
+): GraphNode[] {
+  const ranked = new Map<
+    string,
+    { node: GraphNode; reciprocalRank: number; bestScore: number; firstSeen: number }
+  >();
+  let firstSeen = 0;
+  for (const resultSet of resultSets) {
+    resultSet.forEach(({ node, score }, rank) => {
+      const existing = ranked.get(node.id);
+      if (existing) {
+        existing.reciprocalRank += 1 / (60 + rank + 1);
+        existing.bestScore = Math.max(existing.bestScore, score);
+        return;
+      }
+      ranked.set(node.id, {
+        node,
+        reciprocalRank: 1 / (60 + rank + 1),
+        bestScore: score,
+        firstSeen,
+      });
+      firstSeen += 1;
+    });
+  }
+  return [...ranked.values()]
+    .sort(
+      (left, right) =>
+        right.reciprocalRank - left.reciprocalRank ||
+        right.bestScore - left.bestScore ||
+        left.firstSeen - right.firstSeen,
+    )
+    .slice(0, limit)
+    .map(({ node }) => node);
+}
+
 function emptyEvidence(): NeighborsResponse {
   return { nodes: [], relationships: [] };
 }
 
-function anchorSummaries(anchors: GraphNode[]): Array<Pick<GraphNode, 'label' | 'key' | 'display'>> {
-  return anchors.map(({ label, key, display }) => ({ label, key, display }));
+function withDecisionCounts(
+  anchors: GraphNode[],
+  decisionCounts?: ReadonlyMap<string, number>,
+): AnchorCandidate[] {
+  return anchors.map((node) =>
+    node.label === 'Task'
+      ? { node, decisionCount: decisionCounts ? decisionCounts.get(node.id) ?? 0 : null }
+      : { node },
+  );
+}
+
+function anchorSummaries(
+  candidates: AnchorCandidate[],
+): Array<Pick<GraphNode, 'label' | 'key' | 'display'> & { decisionCount?: number | null }> {
+  return candidates.map(({ node: { label, key, display }, decisionCount }) =>
+    label === 'Task'
+      ? { label, key, display, decisionCount: decisionCount ?? null }
+      : { label, key, display },
+  );
 }
 
 function anchorFallbackCypher(anchors: GraphNode[]): string {
@@ -533,7 +651,7 @@ function ontologySummary(): string {
   return [
     '허용 속성 카탈로그:',
     'Project: code, name',
-    'Task: number(int), subject, workflowClass, createdAt',
+    'Task: number(int), subject, workflowClass, createdAt, bodyExcerpt',
     'Wiki: pageId, subject, parentId',
     'Person: memberId, name',
     'Concept: name, kind',
