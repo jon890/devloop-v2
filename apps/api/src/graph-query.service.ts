@@ -8,9 +8,6 @@ import type {
   QueryResponse,
 } from '@devloop/shared';
 import {
-  NODE_KEY_PROPERTIES,
-  NODE_LABELS,
-  RELATIONSHIP_TYPES,
   QueryRequestSchema,
   GraphSearchQuerySchema,
   NeighborsQuerySchema,
@@ -22,8 +19,8 @@ import { Neo4jService } from './neo4j.service';
 
 const FULLTEXT_INDEXES = ['task_subject_fulltext', 'wiki_subject_fulltext', 'concept_name_fulltext'] as const;
 const AnchorResponseSchema = z.object({ terms: z.array(z.string().min(1)).min(1) });
-const CypherResponseSchema = z.object({ cypher: z.string().min(1) });
-const AnswerResponseSchema = z.object({ answer: z.string().min(1) });
+const CypherResponseSchema = z.object({ cypher: z.string().trim().min(1) });
+const AnswerResponseSchema = z.object({ answer: z.string().trim().min(1) });
 
 @Injectable()
 export class GraphQueryService {
@@ -77,26 +74,107 @@ export class GraphQueryService {
 
   async query(rawRequest: QueryRequest): Promise<QueryResponse> {
     const { question } = QueryRequestSchema.parse(rawRequest);
-    const terms = await this.extractAnchorTerms(question);
-    const anchors = uniqueNodes((await Promise.all(terms.map((term) => this.fulltextSearch(term, 5)))).flat());
-    const cypher = await this.generateCypher(question, anchors);
+    const diagnostics: string[] = [];
+    let terms: string[];
+    try {
+      terms = await this.extractAnchorTerms(question);
+    } catch (error) {
+      terms = [question];
+      diagnostics.push(`anchor 용어 추출 실패: ${formatError(error)}`);
+    }
+
+    const searchResults = await Promise.allSettled(terms.map((term) => this.fulltextSearch(term, 5)));
+    const anchors = uniqueNodes(
+      searchResults.flatMap((result, index) => {
+        if (result.status === 'fulfilled') return result.value;
+        diagnostics.push(`anchor 검색 실패(${terms[index]}): ${formatError(result.reason)}`);
+        return [];
+      }),
+    );
+
+    let cypher: string;
+    try {
+      cypher = await this.generateCypher(question, anchors);
+    } catch (error) {
+      const fallbackCypher = anchorFallbackCypher(anchors);
+      const fallback = await this.executeGeneratedCypher(fallbackCypher);
+      return {
+        answer: failureAnswer(
+          'Cypher 생성에 실패했습니다.',
+          terms,
+          anchors.length,
+          [`생성 오류: ${formatError(error)}`, ...diagnostics],
+        ),
+        evidence: fallback.ok
+          ? mergeEvidence(fallback.evidence, { nodes: anchors, relationships: [] })
+          : { nodes: anchors, relationships: [] },
+        cypher: fallbackCypher,
+      };
+    }
+
     const execution = await this.executeGeneratedCypher(cypher);
-    const final =
-      execution.ok === true
-        ? execution
-        : await this.executeGeneratedCypher(
-            await this.generateCypher(question, anchors, { previousCypher: cypher, error: execution.error }),
-          );
+    let final = execution;
+    if (execution.ok !== true) {
+      try {
+        const retryCypher = await this.generateCypher(question, anchors, {
+          previousCypher: cypher,
+          error: execution.error,
+        });
+        final = await this.executeGeneratedCypher(retryCypher);
+      } catch (error) {
+        return {
+          answer: failureAnswer(
+            `Cypher 실행에 실패했고 재생성도 완료하지 못했습니다: ${execution.error}`,
+            terms,
+            anchors.length,
+            [`재생성 오류: ${formatError(error)}`, ...diagnostics],
+          ),
+          evidence: { nodes: anchors, relationships: [] },
+          cypher: execution.cypher,
+        };
+      }
+    }
     if (final.ok !== true) {
       return {
-        answer: `Cypher 실행에 실패했습니다: ${final.error}`,
+        answer: failureAnswer(
+          `Cypher 실행에 실패했습니다: ${final.error}`,
+          terms,
+          anchors.length,
+          diagnostics,
+        ),
         evidence: { nodes: anchors, relationships: [] },
         cypher: final.cypher,
       };
     }
 
-    const answer = await this.synthesizeAnswer(question, final.rows, final.evidence);
-    return { answer, evidence: final.evidence, cypher: final.cypher };
+    let evidence = mergeEvidence(final.evidence, { nodes: anchors, relationships: [] });
+    if (isAggregationCypher(final.cypher)) {
+      try {
+        const evidenceCypher = await this.generateEvidenceCypher(question, final.cypher, final.rows, anchors);
+        const evidenceExecution = await this.executeGeneratedCypher(evidenceCypher);
+        if (evidenceExecution.ok) {
+          evidence = mergeEvidence(evidence, evidenceExecution.evidence);
+        } else {
+          diagnostics.push(`근거 Cypher 실행 실패: ${evidenceExecution.error}`);
+        }
+      } catch (error) {
+        diagnostics.push(`근거 Cypher 생성 실패: ${formatError(error)}`);
+      }
+    }
+
+    try {
+      const answer = await this.synthesizeAnswer(question, final.rows, evidence);
+      return { answer, evidence, cypher: final.cypher };
+    } catch (error) {
+      return {
+        answer: synthesisFallbackAnswer(final.rows, terms, final.cypher, [
+          `답변 합성 실패: ${formatError(error)}`,
+          ...diagnostics,
+        ]),
+        evidence,
+        cypher: final.cypher,
+      };
+    }
   }
 
   private async fulltextSearch(q: string, limit: number): Promise<GraphNode[]> {
@@ -145,13 +223,42 @@ export class GraphQueryService {
       'Neo4j 지식그래프 질문을 읽기 전용 Cypher 하나로 변환하라.',
       '응답은 반드시 JSON 하나만 출력한다. 형식: {"cypher":"MATCH ... RETURN ... LIMIT 50"}',
       '쓰기 구문 CREATE, MERGE, SET, DELETE, REMOVE, DROP, LOAD CSV, CALL dbms/admin/apoc 는 금지한다.',
-      '가능하면 node, relationship, path 를 RETURN 해서 근거 그래프를 포함하라.',
+      '아래 허용 속성만 사용하고, 목록에 없는 속성(예: Wiki.title)은 절대 만들지 마라.',
       ontologySummary(),
-      `Anchor nodes: ${JSON.stringify(anchors)}`,
+      '집계 질의의 Cypher는 집계 결과 행만 반환하라. 집계 뒤 근거 node/path를 재확장하거나 근거 수집용 LIMIT를 같은 쿼리에 넣지 마라. LIMIT는 집계 그룹에 적용한다.',
+      '비집계 질의는 가능하면 node, relationship, path를 RETURN해서 근거 그래프를 포함하라.',
+      'fulltext 검색으로 이미 찾은 anchor를 우선 사용하라. 관련 anchor는 label과 key에 맞는 실제 노드로 제한하고, display를 질문 용어 해석에 활용하라.',
+      `Anchor nodes (label/key/display): ${JSON.stringify(anchorSummaries(anchors))}`,
       retry
         ? `이전 Cypher는 오류가 났다. 오류를 반영해 한 번만 고쳐라.\nPrevious: ${retry.previousCypher}\nError: ${retry.error}`
         : '',
       `Question: ${question}`,
+    ].join('\n\n');
+    return (
+      await this.completeStructured(prompt, CypherResponseSchema, {
+        timeoutMs: 90_000,
+        model: process.env.LLM_MODEL,
+      })
+    ).cypher.trim();
+  }
+
+  private async generateEvidenceCypher(
+    question: string,
+    answerCypher: string,
+    rows: Record<string, unknown>[],
+    anchors: GraphNode[],
+  ): Promise<string> {
+    const prompt = [
+      '집계 답변의 결과 행을 바꾸지 않는 읽기 전용 근거 수집 전용 Cypher 하나를 작성하라.',
+      '응답은 반드시 JSON 하나만 출력한다. 형식: {"cypher":"MATCH ... RETURN nodes, relationships, paths LIMIT 50"}',
+      '답변용 집계 Cypher를 다시 집계하거나 그 결과 행을 대체하지 마라. 관련 node, relationship, path만 별도로 반환하라.',
+      '쓰기 구문 CREATE, MERGE, SET, DELETE, REMOVE, DROP, LOAD CSV, CALL dbms/admin/apoc 는 금지한다.',
+      '아래 허용 속성과 관계 방향만 사용하라.',
+      ontologySummary(),
+      `Question: ${question}`,
+      `Answer Cypher: ${answerCypher}`,
+      `Complete aggregate rows: ${JSON.stringify(rows, jsonSafeReplacer)}`,
+      `Anchor nodes (label/key/display): ${JSON.stringify(anchorSummaries(anchors))}`,
     ].join('\n\n');
     return (
       await this.completeStructured(prompt, CypherResponseSchema, {
@@ -192,7 +299,7 @@ export class GraphQueryService {
       '질문과 Cypher 결과, 근거 그래프를 바탕으로 한국어 답변을 작성하라.',
       '응답은 반드시 JSON 하나만 출력한다. 형식: {"answer":"답변"}',
       `Question: ${question}`,
-      `Rows: ${JSON.stringify(rows, jsonSafeReplacer).slice(0, 20_000)}`,
+      `Rows: ${JSON.stringify(rows, jsonSafeReplacer)}`,
       `Evidence: ${JSON.stringify(evidence).slice(0, 20_000)}`,
     ].join('\n\n');
     return (
@@ -233,6 +340,50 @@ function uniqueNodes(nodes: GraphNode[]): GraphNode[] {
   return [...new Map(nodes.map((node) => [node.id, node])).values()];
 }
 
+function anchorSummaries(anchors: GraphNode[]): Array<Pick<GraphNode, 'label' | 'key' | 'display'>> {
+  return anchors.map(({ label, key, display }) => ({ label, key, display }));
+}
+
+function anchorFallbackCypher(anchors: GraphNode[]): string {
+  if (anchors.length === 0) return 'MATCH (n) WHERE false RETURN n LIMIT 0';
+  return `MATCH (n) WHERE elementId(n) IN ${JSON.stringify(anchors.map((anchor) => anchor.id))} RETURN n LIMIT 50`;
+}
+
+function isAggregationCypher(cypher: string): boolean {
+  return /\b(?:count|sum|avg|min|max|collect|percentileCont|percentileDisc|stDev|stDevP)\s*\(/i.test(cypher);
+}
+
+function mergeEvidence(left: NeighborsResponse, right: NeighborsResponse): NeighborsResponse {
+  return {
+    nodes: uniqueNodes([...left.nodes, ...right.nodes]),
+    relationships: [
+      ...new Map([...left.relationships, ...right.relationships].map((relationship) => [relationship.id, relationship])).values(),
+    ],
+  };
+}
+
+function failureAnswer(
+  message: string,
+  terms: string[],
+  anchorCount: number,
+  diagnostics: string[],
+): string {
+  const detail = diagnostics.length > 0 ? ` 세부 정보: ${diagnostics.join('; ')}` : '';
+  return `${message} fulltext anchor 검색어 [${terms.join(', ')}]로 ${anchorCount}개 노드를 확인했습니다.${detail}`;
+}
+
+function synthesisFallbackAnswer(
+  rows: Record<string, unknown>[],
+  terms: string[],
+  cypher: string,
+  diagnostics: string[],
+): string {
+  const outcome = rows.length === 0
+    ? '조회 결과를 찾지 못했습니다.'
+    : `조회에서 ${rows.length}개 결과 행을 찾았지만 자연어 답변 합성에 실패했습니다.`;
+  return `${outcome} fulltext anchor 검색어 [${terms.join(', ')}]와 다음 Cypher를 시도했습니다: ${cypher}. ${diagnostics.join('; ')}`.trim();
+}
+
 function parseJson(text: string): unknown {
   const trimmed = text.trim();
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
@@ -262,9 +413,32 @@ function assertReadOnlyCypher(cypher: string): void {
 }
 
 function ontologySummary(): string {
-  const nodeLines = NODE_LABELS.map((label) => `${label} key=${NODE_KEY_PROPERTIES[label]}`).join(', ');
-  const relLines = RELATIONSHIP_TYPES.join(', ');
-  return `Ontology nodes: ${nodeLines}\nRelationship types: ${relLines}`;
+  return [
+    '허용 속성 카탈로그:',
+    'Project: code, name',
+    'Task: number(int), subject, workflowClass, createdAt',
+    'Wiki: pageId, subject, parentId',
+    'Person: memberId, name',
+    'Concept: name, kind',
+    'Comment: commentId, excerpt, createdAt',
+    'Decision: id, summary',
+    '관계와 방향:',
+    'CONTAINS: Project -> Task|Wiki',
+    'ASSIGNED_TO: Task -> Person',
+    'AUTHORED: Person -> Task',
+    'COMMENTED: Person -> Comment',
+    'HAS_COMMENT: Task -> Comment',
+    'TAGGED: Task -> Concept',
+    'REFERENCES: Task -> Task',
+    'CHILD_OF: Task -> Task; Wiki -> Wiki',
+    'MENTIONS: Task|Wiki -> Concept',
+    'DOCUMENTS: Wiki -> Concept',
+    'DEPENDS_ON: Concept -> Concept',
+    'DECIDED_IN: Decision -> Task',
+    'EVIDENCED_BY: Decision -> Task|Comment',
+    'AFFECTS: Decision -> Concept',
+    'RELATES_TO: Task -> Task',
+  ].join('\n');
 }
 
 function toSafeNumber(value: { toNumber?: () => number } | number): number {

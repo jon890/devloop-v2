@@ -159,6 +159,7 @@ export async function extractStructural(options: StructuralExtractionOptions): P
   const raw = await readRawProject(options.dataRoot, options.project);
   const nodes = new Map<string, OntologyNode>();
   const relationships = new Map<string, OntologyRelationship>();
+  const wikiParents: Array<{ pageId: string; parentId: string }> = [];
 
   addNode(nodes, {
     label: 'Project',
@@ -293,7 +294,7 @@ export async function extractStructural(options: StructuralExtractionOptions): P
     const pageId = firstString(wiki, ['pageId', 'id']);
     if (!pageId) throw new Error('Raw wiki page is missing pageId/id.');
     const subject = firstString(wiki, ['subject', 'title']) ?? `Wiki ${pageId}`;
-    const parentId = firstString(wiki, ['parentId', 'parent.pageId', 'parent.id']);
+    const parentId = firstString(wiki, ['parentId', 'parentPageId', 'parent.pageId', 'parent.id']);
     addNode(nodes, {
       label: 'Wiki',
       key: pageId,
@@ -305,7 +306,18 @@ export async function extractStructural(options: StructuralExtractionOptions): P
       endKey: nodeRef('Wiki', pageId),
       properties: {},
     });
+    if (parentId) wikiParents.push({ pageId, parentId });
     addTextReferences(textContent(wiki), 'Wiki', pageId, nodes, relationships);
+  }
+
+  for (const { pageId, parentId } of wikiParents) {
+    if (!nodes.has(nodeRef('Wiki', parentId))) continue;
+    addRelationship(relationships, {
+      type: 'CHILD_OF',
+      startKey: nodeRef('Wiki', pageId),
+      endKey: nodeRef('Wiki', parentId),
+      properties: {},
+    });
   }
 
   const resolvedRelationships = [...relationships.values()].filter(

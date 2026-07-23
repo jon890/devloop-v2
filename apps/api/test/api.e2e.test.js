@@ -211,9 +211,39 @@ test('query executes anchor, Cypher, and synthesis stages with a mock LlmCli', a
 
   const prompts = mockLlm.prompts.slice(-3);
   assert.match(prompts[0], /fulltext/);
-  assert.match(prompts[1], /Anchor nodes:/);
-  assert.match(prompts[1], /Ontology nodes:/);
+  assert.match(prompts[1], /Task: number\(int\), subject, workflowClass, createdAt/);
+  assert.match(prompts[1], /Wiki: pageId, subject, parentId/);
+  assert.match(prompts[1], /ASSIGNED_TO: Task -> Person/);
+  assert.match(prompts[1], /CHILD_OF: Task -> Task; Wiki -> Wiki/);
+  assert.match(prompts[1], /fulltext 검색으로 이미 찾은 anchor를 우선/);
+  assert.match(prompts[1], /"label":"Concept","key":"General OCR","display":"General OCR"/);
   assert.match(prompts[2], /Evidence:/);
+});
+
+test('query prompt exposes Wiki subject and fulltext anchor identity', async () => {
+  const promptStart = mockLlm.prompts.length;
+  mockLlm.enqueue(
+    JSON.stringify({ terms: ['Graph API'] }),
+    JSON.stringify({
+      cypher: "MATCH (w:Wiki) WHERE w.subject CONTAINS 'Graph API' RETURN w LIMIT 50",
+    }),
+    JSON.stringify({ answer: '제목에 Graph API가 들어간 위키를 찾았습니다.' }),
+  );
+
+  const response = QueryResponseSchema.parse(
+    await jsonRequest('/api/query', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ question: '제목에 Graph API가 들어가는 Wiki' }),
+    }),
+  );
+
+  assert.equal(response.answer, '제목에 Graph API가 들어간 위키를 찾았습니다.');
+  assert.match(response.cypher, /w\.subject CONTAINS/);
+  const generationPrompt = mockLlm.prompts[promptStart + 1];
+  assert.match(generationPrompt, /Wiki: pageId, subject, parentId/);
+  assert.doesNotMatch(generationPrompt, /Wiki:.*\btitle\b/);
+  assert.match(generationPrompt, /"label":"Wiki","key":"wiki-2","display":"Graph API operation guide"/);
 });
 
 test('query regenerates Cypher exactly once after an execution error', async () => {
@@ -264,4 +294,80 @@ test('query retries a malformed structured LLM response once', async () => {
   assert.equal(prompts.length, 4);
   assert.match(prompts[1], /Previous response: not-json/);
   assert.match(prompts[1], /Validation error:/);
+});
+
+test('query returns a non-empty diagnostic and attempted fallback Cypher when generation fails', async () => {
+  mockLlm.enqueue(
+    JSON.stringify({ terms: ['장애'] }),
+    JSON.stringify({ cypher: null }),
+    JSON.stringify({ cypher: null }),
+  );
+
+  const response = QueryResponseSchema.parse(
+    await jsonRequest('/api/query', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ question: '유형 태그가 장애인 Task를 제품별 집계' }),
+    }),
+  );
+
+  assert.ok(response.answer.trim().length > 0);
+  assert.match(response.answer, /Cypher 생성/);
+  assert.ok(response.cypher.trim().length > 0);
+  assert.match(response.cypher, /^MATCH/);
+});
+
+test('query keeps all aggregate rows and collects evidence with a separate Cypher', async () => {
+  const promptStart = mockLlm.prompts.length;
+  const aggregateCypher =
+    'MATCH (p:Person)<-[:ASSIGNED_TO]-(t:Task) ' +
+    'RETURN p.name AS person, count(t) AS taskCount ORDER BY taskCount DESC, person LIMIT 5';
+  const evidenceCypher =
+    'MATCH (p:Person)<-[r:ASSIGNED_TO]-(t:Task) RETURN p, r, t LIMIT 50';
+  mockLlm.enqueue(
+    JSON.stringify({ terms: ['담당 Task'] }),
+    JSON.stringify({ cypher: aggregateCypher }),
+    JSON.stringify({ cypher: evidenceCypher }),
+    JSON.stringify({ answer: 'Alice와 Bob이 각각 1건을 담당합니다.' }),
+  );
+
+  const response = QueryResponseSchema.parse(
+    await jsonRequest('/api/query', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ question: 'Person 별 담당 Task 수 상위 5명' }),
+    }),
+  );
+
+  assert.equal(response.cypher, aggregateCypher);
+  assert.equal(response.answer, 'Alice와 Bob이 각각 1건을 담당합니다.');
+  assert.ok(response.evidence.nodes.some((node) => node.key === 'member-1'));
+  assert.ok(response.evidence.nodes.some((node) => node.key === 'member-2'));
+  const prompts = mockLlm.prompts.slice(promptStart);
+  assert.match(prompts[1], /집계 결과 행만 반환/);
+  assert.match(prompts[2], /근거 수집 전용/);
+  assert.match(prompts[3], /"person":"Alice"/);
+  assert.match(prompts[3], /"person":"Bob"/);
+});
+
+test('query falls back to a non-empty answer when answer synthesis stays blank', async () => {
+  const cypher = "MATCH (c:Concept) WHERE c.name = 'missing' RETURN c LIMIT 10";
+  mockLlm.enqueue(
+    JSON.stringify({ terms: ['missing'] }),
+    JSON.stringify({ cypher }),
+    JSON.stringify({ answer: '' }),
+    JSON.stringify({ answer: '   ' }),
+  );
+
+  const response = QueryResponseSchema.parse(
+    await jsonRequest('/api/query', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ question: '없는 개념을 찾아줘' }),
+    }),
+  );
+
+  assert.ok(response.answer.trim().length > 0);
+  assert.match(response.answer, /결과를 찾지 못했습니다/);
+  assert.equal(response.cypher, cypher);
 });

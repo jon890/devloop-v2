@@ -87,6 +87,11 @@ test('fixture 5건을 온톨로지 구조 노드와 관계로 추출한다', asy
   const post = JSON.parse(await readFile(postPath, 'utf8'));
   post.post.body.content += '\n외부 작업 external-project/999999';
   await writeFile(postPath, JSON.stringify(post));
+  const childWikiPath = path.join(dataRoot, 'raw', 'tc-ocr', 'wiki', '202.json');
+  const childWiki = JSON.parse(await readFile(childWikiPath, 'utf8'));
+  childWiki.parentPageId = childWiki.parentId;
+  delete childWiki.parentId;
+  await writeFile(childWikiPath, JSON.stringify(childWiki));
   const result = await extractStructural({ dataRoot, project: 'tc-ocr' });
   assert.equal(result.outputPath, path.join(dataRoot, 'graph', 'tc-ocr', 'structural.jsonl'));
   const records = await jsonLines(result.outputPath);
@@ -101,6 +106,14 @@ test('fixture 5건을 온톨로지 구조 노드와 관계로 추출한다', asy
   assert.ok(nodes.some((node) => node.label === 'Concept' && node.key === 'GatewayInterceptor:77' && node.properties.kind === 'code-ref'));
   assert.ok(relationships.some((relationship) => relationship.type === 'REFERENCES' && relationship.startKey === 'Task:102' && relationship.endKey === 'Task:101'));
   assert.equal(relationships.some((relationship) => relationship.endKey === 'Task:999999'), false);
+  assert.ok(relationships.some((relationship) =>
+    relationship.type === 'CHILD_OF' &&
+    relationship.startKey === 'Wiki:202' &&
+    relationship.endKey === 'Wiki:201'));
+  assert.equal(relationships.some((relationship) =>
+    relationship.type === 'CHILD_OF' &&
+    relationship.startKey.startsWith('Wiki:') &&
+    relationship.endKey === 'Wiki:0'), false);
   assert.ok(relationships.filter((relationship) => relationship.type === 'TAGGED').every((relationship) => typeof relationship.properties.dimension === 'string'));
 });
 
