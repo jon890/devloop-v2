@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ConceptKindSchema } from './ontology';
+import { ConceptKindSchema } from '../ontology/ontology';
 
 export const ConceptEntrySchema = z.object({
   canonical: z.string().min(1),

@@ -4,7 +4,7 @@ import {
   OntologyNodeDefinitionSchema,
   OntologyRelationshipDefinitionSchema,
   RelationshipTypeSchema,
-} from './ontology';
+} from '../ontology/ontology';
 
 export const GraphNodeSchema = z.object({
   id: z.string(),
