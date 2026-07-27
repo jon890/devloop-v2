@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { NodeLabelSchema, RelationshipTypeSchema } from './ontology';
+import {
+  NodeLabelSchema,
+  OntologyNodeDefinitionSchema,
+  OntologyRelationshipDefinitionSchema,
+  RelationshipTypeSchema,
+} from './ontology';
 
 export const GraphNodeSchema = z.object({
   id: z.string(),
@@ -51,6 +56,9 @@ export type NeighborsQuery = z.infer<typeof NeighborsQuerySchema>;
 export const NeighborsResponseSchema = EvidenceSchema;
 export type NeighborsResponse = z.infer<typeof NeighborsResponseSchema>;
 
+export const GraphSamplesResponseSchema = EvidenceSchema;
+export type GraphSamplesResponse = z.infer<typeof GraphSamplesResponseSchema>;
+
 export const GraphSearchQuerySchema = z.object({
   q: z.string().default(''),
 });
@@ -58,3 +66,9 @@ export type GraphSearchQuery = z.infer<typeof GraphSearchQuerySchema>;
 
 export const GraphSearchResponseSchema = z.array(GraphNodeSchema);
 export type GraphSearchResponse = z.infer<typeof GraphSearchResponseSchema>;
+
+export const OntologyResponseSchema = z.object({
+  nodes: z.array(OntologyNodeDefinitionSchema),
+  relationships: z.array(OntologyRelationshipDefinitionSchema),
+});
+export type OntologyResponse = z.infer<typeof OntologyResponseSchema>;

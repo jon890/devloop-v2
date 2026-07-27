@@ -1,9 +1,16 @@
 import type {
   GraphNode,
   GraphRel,
+  GraphSamplesResponse,
+  GraphSearchResponse,
   GraphStatsResponse,
   NeighborsResponse,
+  OntologyResponse,
   QueryResponse,
+} from '@devloop/shared';
+import {
+  ONTOLOGY_NODE_DEFINITIONS,
+  ONTOLOGY_RELATIONSHIP_DEFINITIONS,
 } from '@devloop/shared';
 
 const nodes: Record<string, GraphNode> = {
@@ -191,3 +198,47 @@ export function mockNeighbors(nodeId: string): NeighborsResponse {
     relationships: selection.rels.map((id) => rels[id]).filter(Boolean),
   };
 }
+
+export function mockSearchGraph(query: string): GraphSearchResponse {
+  const normalized = query.trim().toLocaleLowerCase('ko-KR');
+  if (!normalized) return [];
+  return Object.values(nodes)
+    .filter((node) =>
+      `${node.display} ${node.key}`.toLocaleLowerCase('ko-KR').includes(normalized))
+    .slice(0, 25);
+}
+
+export function mockGraphSamples(
+  kind: 'label' | 'relationship',
+  value: string,
+): GraphSamplesResponse {
+  if (kind === 'label') {
+    return {
+      nodes: Object.values(nodes).filter((node) => node.label === value).slice(0, 5),
+      relationships: [],
+    };
+  }
+
+  const relationships = Object.values(rels)
+    .filter((relationship) => relationship.type === value)
+    .slice(0, 5);
+  const nodeIds = new Set(
+    relationships.flatMap((relationship) => [relationship.startId, relationship.endId]),
+  );
+  return {
+    nodes: Object.values(nodes).filter((node) => nodeIds.has(node.id)),
+    relationships,
+  };
+}
+
+export const mockOntologyResponse: OntologyResponse = {
+  nodes: ONTOLOGY_NODE_DEFINITIONS.map((node) => ({
+    ...node,
+    properties: [...node.properties],
+  })),
+  relationships: ONTOLOGY_RELATIONSHIP_DEFINITIONS.map((relationship) => ({
+    ...relationship,
+    directions: relationship.directions.map((direction) => ({ ...direction })),
+    properties: 'properties' in relationship ? [...relationship.properties] : undefined,
+  })),
+};

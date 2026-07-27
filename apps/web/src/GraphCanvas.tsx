@@ -34,6 +34,7 @@ type GraphCanvasProps = {
   evidenceIds: Set<string>;
   focusedNodeId: string | null;
   onNodeClick: (nodeId: string) => void;
+  includeIsolatedNodes?: boolean;
 };
 
 export function GraphCanvas({
@@ -42,6 +43,7 @@ export function GraphCanvas({
   evidenceIds,
   focusedNodeId,
   onNodeClick,
+  includeIsolatedNodes = false,
 }: GraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const cyRef = useRef<Core | null>(null);
@@ -99,15 +101,33 @@ export function GraphCanvas({
         {
           selector: 'edge',
           style: {
-            width: 1.4,
-            'line-color': '#4b667a',
-            'target-arrow-color': '#4b667a',
+            width: 2.2,
+            'line-color': '#7895a8',
+            'target-arrow-color': '#7895a8',
             'target-arrow-shape': 'triangle',
+            'arrow-scale': 0.9,
             'curve-style': 'bezier',
-            opacity: 0.62,
+            opacity: 0.72,
           },
         },
-        { selector: 'edge.context', style: { opacity: 0.18 } },
+        {
+          selector: 'edge.evidence',
+          style: {
+            width: 3,
+            'line-color': '#b7e7f5',
+            'target-arrow-color': '#b7e7f5',
+            opacity: 0.96,
+          },
+        },
+        {
+          selector: 'edge.context',
+          style: {
+            width: 2,
+            'line-color': '#607f91',
+            'target-arrow-color': '#607f91',
+            opacity: 0.42,
+          },
+        },
       ],
     });
 
@@ -141,7 +161,9 @@ export function GraphCanvas({
         relationship.endId,
       ]),
     );
-    const visibleNodes = nodes.filter((node) => connectedNodeIds.has(node.id));
+    const visibleNodes = includeIsolatedNodes
+      ? nodes
+      : nodes.filter((node) => connectedNodeIds.has(node.id));
     const elements: ElementDefinition[] = [
       ...visibleNodes.map((node) => ({
         data: {
@@ -177,7 +199,7 @@ export function GraphCanvas({
         idealEdgeLength: () => 92,
       }).run();
     }
-  }, [evidenceIds, nodes, relationships]);
+  }, [evidenceIds, includeIsolatedNodes, nodes, relationships]);
 
   useEffect(() => {
     const cy = cyRef.current;

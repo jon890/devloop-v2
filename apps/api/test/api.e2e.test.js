@@ -6,8 +6,10 @@ const { Test } = require('@nestjs/testing');
 const neo4j = require('neo4j-driver');
 const {
   GraphSearchResponseSchema,
+  GraphSamplesResponseSchema,
   GraphStatsResponseSchema,
   NeighborsResponseSchema,
+  OntologyResponseSchema,
   QueryResponseSchema,
 } = require('@devloop/shared');
 const { AppModule } = require('../dist/app.module');
@@ -165,6 +167,24 @@ test('schema, idempotent load, stats, fulltext search, and neighbors satisfy the
   assert.equal(stats.relationships.CONTAINS, 8);
   assert.equal(Object.values(stats.relationships).reduce((sum, count) => sum + count, 0), 39);
   assert.equal(stats.relationships.RELATES_TO, 3);
+
+  const ontology = OntologyResponseSchema.parse(await jsonRequest('/api/ontology'));
+  assert.equal(ontology.nodes.length, 7);
+  assert.equal(ontology.relationships.length, 15);
+
+  const taskSamples = GraphSamplesResponseSchema.parse(
+    await jsonRequest('/api/graph/samples?label=Task'),
+  );
+  assert.equal(taskSamples.nodes.length, 5);
+  assert.ok(taskSamples.nodes.every((node) => node.label === 'Task'));
+
+  const decisionSamples = GraphSamplesResponseSchema.parse(
+    await jsonRequest('/api/graph/samples?relationship=DECIDED_IN'),
+  );
+  assert.equal(decisionSamples.relationships.length, 4);
+  assert.ok(
+    decisionSamples.relationships.every((relationship) => relationship.type === 'DECIDED_IN'),
+  );
 
   const search = GraphSearchResponseSchema.parse(
     await jsonRequest(`/api/graph/search?q=${encodeURIComponent('Graph API')}`),
