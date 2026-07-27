@@ -1,6 +1,5 @@
 import type { ConceptDictionary } from '@devloop/shared';
-
-export const EXTRACTION_PROMPT_VERSION = 'wp2-v1';
+export { EXTRACTION_PROMPT_VERSION } from './extraction-prompt.const';
 
 export interface ExtractionPromptDocument {
   sourceDocId: string;

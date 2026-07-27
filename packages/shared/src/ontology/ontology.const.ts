@@ -1,5 +1,3 @@
-import { z } from 'zod';
-
 export const NODE_LABELS = [
   'Project',
   'Task',
@@ -10,9 +8,6 @@ export const NODE_LABELS = [
   'Decision',
 ] as const;
 
-export const NodeLabelSchema = z.enum(NODE_LABELS);
-export type NodeLabel = z.infer<typeof NodeLabelSchema>;
-
 export const NODE_KEY_PROPERTIES = {
   Project: 'code',
   Task: 'number',
@@ -21,16 +16,7 @@ export const NODE_KEY_PROPERTIES = {
   Comment: 'commentId',
   Concept: 'name',
   Decision: 'id',
-} as const satisfies Record<NodeLabel, string>;
-
-export type NodeKeyProperty = (typeof NODE_KEY_PROPERTIES)[NodeLabel];
-
-export type OntologyNodeDefinition = {
-  label: NodeLabel;
-  key: NodeKeyProperty;
-  properties: readonly string[];
-  description: string;
-};
+} as const;
 
 export const ONTOLOGY_NODE_DEFINITIONS = [
   {
@@ -75,7 +61,7 @@ export const ONTOLOGY_NODE_DEFINITIONS = [
     properties: ['id', 'summary', 'decidedAt'],
     description: '업무와 댓글에서 추출한 의사결정을 나타내며 배경과 근거 질의의 핵심 노드다.',
   },
-] as const satisfies readonly OntologyNodeDefinition[];
+] as const;
 
 export const RELATIONSHIP_TYPES = [
   'CONTAINS',
@@ -94,21 +80,6 @@ export const RELATIONSHIP_TYPES = [
   'AFFECTS',
   'RELATES_TO',
 ] as const;
-
-export const RelationshipTypeSchema = z.enum(RELATIONSHIP_TYPES);
-export type RelationshipType = z.infer<typeof RelationshipTypeSchema>;
-
-export type OntologyRelationshipDirection = {
-  from: NodeLabel;
-  to: NodeLabel;
-};
-
-export type OntologyRelationshipDefinition = {
-  type: RelationshipType;
-  directions: readonly OntologyRelationshipDirection[];
-  description: string;
-  properties?: readonly string[];
-};
 
 export const ONTOLOGY_RELATIONSHIP_DEFINITIONS = [
   {
@@ -200,46 +171,8 @@ export const ONTOLOGY_RELATIONSHIP_DEFINITIONS = [
     description: '업무 사이의 선후, 인과, 후속 관계를 연결한다.',
     properties: ['kind'],
   },
-] as const satisfies readonly OntologyRelationshipDefinition[];
+] as const;
 
 export const CONCEPT_KINDS = ['product', 'component', 'type', 'tech', 'code-ref'] as const;
-export const ConceptKindSchema = z.enum(CONCEPT_KINDS);
-export type ConceptKind = z.infer<typeof ConceptKindSchema>;
 
 export const RELATES_TO_KINDS = ['precedes', 'causes', 'follows-up'] as const;
-export const RelatesToKindSchema = z.enum(RELATES_TO_KINDS);
-export type RelatesToKind = z.infer<typeof RelatesToKindSchema>;
-
-export const OntologyNodeDefinitionSchema = z.object({
-  label: NodeLabelSchema,
-  key: z.string().min(1),
-  properties: z.array(z.string().min(1)),
-  description: z.string().min(1),
-});
-
-export const OntologyRelationshipDirectionSchema = z.object({
-  from: NodeLabelSchema,
-  to: NodeLabelSchema,
-});
-
-export const OntologyRelationshipDefinitionSchema = z.object({
-  type: RelationshipTypeSchema,
-  directions: z.array(OntologyRelationshipDirectionSchema).min(1),
-  description: z.string().min(1),
-  properties: z.array(z.string().min(1)).optional(),
-});
-
-export const OntologyNodeSchema = z.object({
-  label: NodeLabelSchema,
-  key: z.string().min(1),
-  properties: z.record(z.string(), z.unknown()),
-});
-export type OntologyNode = z.infer<typeof OntologyNodeSchema>;
-
-export const OntologyRelationshipSchema = z.object({
-  type: RelationshipTypeSchema,
-  startKey: z.string().min(1),
-  endKey: z.string().min(1),
-  properties: z.record(z.string(), z.unknown()).default({}),
-});
-export type OntologyRelationship = z.infer<typeof OntologyRelationshipSchema>;

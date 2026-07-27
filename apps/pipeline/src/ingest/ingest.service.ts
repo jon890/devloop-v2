@@ -13,10 +13,7 @@ import {
 import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { DoorayExecutor } from './dooray-executor';
-
-export const DOORAY_EXECUTOR = Symbol('DOORAY_EXECUTOR');
-
-const DEFAULT_RETRY_DELAYS_MS = [250, 500, 1_000] as const;
+import { DEFAULT_RETRY_DELAYS_MS, DOORAY_EXECUTOR } from './ingest.const';
 
 export interface IngestOptions {
   project: string;
@@ -43,6 +40,20 @@ export interface IngestResult {
   failures: IngestFailure[];
 }
 
+interface IngestContext {
+  projectRoot: string;
+  postsDirectory: string;
+  wikiDirectory: string;
+  retryDelays: readonly number[];
+  failures: IngestFailure[];
+  memberSources: unknown[];
+}
+
+interface CollectedNameMaps {
+  membersPath: string;
+  members: RawNameMap;
+}
+
 @Injectable()
 export class IngestService {
   constructor(@Inject(DOORAY_EXECUTOR) private readonly executor: DoorayExecutor) {}
@@ -50,6 +61,57 @@ export class IngestService {
   async ingest(options: IngestOptions): Promise<IngestResult> {
     validateOptions(options);
 
+    const context = await this.prepareContext(options);
+    const { membersPath, members } = await this.collectProjectData(options, context);
+    await this.collectMissingMembers(members, membersPath, context);
+
+    return this.buildResult(context, membersPath);
+  }
+
+  private async collectProjectData(
+    options: IngestOptions,
+    context: IngestContext,
+  ): Promise<CollectedNameMaps> {
+    const posts = await this.collectPostList(
+      options.project,
+      join(context.projectRoot, 'posts.json'),
+      context.retryDelays,
+      context.failures,
+    );
+    context.memberSources.push(posts);
+
+    await this.collectPostDocuments(options, posts, context);
+
+    const wikiPages = await this.collectWiki(
+      options.project,
+      context.wikiDirectory,
+      options.limit,
+      context.retryDelays,
+      context.failures,
+    );
+    context.memberSources.push(wikiPages);
+
+    await this.collectNameMap({
+      path: join(context.projectRoot, 'tags.json'),
+      args: ['project', 'tags', options.project, '--json'],
+      item: 'tags',
+      retryDelays: context.retryDelays,
+      failures: context.failures,
+    });
+
+    const membersPath = join(context.projectRoot, 'members.json');
+    const members = await this.collectNameMap({
+      path: membersPath,
+      args: ['member', 'list', options.project, '--json'],
+      item: 'members',
+      retryDelays: context.retryDelays,
+      failures: context.failures,
+    });
+
+    return { membersPath, members };
+  }
+
+  private async prepareContext(options: IngestOptions): Promise<IngestContext> {
     const projectRoot = join(
       options.dataRoot ?? resolve(__dirname, '../../data/raw'),
       options.project,
@@ -63,86 +125,82 @@ export class IngestService {
     await mkdir(postsDirectory, { recursive: true });
     await mkdir(wikiDirectory, { recursive: true });
 
-    const posts = await this.collectPostList(
-      options.project,
-      join(projectRoot, 'posts.json'),
+    return {
+      projectRoot,
+      postsDirectory,
+      wikiDirectory,
       retryDelays,
       failures,
-    );
-    memberSources.push(posts);
+      memberSources,
+    };
+  }
 
+  private async collectPostDocuments(
+    options: IngestOptions,
+    posts: RawPosts,
+    context: IngestContext,
+  ): Promise<void> {
     const selectedPosts = options.limit === undefined ? posts : posts.slice(0, options.limit);
     for (const summary of selectedPosts) {
-      const number = getPostNumber(summary);
-      if (number === undefined) {
-        failures.push({
-          item: 'post:unknown',
-          command: 'dooray post list',
-          error: '업무 목록 항목에 number가 없습니다.',
-        });
-        continue;
-      }
+      await this.collectPostDocument(options.project, summary, context);
+    }
+  }
 
-      const destination = join(postsDirectory, `${number}.json`);
-      const existing = await readExistingJson(destination, RawPostDocumentSchema);
-      if (existing !== undefined) {
-        memberSources.push(existing);
-        continue;
-      }
-
-      const postArgs = ['post', 'get', options.project, String(number), '--json'];
-      const commentArgs = [
-        'post',
-        'comment',
-        'list',
-        options.project,
-        String(number),
-        '--json',
-      ];
-
-      try {
-        const post = await this.executeJson(postArgs, RawDoorayObjectSchema.parse, retryDelays);
-        const comments = await this.executeJson(
-          commentArgs,
-          (value) => RawPostsSchema.parse(value),
-          retryDelays,
-        );
-        const document: RawPostDocument = { post, comments };
-        await writeJson(destination, document);
-        memberSources.push(document);
-      } catch (error) {
-        const failedArgs = error instanceof CommandFailure ? error.args : postArgs;
-        failures.push(toFailure(`post:${number}`, failedArgs, error));
-      }
+  private async collectPostDocument(
+    project: string,
+    summary: RawDoorayObject,
+    context: IngestContext,
+  ): Promise<void> {
+    const number = getPostNumber(summary);
+    if (number === undefined) {
+      context.failures.push({
+        item: 'post:unknown',
+        command: 'dooray post list',
+        error: '업무 목록 항목에 number가 없습니다.',
+      });
+      return;
     }
 
-    const wikiPages = await this.collectWiki(
-      options.project,
-      wikiDirectory,
-      options.limit,
-      retryDelays,
-      failures,
-    );
-    memberSources.push(wikiPages);
+    const destination = join(context.postsDirectory, `${number}.json`);
+    const existing = await readExistingJson(destination, RawPostDocumentSchema);
+    if (existing !== undefined) {
+      context.memberSources.push(existing);
+      return;
+    }
 
-    await this.collectNameMap({
-      path: join(projectRoot, 'tags.json'),
-      args: ['project', 'tags', options.project, '--json'],
-      item: 'tags',
-      retryDelays,
-      failures,
-    });
+    await this.fetchPostDocument(project, number, destination, context);
+  }
 
-    const membersPath = join(projectRoot, 'members.json');
-    const members = await this.collectNameMap({
-      path: membersPath,
-      args: ['member', 'list', options.project, '--json'],
-      item: 'members',
-      retryDelays,
-      failures,
-    });
+  private async fetchPostDocument(
+    project: string,
+    number: string | number,
+    destination: string,
+    context: IngestContext,
+  ): Promise<void> {
+    const postArgs = ['post', 'get', project, String(number), '--json'];
+    const commentArgs = ['post', 'comment', 'list', project, String(number), '--json'];
+    try {
+      const post = await this.executeJson(postArgs, RawDoorayObjectSchema.parse, context.retryDelays);
+      const comments = await this.executeJson(
+        commentArgs,
+        (value) => RawPostsSchema.parse(value),
+        context.retryDelays,
+      );
+      const document: RawPostDocument = { post, comments };
+      await writeJson(destination, document);
+      context.memberSources.push(document);
+    } catch (error) {
+      const failedArgs = error instanceof CommandFailure ? error.args : postArgs;
+      context.failures.push(toFailure(`post:${number}`, failedArgs, error));
+    }
+  }
 
-    const missingMemberIds = [...collectMemberIds(memberSources)]
+  private async collectMissingMembers(
+    members: RawNameMap,
+    membersPath: string,
+    context: IngestContext,
+  ): Promise<void> {
+    const missingMemberIds = [...collectMemberIds(context.memberSources)]
       .filter((memberId) => members[memberId] === undefined)
       .sort();
     let membersChanged = false;
@@ -150,7 +208,7 @@ export class IngestService {
     for (const memberId of missingMemberIds) {
       const args = ['member', 'get', memberId, '--json'];
       try {
-        const member = await this.executeJson(args, RawDoorayObjectSchema.parse, retryDelays);
+        const member = await this.executeJson(args, RawDoorayObjectSchema.parse, context.retryDelays);
         const name = getString(member, 'name');
         if (!name) {
           throw new Error('멤버 응답에 name이 없습니다.');
@@ -158,22 +216,24 @@ export class IngestService {
         members[memberId] = name;
         membersChanged = true;
       } catch (error) {
-        failures.push(toFailure(`member:${memberId}`, args, error));
+        context.failures.push(toFailure(`member:${memberId}`, args, error));
       }
     }
 
     if (membersChanged) {
       await writeJson(membersPath, members);
     }
+  }
 
+  private async buildResult(context: IngestContext, membersPath: string): Promise<IngestResult> {
     return {
       stats: {
-        posts: await countJsonFiles(postsDirectory),
-        wiki: await countJsonFiles(wikiDirectory),
-        tags: await fileCount(join(projectRoot, 'tags.json')),
+        posts: await countJsonFiles(context.postsDirectory),
+        wiki: await countJsonFiles(context.wikiDirectory),
+        tags: await fileCount(join(context.projectRoot, 'tags.json')),
         members: await fileCount(membersPath),
       },
-      failures,
+      failures: context.failures,
     };
   }
 
