@@ -25,3 +25,6 @@ eval/reports/*.tmp.md
 
 # 세션 상태
 .omc/
+
+# 시각 검증 산출물 (문서에서 참조하지 않는 스크린샷)
+artifacts/
