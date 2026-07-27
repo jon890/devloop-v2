@@ -49,6 +49,11 @@ interface IngestContext {
   memberSources: unknown[];
 }
 
+interface CollectedNameMaps {
+  membersPath: string;
+  members: RawNameMap;
+}
+
 @Injectable()
 export class IngestService {
   constructor(@Inject(DOORAY_EXECUTOR) private readonly executor: DoorayExecutor) {}
@@ -57,6 +62,16 @@ export class IngestService {
     validateOptions(options);
 
     const context = await this.prepareContext(options);
+    const { membersPath, members } = await this.collectProjectData(options, context);
+    await this.collectMissingMembers(members, membersPath, context);
+
+    return this.buildResult(context, membersPath);
+  }
+
+  private async collectProjectData(
+    options: IngestOptions,
+    context: IngestContext,
+  ): Promise<CollectedNameMaps> {
     const posts = await this.collectPostList(
       options.project,
       join(context.projectRoot, 'posts.json'),
@@ -93,9 +108,7 @@ export class IngestService {
       failures: context.failures,
     });
 
-    await this.collectMissingMembers(members, membersPath, context);
-
-    return this.buildResult(context, membersPath);
+    return { membersPath, members };
   }
 
   private async prepareContext(options: IngestOptions): Promise<IngestContext> {
@@ -129,47 +142,56 @@ export class IngestService {
   ): Promise<void> {
     const selectedPosts = options.limit === undefined ? posts : posts.slice(0, options.limit);
     for (const summary of selectedPosts) {
-      const number = getPostNumber(summary);
-      if (number === undefined) {
-        context.failures.push({
-          item: 'post:unknown',
-          command: 'dooray post list',
-          error: '업무 목록 항목에 number가 없습니다.',
-        });
-        continue;
-      }
+      await this.collectPostDocument(options.project, summary, context);
+    }
+  }
 
-      const destination = join(context.postsDirectory, `${number}.json`);
-      const existing = await readExistingJson(destination, RawPostDocumentSchema);
-      if (existing !== undefined) {
-        context.memberSources.push(existing);
-        continue;
-      }
+  private async collectPostDocument(
+    project: string,
+    summary: RawDoorayObject,
+    context: IngestContext,
+  ): Promise<void> {
+    const number = getPostNumber(summary);
+    if (number === undefined) {
+      context.failures.push({
+        item: 'post:unknown',
+        command: 'dooray post list',
+        error: '업무 목록 항목에 number가 없습니다.',
+      });
+      return;
+    }
 
-      const postArgs = ['post', 'get', options.project, String(number), '--json'];
-      const commentArgs = [
-        'post',
-        'comment',
-        'list',
-        options.project,
-        String(number),
-        '--json',
-      ];
+    const destination = join(context.postsDirectory, `${number}.json`);
+    const existing = await readExistingJson(destination, RawPostDocumentSchema);
+    if (existing !== undefined) {
+      context.memberSources.push(existing);
+      return;
+    }
 
-      try {
-        const post = await this.executeJson(postArgs, RawDoorayObjectSchema.parse, context.retryDelays);
-        const comments = await this.executeJson(
-          commentArgs,
-          (value) => RawPostsSchema.parse(value),
-          context.retryDelays,
-        );
-        const document: RawPostDocument = { post, comments };
-        await writeJson(destination, document);
-        context.memberSources.push(document);
-      } catch (error) {
-        const failedArgs = error instanceof CommandFailure ? error.args : postArgs;
-        context.failures.push(toFailure(`post:${number}`, failedArgs, error));
-      }
+    await this.fetchPostDocument(project, number, destination, context);
+  }
+
+  private async fetchPostDocument(
+    project: string,
+    number: string | number,
+    destination: string,
+    context: IngestContext,
+  ): Promise<void> {
+    const postArgs = ['post', 'get', project, String(number), '--json'];
+    const commentArgs = ['post', 'comment', 'list', project, String(number), '--json'];
+    try {
+      const post = await this.executeJson(postArgs, RawDoorayObjectSchema.parse, context.retryDelays);
+      const comments = await this.executeJson(
+        commentArgs,
+        (value) => RawPostsSchema.parse(value),
+        context.retryDelays,
+      );
+      const document: RawPostDocument = { post, comments };
+      await writeJson(destination, document);
+      context.memberSources.push(document);
+    } catch (error) {
+      const failedArgs = error instanceof CommandFailure ? error.args : postArgs;
+      context.failures.push(toFailure(`post:${number}`, failedArgs, error));
     }
   }
 

@@ -73,6 +73,15 @@ interface RelationshipRow {
   properties: Record<string, unknown>;
 }
 
+interface RelationshipMergeScope {
+  session: Session;
+  type: RelationshipType;
+  startLabel: NodeLabel;
+  endLabel: NodeLabel;
+  startKeyProperty: string;
+  endKeyProperty: string;
+}
+
 type DatabaseKey = string | Integer;
 type ConceptSource = 'llm' | 'structural';
 
@@ -740,19 +749,19 @@ async function mergeRelationshipRows(
   endKeyProperty: string,
   rows: readonly RelationshipRow[],
 ): Promise<void> {
+  const scope: RelationshipMergeScope = {
+    session,
+    type,
+    startLabel,
+    endLabel,
+    startKeyProperty,
+    endKeyProperty,
+  };
   const preparedRows = prepareRelationshipRows(rows, startLabel, endLabel);
   const identityProperty = RELATIONSHIP_IDENTITY_PROPERTIES[type];
 
   if (!identityProperty) {
-    await mergeRowsWithoutIdentity(
-      session,
-      type,
-      startLabel,
-      endLabel,
-      startKeyProperty,
-      endKeyProperty,
-      preparedRows,
-    );
+    await mergeRowsWithoutIdentity(scope, preparedRows);
     return;
   }
 
@@ -762,27 +771,10 @@ async function mergeRelationshipRows(
   );
 
   if (rowsWithoutIdentity.length > 0) {
-    await mergeRowsWithoutIdentity(
-      session,
-      type,
-      startLabel,
-      endLabel,
-      startKeyProperty,
-      endKeyProperty,
-      rowsWithoutIdentity,
-    );
+    await mergeRowsWithoutIdentity(scope, rowsWithoutIdentity);
   }
   if (rowsWithIdentity.length > 0) {
-    await mergeRowsWithIdentity(
-      session,
-      type,
-      startLabel,
-      endLabel,
-      startKeyProperty,
-      endKeyProperty,
-      identityProperty,
-      rowsWithIdentity,
-    );
+    await mergeRowsWithIdentity(scope, identityProperty, rowsWithIdentity);
   }
 }
 
@@ -816,21 +808,16 @@ function splitRowsByIdentity(
 }
 
 async function mergeRowsWithIdentity(
-  session: Session,
-  type: RelationshipType,
-  startLabel: NodeLabel,
-  endLabel: NodeLabel,
-  startKeyProperty: string,
-  endKeyProperty: string,
+  scope: RelationshipMergeScope,
   identityProperty: string,
   rows: readonly { startKey: DatabaseKey; endKey: DatabaseKey; properties: Record<string, unknown> }[],
 ): Promise<void> {
-  await session.run(
+  await scope.session.run(
     `
     UNWIND $rows AS row
-    MATCH (start:${startLabel} { ${startKeyProperty}: row.startKey })
-    MATCH (end:${endLabel} { ${endKeyProperty}: row.endKey })
-    MERGE (start)-[r:${type} { ${identityProperty}: row.identity }]->(end)
+    MATCH (start:${scope.startLabel} { ${scope.startKeyProperty}: row.startKey })
+    MATCH (end:${scope.endLabel} { ${scope.endKeyProperty}: row.endKey })
+    MERGE (start)-[r:${scope.type} { ${identityProperty}: row.identity }]->(end)
     SET r += row.properties
     `,
     {
@@ -843,23 +830,18 @@ async function mergeRowsWithIdentity(
 }
 
 async function mergeRowsWithoutIdentity(
-  session: Session,
-  type: RelationshipType,
-  startLabel: NodeLabel,
-  endLabel: NodeLabel,
-  startKeyProperty: string,
-  endKeyProperty: string,
+  scope: RelationshipMergeScope,
   rows: readonly { startKey: DatabaseKey; endKey: DatabaseKey; properties: Record<string, unknown> }[],
 ): Promise<void> {
   if (rows.length === 0) {
     return;
   }
-  await session.run(
+  await scope.session.run(
     `
     UNWIND $rows AS row
-    MATCH (start:${startLabel} { ${startKeyProperty}: row.startKey })
-    MATCH (end:${endLabel} { ${endKeyProperty}: row.endKey })
-    MERGE (start)-[r:${type}]->(end)
+    MATCH (start:${scope.startLabel} { ${scope.startKeyProperty}: row.startKey })
+    MATCH (end:${scope.endLabel} { ${scope.endKeyProperty}: row.endKey })
+    MERGE (start)-[r:${scope.type}]->(end)
     SET r += row.properties
     `,
     { rows },

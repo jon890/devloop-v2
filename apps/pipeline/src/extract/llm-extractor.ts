@@ -243,25 +243,36 @@ async function completeExtraction(
       calls: first.calls,
     };
   } catch (firstParseError) {
-    const repair = await completeWithBackoff(
-      options.llm,
-      buildJsonRepairPrompt(prompt, first.text),
-      options.model,
-      context.effort,
-      options.timeoutMs,
-      options.maxAttempts,
-      options.retryDelayMs,
+    return repairExtraction(prompt, first.text, first.calls, firstParseError, context, options);
+  }
+}
+
+async function repairExtraction(
+  prompt: string,
+  firstText: string,
+  firstCalls: number,
+  firstParseError: unknown,
+  context: ExtractionContext,
+  options: Required<Pick<LlmExtractionOptions, 'maxAttempts' | 'retryDelayMs'>> & LlmExtractionOptions,
+): Promise<{ extraction: LlmExtraction; calls: number }> {
+  const repair = await completeWithBackoff(
+    options.llm,
+    buildJsonRepairPrompt(prompt, firstText),
+    options.model,
+    context.effort,
+    options.timeoutMs,
+    options.maxAttempts,
+    options.retryDelayMs,
+  );
+  try {
+    return {
+      extraction: validateSourceDocId(parseJsonResponse(repair.text), context.document.sourceDocId),
+      calls: firstCalls + repair.calls,
+    };
+  } catch (repairError) {
+    throw new Error(
+      `JSON repair failed: ${repairError instanceof Error ? repairError.message : String(repairError)}; first error: ${firstParseError instanceof Error ? firstParseError.message : String(firstParseError)}`,
     );
-    try {
-      return {
-        extraction: validateSourceDocId(parseJsonResponse(repair.text), context.document.sourceDocId),
-        calls: first.calls + repair.calls,
-      };
-    } catch (repairError) {
-      throw new Error(
-        `JSON repair failed: ${repairError instanceof Error ? repairError.message : String(repairError)}; first error: ${firstParseError instanceof Error ? firstParseError.message : String(firstParseError)}`,
-      );
-    }
   }
 }
 
