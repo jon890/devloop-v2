@@ -69,6 +69,14 @@ interface DocumentResult {
   failure?: LlmFailure;
 }
 
+interface ExtractionContext {
+  document: ExtractionPromptDocument;
+  effort: LlmReasoningEffort | undefined;
+  modelIdentity: string;
+  cachePath: string;
+  cacheIdentity: Omit<CacheEnvelope, 'result'>;
+}
+
 class CompletionError extends Error {
   constructor(message: string, readonly calls: number) {
     super(message);
@@ -171,11 +179,10 @@ async function completeWithBackoff(
   );
 }
 
-async function extractOne(
+function createExtractionContext(
   document: ExtractionPromptDocument,
-  concepts: ConceptDictionary,
-  options: Required<Pick<LlmExtractionOptions, 'maxAttempts' | 'retryDelayMs'>> & LlmExtractionOptions,
-): Promise<DocumentResult> {
+  options: LlmExtractionOptions,
+): ExtractionContext {
   const effort = options.effort;
   const modelIdentity = `${options.model}@${effort ?? 'default'}`;
   const cacheModelSegment = `${cacheSegment(options.model)}@${cacheSegment(effort ?? 'default')}`;
@@ -185,63 +192,101 @@ async function extractOne(
     cacheModelSegment,
     `${cacheSegment(document.sourceDocId)}.json`,
   );
-  const cacheIdentity = {
-    docId: document.sourceDocId,
-    model: modelIdentity,
-    promptVersion: EXTRACTION_PROMPT_VERSION,
+  return {
+    document,
+    effort,
+    modelIdentity,
+    cachePath,
+    cacheIdentity: {
+      docId: document.sourceDocId,
+      model: modelIdentity,
+      promptVersion: EXTRACTION_PROMPT_VERSION,
+    },
   };
-  const cached = await readCache(cachePath, cacheIdentity);
-  if (cached) {
-    try {
-      return {
-        document,
-        extraction: validateSourceDocId(cached, document.sourceDocId),
-        cacheHit: true,
-        calls: 0,
-      };
-    } catch {
-      // A stale or manually modified cache entry is treated as a miss.
-    }
-  }
+}
 
-  const prompt = buildExtractionPrompt(document, concepts);
-  let calls = 0;
+async function cachedDocumentResult(context: ExtractionContext): Promise<DocumentResult | undefined> {
+  const cached = await readCache(context.cachePath, context.cacheIdentity);
+  if (!cached) {
+    return undefined;
+  }
   try {
-    const first = await completeWithBackoff(
+    return {
+      document: context.document,
+      extraction: validateSourceDocId(cached, context.document.sourceDocId),
+      cacheHit: true,
+      calls: 0,
+    };
+  } catch {
+    // A stale or manually modified cache entry is treated as a miss.
+    return undefined;
+  }
+}
+
+async function completeExtraction(
+  prompt: string,
+  context: ExtractionContext,
+  options: Required<Pick<LlmExtractionOptions, 'maxAttempts' | 'retryDelayMs'>> & LlmExtractionOptions,
+): Promise<{ extraction: LlmExtraction; calls: number }> {
+  const first = await completeWithBackoff(
+    options.llm,
+    prompt,
+    options.model,
+    context.effort,
+    options.timeoutMs,
+    options.maxAttempts,
+    options.retryDelayMs,
+  );
+  try {
+    return {
+      extraction: validateSourceDocId(parseJsonResponse(first.text), context.document.sourceDocId),
+      calls: first.calls,
+    };
+  } catch (firstParseError) {
+    const repair = await completeWithBackoff(
       options.llm,
-      prompt,
+      buildJsonRepairPrompt(prompt, first.text),
       options.model,
-      effort,
+      context.effort,
       options.timeoutMs,
       options.maxAttempts,
       options.retryDelayMs,
     );
-    calls += first.calls;
-    let extraction: LlmExtraction;
     try {
-      extraction = validateSourceDocId(parseJsonResponse(first.text), document.sourceDocId);
-    } catch (firstParseError) {
-      const repair = await completeWithBackoff(
-        options.llm,
-        buildJsonRepairPrompt(prompt, first.text),
-        options.model,
-        effort,
-        options.timeoutMs,
-        options.maxAttempts,
-        options.retryDelayMs,
+      return {
+        extraction: validateSourceDocId(parseJsonResponse(repair.text), context.document.sourceDocId),
+        calls: first.calls + repair.calls,
+      };
+    } catch (repairError) {
+      throw new Error(
+        `JSON repair failed: ${repairError instanceof Error ? repairError.message : String(repairError)}; first error: ${firstParseError instanceof Error ? firstParseError.message : String(firstParseError)}`,
       );
-      calls += repair.calls;
-      try {
-        extraction = validateSourceDocId(parseJsonResponse(repair.text), document.sourceDocId);
-      } catch (repairError) {
-        throw new Error(
-          `JSON repair failed: ${repairError instanceof Error ? repairError.message : String(repairError)}; first error: ${firstParseError instanceof Error ? firstParseError.message : String(firstParseError)}`,
-        );
-      }
     }
-    await mkdir(path.dirname(cachePath), { recursive: true });
-    const envelope: CacheEnvelope = { ...cacheIdentity, result: extraction };
-    await writeFile(cachePath, `${JSON.stringify(envelope, null, 2)}\n`, 'utf8');
+  }
+}
+
+async function writeCache(context: ExtractionContext, extraction: LlmExtraction): Promise<void> {
+  await mkdir(path.dirname(context.cachePath), { recursive: true });
+  const envelope: CacheEnvelope = { ...context.cacheIdentity, result: extraction };
+  await writeFile(context.cachePath, `${JSON.stringify(envelope, null, 2)}\n`, 'utf8');
+}
+
+async function extractOne(
+  document: ExtractionPromptDocument,
+  concepts: ConceptDictionary,
+  options: Required<Pick<LlmExtractionOptions, 'maxAttempts' | 'retryDelayMs'>> & LlmExtractionOptions,
+): Promise<DocumentResult> {
+  const context = createExtractionContext(document, options);
+  const cached = await cachedDocumentResult(context);
+  if (cached) return cached;
+
+  const prompt = buildExtractionPrompt(document, concepts);
+  let calls = 0;
+  try {
+    const completed = await completeExtraction(prompt, context, options);
+    const extraction = completed.extraction;
+    calls += completed.calls;
+    await writeCache(context, extraction);
     return { document, extraction, cacheHit: false, calls };
   } catch (error) {
     if (error instanceof CompletionError) calls += error.calls;
