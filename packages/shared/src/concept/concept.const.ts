@@ -1,15 +1,4 @@
-import { z } from 'zod';
-import { ConceptKindSchema } from '../ontology/ontology';
-
-export const ConceptEntrySchema = z.object({
-  canonical: z.string().min(1),
-  kind: ConceptKindSchema,
-  aliases: z.array(z.string().min(1)),
-});
-export type ConceptEntry = z.infer<typeof ConceptEntrySchema>;
-
-export const ConceptDictionarySchema = z.array(ConceptEntrySchema);
-export type ConceptDictionary = z.infer<typeof ConceptDictionarySchema>;
+import type { ConceptDictionary } from './concept.schema';
 
 export const CORE_CONCEPTS = [
   { canonical: 'REST API', kind: 'tech', aliases: ['REST', 'RESTful API'] },
