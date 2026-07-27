@@ -25,3 +25,4 @@ eval/reports/*.tmp.md
 
 # 세션 상태
 .omc/
+.omx/
