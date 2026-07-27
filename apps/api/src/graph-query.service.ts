@@ -70,7 +70,7 @@ export class GraphQueryService {
     const { q } = GraphSearchQuerySchema.parse({ q: rawQ });
     if (!q.trim()) return [];
     const results = await this.fulltextSearch(q, 25);
-    return uniqueNodes(results.map(({ node }) => node));
+    return uniqueNodes(results.map(({ node }) => node)).slice(0, 25);
   }
 
   async neighbors(id: string, rawDepth = '1'): Promise<NeighborsResponse> {
