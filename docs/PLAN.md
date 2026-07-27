@@ -125,8 +125,13 @@ Concept 이름 파편화(같은 대상이 "General OCR 모델"/"모델 서버"/"
 | GET /api/graph/stats               | —                    | { nodes: Record<label, count>, relationships: Record<type, count> }                             |
 | GET /api/graph/nodes/:id/neighbors | ?depth=1             | { nodes, relationships }                                                                        |
 | GET /api/graph/search?q=           | —                    | GraphNode[] (fulltext)                                                                          |
+| GET /api/ontology                  | —                    | { nodes: OntologyNode[], relationships: OntologyRelationship[] }                                |
+| GET /api/graph/samples             | ?label= 또는 ?type=  | { nodes, relationships } (라벨·관계 유형별 실제 인스턴스 최대 5개)                              |
 
 GraphNode = { id, label, key, display, properties }. GraphRel = { id, type, startId, endId, properties }.
+
+`/api/graph/samples` 는 라벨·관계명을 Cypher 에 보간하므로 온톨로지 화이트리스트로 검증한다.
+계약에 없는 값이 오면 Neo4j 로 쿼리를 보내지 않고 거절한다.
 
 ### LLM CLI 어댑터 계약
 
