@@ -1,5 +1,6 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { STRUCTURAL_GRAPH_FILE } from '@devloop/shared';
 import type {
   ConceptKind,
   OntologyNode,
@@ -336,7 +337,7 @@ export async function extractStructural(options: StructuralExtractionOptions): P
   );
   const records: GraphRecord[] = [...nodes.values(), ...resolvedRelationships];
   const outputDir = path.join(options.dataRoot, 'graph', options.project);
-  const outputPath = path.join(outputDir, 'structural.jsonl');
+  const outputPath = path.join(outputDir, STRUCTURAL_GRAPH_FILE);
   await mkdir(outputDir, { recursive: true });
   await writeFile(outputPath, records.map((record) => JSON.stringify(record)).join('\n') + '\n', 'utf8');
   return { outputPath, nodes: nodes.size, relationships: resolvedRelationships.length, records };

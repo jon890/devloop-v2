@@ -1,5 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { LLM_GRAPH_FILE } from '@devloop/shared';
 import type { OntologyRelationship, RawDoorayObject } from '@devloop/shared';
 import {
   LlmNodeSchema,
@@ -222,7 +223,7 @@ export async function sanitizeLlmGraphFile(
   dataRoot: string,
   project: string,
 ): Promise<SanitizeLlmGraphFileResult> {
-  const outputPath = path.join(dataRoot, 'graph', project, 'llm.jsonl');
+  const outputPath = path.join(dataRoot, 'graph', project, LLM_GRAPH_FILE);
   const reportPath = path.join(dataRoot, 'graph', project, 'llm-dropped-relationships.json');
   let content: string;
   let previousDropped: DroppedRelationship[];

@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   CORE_CONCEPTS,
   ConceptDictionarySchema,
+  LLM_GRAPH_FILE,
   type ConceptDictionary,
 } from '@devloop/shared';
 import { LlmReasoningEffortSchema, type LlmCli, type LlmReasoningEffort } from '../llm';
@@ -332,7 +333,7 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
     retryDelayMs,
   }));
   const outputDir = path.join(options.dataRoot, 'graph', options.project);
-  const outputPath = path.join(outputDir, 'llm.jsonl');
+  const outputPath = path.join(outputDir, LLM_GRAPH_FILE);
   const failureReportPath = path.join(outputDir, 'llm-failures.json');
   const droppedRelationshipsReportPath = path.join(outputDir, 'llm-dropped-relationships.json');
   const sanitized = await sanitizeLlmExtractions(
