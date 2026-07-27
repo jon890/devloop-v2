@@ -11,8 +11,12 @@
       "intent": "담당·사람",
       "question": "Task 483 의 담당 Person 과 workflowClass 를 노드 id 와 함께 반환해줘.",
       "gold": {
-        "tasks": [483],
-        "persons": ["김병태"]
+        "tasks": [
+          483
+        ],
+        "persons": [
+          "김병태"
+        ]
       },
       "groundTruthCypher": "MATCH (t:Task {number:483}) OPTIONAL MATCH (t)-[:ASSIGNED_TO]->(p:Person) RETURN t.number, t.workflowClass, p.name"
     },
@@ -23,9 +27,11 @@
       "intent": "문서·참고",
       "question": "제목에 '도메인 용어'가 들어가는 Wiki 노드와 그 부모 페이지를 반환해줘.",
       "gold": {
-        "wikis": [
-          "OCR 도메인 용어 정리 — General/Document, AppKey, Request-Key"
-        ]
+        "required": {
+          "wikis": [
+            "OCR 도메인 용어 정리 — General/Document, AppKey, Request-Key"
+          ]
+        }
       }
     },
     {
@@ -62,7 +68,13 @@
       "intent": "원인·히스토리",
       "question": "Task 483(API Gateway 제거)과 REFERENCES 또는 RELATES_TO 로 연결된 Task 목록과 각 담당 Person 을 노드 id 와 함께 반환해줘.",
       "gold": {
-        "tasks": [483, 491, 498]
+        "required": {
+          "tasks": [
+            483,
+            491,
+            498
+          ]
+        }
       }
     },
     {
@@ -72,8 +84,16 @@
       "intent": "의존·구조",
       "question": "Concept 'ingress-nginx' 를 MENTIONS 하는 Task 와 Wiki 를 관계 유형과 함께 나열해줘.",
       "gold": {
-        "tasks": [494, 495, 496],
-        "wikis": ["ingress-nginx 컨트롤러를 여러 개 둘 때 격리하는 법"]
+        "required": {
+          "tasks": [
+            494,
+            495,
+            496
+          ],
+          "wikis": [
+            "ingress-nginx 컨트롤러를 여러 개 둘 때 격리하는 법"
+          ]
+        }
       }
     },
     {
@@ -83,7 +103,11 @@
       "intent": "담당·사람",
       "question": "Person '김병태' 가 담당한 Task 중 Concept 'API Gateway' 를 MENTIONS 하는 Task 를 반환해줘.",
       "gold": {
-        "tasks": [483]
+        "required": {
+          "tasks": [
+            483
+          ]
+        }
       }
     },
     {
@@ -93,7 +117,11 @@
       "intent": "원인·히스토리",
       "question": "Concept 'API Gateway' 에 대한 Decision 과 그 EVIDENCED_BY Comment, DECIDED_IN Task 를 출처 문서 id 와 함께 반환해줘.",
       "gold": {
-        "tasks": [483]
+        "required": {
+          "tasks": [
+            483
+          ]
+        }
       }
     },
     {
@@ -103,7 +131,12 @@
       "intent": "원인·히스토리",
       "question": "Task 501(AMP FP16 도입)과 RELATES_TO 로 이어지는 후속 Task, 그리고 그 Task 가 MENTIONS 하는 Concept 를 반환해줘.",
       "gold": {
-        "tasks": [501, 502]
+        "required": {
+          "tasks": [
+            501,
+            502
+          ]
+        }
       }
     },
     {
@@ -113,7 +146,11 @@
       "intent": "의존·구조",
       "question": "Concept 'OCR.API' 가 DEPENDS_ON 으로 연결된 Concept 들과 근거가 되는 Wiki 문서를 반환해줘.",
       "gold": {
-        "wikis": ["NCS 모델 L4 LB 커넥션 토폴로지와 OCR.API 커넥션 풀"]
+        "required": {
+          "wikis": [
+            "NCS 모델 L4 LB 커넥션 토폴로지와 OCR.API 커넥션 풀"
+          ]
+        }
       }
     },
     {
@@ -141,7 +178,14 @@
       "intent": "원인·히스토리",
       "question": "Concept 'CloudTrail' 을 MENTIONS 하는 Task 를 createdAt 오름차순으로 반환해줘.",
       "gold": {
-        "tasks": [26, 83, 206, 481]
+        "required": {
+          "tasks": [
+            26,
+            83,
+            206,
+            481
+          ]
+        }
       }
     },
     {
@@ -151,7 +195,12 @@
       "intent": "원인·히스토리",
       "question": "Task 499(크기 상향 부하테스트)의 선행 조건이 되는 Task(RELATES_TO precedes)와 각 담당 Person 을 반환해줘.",
       "gold": {
-        "tasks": [497, 500]
+        "required": {
+          "tasks": [
+            497,
+            500
+          ]
+        }
       }
     },
     {

@@ -9,9 +9,11 @@ import type {
   QueryResponse,
 } from '@devloop/shared';
 import {
+  NodeLabelSchema,
   QueryRequestSchema,
   GraphSearchQuerySchema,
   NeighborsQuerySchema,
+  RelationshipTypeSchema,
 } from '@devloop/shared';
 import neo4j from 'neo4j-driver';
 import { z } from 'zod';
@@ -75,6 +77,35 @@ export class GraphQueryService {
     if (!q.trim()) return [];
     const results = await this.fulltextSearch(q, 25);
     return uniqueNodes(results.map(({ node }) => node)).slice(0, 25);
+  }
+
+  async samples(rawLabel = '', rawRelationship = ''): Promise<NeighborsResponse> {
+    if (rawLabel) {
+      const parsedLabel = NodeLabelSchema.safeParse(rawLabel);
+      if (!parsedLabel.success) {
+        throw new BadRequestException('label must be a known ontology node label.');
+      }
+      return this.neo4jService.executeRead(async (session) => {
+        const result = await session.run(`MATCH (node:${parsedLabel.data}) RETURN node LIMIT 5`);
+        return this.neo4jService.evidenceFromResult(result);
+      });
+    }
+
+    if (rawRelationship) {
+      const parsedRelationship = RelationshipTypeSchema.safeParse(rawRelationship);
+      if (!parsedRelationship.success) {
+        throw new BadRequestException('relationship must be a known ontology relationship type.');
+      }
+      return this.neo4jService.executeRead(async (session) => {
+        const result = await session.run(
+          `MATCH (start)-[relationship:${parsedRelationship.data}]->(end) ` +
+          'RETURN start, relationship, end LIMIT 5',
+        );
+        return this.neo4jService.evidenceFromResult(result);
+      });
+    }
+
+    throw new BadRequestException('label or relationship query is required.');
   }
 
   async neighbors(id: string, rawDepth = '1'): Promise<NeighborsResponse> {

@@ -1,12 +1,18 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { STRUCTURAL_GRAPH_FILE } from '@devloop/shared';
 import type {
   ConceptKind,
   OntologyNode,
   OntologyRelationship,
   RawDoorayObject,
 } from '@devloop/shared';
-import { GraphRecordSchema, nodeRef, type GraphRecord } from './graph-record';
+import { GraphRecordSchema, nodeRef, type GraphRecord } from './graph-record.schema';
+import {
+  CODE_REFERENCE_PATTERN,
+  TAG_DIMENSION_PATTERN,
+  TASK_REFERENCE_PATTERN,
+} from './structural-extractor.const';
 import {
   asRecordArray,
   firstString,
@@ -14,10 +20,6 @@ import {
   textContent,
   valueAt,
 } from './raw-reader';
-
-const TASK_REFERENCE_PATTERN = /\b([A-Za-z0-9][A-Za-z0-9_-]*)\/(\d+)\b/g;
-const CODE_REFERENCE_PATTERN = /\b\w+(?:Service|Controller|Interceptor|Component):\d+\b/g;
-const TAG_DIMENSION_PATTERN = /^([012]):\s*/;
 
 export interface StructuralExtractionOptions {
   dataRoot: string;
@@ -29,6 +31,14 @@ export interface StructuralExtractionResult {
   nodes: number;
   relationships: number;
   records: GraphRecord[];
+}
+
+type RawProject = Awaited<ReturnType<typeof readRawProject>>;
+
+interface StructuralGraphStores {
+  nodes: Map<string, OntologyNode>;
+  relationships: Map<string, OntologyRelationship>;
+  wikiParents: Array<{ pageId: string; parentId: string }>;
 }
 
 function addNode(store: Map<string, OntologyNode>, node: OntologyNode): void {
@@ -163,181 +173,290 @@ function addTextReferences(
   }
 }
 
-export async function extractStructural(options: StructuralExtractionOptions): Promise<StructuralExtractionResult> {
-  const raw = await readRawProject(options.dataRoot, options.project);
-  const nodes = new Map<string, OntologyNode>();
-  const relationships = new Map<string, OntologyRelationship>();
-  const wikiParents: Array<{ pageId: string; parentId: string }> = [];
+function createStores(): StructuralGraphStores {
+  return {
+    nodes: new Map<string, OntologyNode>(),
+    relationships: new Map<string, OntologyRelationship>(),
+    wikiParents: [],
+  };
+}
 
-  addNode(nodes, {
+function addProject(project: string, stores: StructuralGraphStores): void {
+  addNode(stores.nodes, {
     label: 'Project',
-    key: options.project,
-    properties: { code: options.project, name: options.project },
+    key: project,
+    properties: { code: project, name: project },
+  });
+}
+
+function addMembers(members: RawProject['members'], stores: StructuralGraphStores): void {
+  for (const [memberId, name] of Object.entries(members)) {
+    addNode(stores.nodes, { label: 'Person', key: memberId, properties: { memberId, name } });
+  }
+}
+
+function addTags(tags: RawProject['tags'], stores: StructuralGraphStores): void {
+  for (const name of Object.values(tags)) {
+    addNode(stores.nodes, { label: 'Concept', key: name, properties: { name, kind: 'type' } });
+  }
+}
+
+function addPostDocument(
+  project: string,
+  members: RawProject['members'],
+  tags: RawProject['tags'],
+  document: RawProject['posts'][number],
+  stores: StructuralGraphStores,
+): void {
+  const post = document.post;
+  const numericNumber = taskNumber(post);
+  const number = String(numericNumber);
+  addTaskNode(post, number, numericNumber, stores);
+  addRelationship(stores.relationships, {
+    type: 'CONTAINS',
+    startKey: nodeRef('Project', project),
+    endKey: nodeRef('Task', number),
+    properties: {},
   });
 
-  for (const [memberId, name] of Object.entries(raw.members)) {
-    addNode(nodes, { label: 'Person', key: memberId, properties: { memberId, name } });
-  }
-  for (const name of Object.values(raw.tags)) {
-    addNode(nodes, { label: 'Concept', key: name, properties: { name, kind: 'type' } });
-  }
+  addAuthor(post, number, members, stores);
+  addAssignees(post, number, members, stores);
+  addPostTags(post, number, tags, stores);
+  addParentTask(post, number, stores);
+  addTextReferences(textContent(post), 'Task', number, stores.nodes, stores.relationships);
+  addComments(document, number, members, stores);
+}
 
-  for (const document of raw.posts) {
-    const post = document.post;
-    const numericNumber = taskNumber(post);
-    const number = String(numericNumber);
-    const subject = firstString(post, ['subject', 'title']) ?? `Task ${number}`;
-    addNode(nodes, {
-      label: 'Task',
-      key: number,
-      properties: {
-        number: numericNumber,
-        subject,
-        workflowClass: firstString(post, ['workflowClass', 'workflowClass.name', 'status']),
-        createdAt: firstString(post, ['createdAt', 'createdDate']),
-        url: firstString(post, ['url', 'webUrl']),
-        bodyExcerpt: taskBodyExcerpt(post),
-      },
+function addTaskNode(
+  post: RawDoorayObject,
+  number: string,
+  numericNumber: number,
+  stores: StructuralGraphStores,
+): void {
+  const subject = firstString(post, ['subject', 'title']) ?? `Task ${number}`;
+  addNode(stores.nodes, {
+    label: 'Task',
+    key: number,
+    properties: {
+      number: numericNumber,
+      subject,
+      workflowClass: firstString(post, ['workflowClass', 'workflowClass.name', 'status']),
+      createdAt: firstString(post, ['createdAt', 'createdDate']),
+      url: firstString(post, ['url', 'webUrl']),
+      bodyExcerpt: taskBodyExcerpt(post),
+    },
+  });
+}
+
+function addAuthor(
+  post: RawDoorayObject,
+  number: string,
+  members: RawProject['members'],
+  stores: StructuralGraphStores,
+): void {
+  const author = postAuthor(post);
+  const authorId = author ? memberIdentity(author) : undefined;
+  if (!authorId) return;
+  addPerson(authorId, members, stores);
+  addRelationship(stores.relationships, {
+    type: 'AUTHORED',
+    startKey: nodeRef('Person', authorId),
+    endKey: nodeRef('Task', number),
+    properties: {},
+  });
+}
+
+function addPerson(
+  memberId: string,
+  members: RawProject['members'],
+  stores: StructuralGraphStores,
+): void {
+  addNode(stores.nodes, {
+    label: 'Person',
+    key: memberId,
+    properties: { memberId, name: members[memberId] ?? memberId },
+  });
+}
+
+function addAssignees(
+  post: RawDoorayObject,
+  number: string,
+  members: RawProject['members'],
+  stores: StructuralGraphStores,
+): void {
+  for (const assignee of assignees(post)) {
+    const memberId = memberIdentity(assignee.value);
+    if (!memberId) continue;
+    addPerson(memberId, members, stores);
+    addRelationship(stores.relationships, {
+      type: 'ASSIGNED_TO',
+      startKey: nodeRef('Task', number),
+      endKey: nodeRef('Person', memberId),
+      properties: { role: assignee.role },
     });
-    addRelationship(relationships, {
-      type: 'CONTAINS',
-      startKey: nodeRef('Project', options.project),
-      endKey: nodeRef('Task', number),
+  }
+}
+
+function addPostTags(
+  post: RawDoorayObject,
+  number: string,
+  tags: RawProject['tags'],
+  stores: StructuralGraphStores,
+): void {
+  for (const tag of tagEntries(post)) {
+    const name = tag.name ?? (tag.id ? tags[tag.id] : undefined);
+    if (!name) continue;
+    const dimension = tagDimension(name, tag.dimension);
+    addNode(stores.nodes, { label: 'Concept', key: name, properties: { name, kind: tagKind(dimension) } });
+    addRelationship(stores.relationships, {
+      type: 'TAGGED',
+      startKey: nodeRef('Task', number),
+      endKey: nodeRef('Concept', name),
+      properties: { dimension },
+    });
+  }
+}
+
+function addParentTask(
+  post: RawDoorayObject,
+  number: string,
+  stores: StructuralGraphStores,
+): void {
+  const parentNumber = parentTaskNumber(post);
+  if (!parentNumber) return;
+  addRelationship(stores.relationships, {
+    type: 'CHILD_OF',
+    startKey: nodeRef('Task', number),
+    endKey: nodeRef('Task', parentNumber),
+    properties: {},
+  });
+}
+
+function addComments(
+  document: RawProject['posts'][number],
+  number: string,
+  members: RawProject['members'],
+  stores: StructuralGraphStores,
+): void {
+  for (const [index, comment] of document.comments.entries()) {
+    const commentId = firstString(comment, ['commentId', 'id']) ?? `${number}-${index + 1}`;
+    const commentText = textContent(comment);
+    addCommentNode(comment, commentId, commentText, stores);
+    addRelationship(stores.relationships, {
+      type: 'HAS_COMMENT',
+      startKey: nodeRef('Task', number),
+      endKey: nodeRef('Comment', commentId),
       properties: {},
     });
-
-    const author = postAuthor(post);
-    const authorId = author ? memberIdentity(author) : undefined;
-    if (authorId) {
-      addNode(nodes, {
-        label: 'Person',
-        key: authorId,
-        properties: { memberId: authorId, name: raw.members[authorId] ?? authorId },
-      });
-      addRelationship(relationships, {
-        type: 'AUTHORED',
-        startKey: nodeRef('Person', authorId),
-        endKey: nodeRef('Task', number),
-        properties: {},
-      });
-    }
-
-    for (const assignee of assignees(post)) {
-      const memberId = memberIdentity(assignee.value);
-      if (!memberId) continue;
-      addNode(nodes, {
-        label: 'Person',
-        key: memberId,
-        properties: { memberId, name: raw.members[memberId] ?? memberId },
-      });
-      addRelationship(relationships, {
-        type: 'ASSIGNED_TO',
-        startKey: nodeRef('Task', number),
-        endKey: nodeRef('Person', memberId),
-        properties: { role: assignee.role },
-      });
-    }
-
-    for (const tag of tagEntries(post)) {
-      const name = tag.name ?? (tag.id ? raw.tags[tag.id] : undefined);
-      if (!name) continue;
-      const dimension = tagDimension(name, tag.dimension);
-      addNode(nodes, { label: 'Concept', key: name, properties: { name, kind: tagKind(dimension) } });
-      addRelationship(relationships, {
-        type: 'TAGGED',
-        startKey: nodeRef('Task', number),
-        endKey: nodeRef('Concept', name),
-        properties: { dimension },
-      });
-    }
-
-    const parentNumber = parentTaskNumber(post);
-    if (parentNumber) {
-      addRelationship(relationships, {
-        type: 'CHILD_OF',
-        startKey: nodeRef('Task', number),
-        endKey: nodeRef('Task', parentNumber),
-        properties: {},
-      });
-    }
-
-    addTextReferences(textContent(post), 'Task', number, nodes, relationships);
-    for (const [index, comment] of document.comments.entries()) {
-      const commentId = firstString(comment, ['commentId', 'id']) ?? `${number}-${index + 1}`;
-      const commentText = textContent(comment);
-      addNode(nodes, {
-        label: 'Comment',
-        key: commentId,
-        properties: {
-          commentId,
-          createdAt: firstString(comment, ['createdAt', 'createdDate']),
-          excerpt: commentText.slice(0, 200),
-        },
-      });
-      addRelationship(relationships, {
-        type: 'HAS_COMMENT',
-        startKey: nodeRef('Task', number),
-        endKey: nodeRef('Comment', commentId),
-        properties: {},
-      });
-      const commenter = postAuthor(comment);
-      const commenterId = commenter ? memberIdentity(commenter) : undefined;
-      if (commenterId) {
-        addNode(nodes, {
-          label: 'Person',
-          key: commenterId,
-          properties: { memberId: commenterId, name: raw.members[commenterId] ?? commenterId },
-        });
-        addRelationship(relationships, {
-          type: 'COMMENTED',
-          startKey: nodeRef('Person', commenterId),
-          endKey: nodeRef('Comment', commentId),
-          properties: {},
-        });
-      }
-      addTextReferences(commentText, 'Task', number, nodes, relationships);
-    }
+    addCommenter(comment, commentId, members, stores);
+    addTextReferences(commentText, 'Task', number, stores.nodes, stores.relationships);
   }
+}
 
-  for (const wiki of raw.wikis) {
-    const pageId = firstString(wiki, ['pageId', 'id']);
-    if (!pageId) throw new Error('Raw wiki page is missing pageId/id.');
-    const subject = firstString(wiki, ['subject', 'title']) ?? `Wiki ${pageId}`;
-    const parentId = firstString(wiki, ['parentId', 'parentPageId', 'parent.pageId', 'parent.id']);
-    addNode(nodes, {
-      label: 'Wiki',
-      key: pageId,
-      properties: { pageId, subject, parentId },
-    });
-    addRelationship(relationships, {
-      type: 'CONTAINS',
-      startKey: nodeRef('Project', options.project),
-      endKey: nodeRef('Wiki', pageId),
-      properties: {},
-    });
-    if (parentId) wikiParents.push({ pageId, parentId });
-    addTextReferences(textContent(wiki), 'Wiki', pageId, nodes, relationships);
-  }
+function addCommentNode(
+  comment: RawDoorayObject,
+  commentId: string,
+  commentText: string,
+  stores: StructuralGraphStores,
+): void {
+  addNode(stores.nodes, {
+    label: 'Comment',
+    key: commentId,
+    properties: {
+      commentId,
+      createdAt: firstString(comment, ['createdAt', 'createdDate']),
+      excerpt: commentText.slice(0, 200),
+    },
+  });
+}
 
-  for (const { pageId, parentId } of wikiParents) {
-    if (!nodes.has(nodeRef('Wiki', parentId))) continue;
-    addRelationship(relationships, {
+function addCommenter(
+  comment: RawDoorayObject,
+  commentId: string,
+  members: RawProject['members'],
+  stores: StructuralGraphStores,
+): void {
+  const commenter = postAuthor(comment);
+  const commenterId = commenter ? memberIdentity(commenter) : undefined;
+  if (!commenterId) return;
+  addPerson(commenterId, members, stores);
+  addRelationship(stores.relationships, {
+    type: 'COMMENTED',
+    startKey: nodeRef('Person', commenterId),
+    endKey: nodeRef('Comment', commentId),
+    properties: {},
+  });
+}
+
+function addWikiPage(
+  project: string,
+  wiki: RawProject['wikis'][number],
+  stores: StructuralGraphStores,
+): void {
+  const pageId = firstString(wiki, ['pageId', 'id']);
+  if (!pageId) throw new Error('Raw wiki page is missing pageId/id.');
+  const subject = firstString(wiki, ['subject', 'title']) ?? `Wiki ${pageId}`;
+  const parentId = firstString(wiki, ['parentId', 'parentPageId', 'parent.pageId', 'parent.id']);
+  addNode(stores.nodes, {
+    label: 'Wiki',
+    key: pageId,
+    properties: { pageId, subject, parentId },
+  });
+  addRelationship(stores.relationships, {
+    type: 'CONTAINS',
+    startKey: nodeRef('Project', project),
+    endKey: nodeRef('Wiki', pageId),
+    properties: {},
+  });
+  if (parentId) stores.wikiParents.push({ pageId, parentId });
+  addTextReferences(textContent(wiki), 'Wiki', pageId, stores.nodes, stores.relationships);
+}
+
+function addWikiParentRelationships(stores: StructuralGraphStores): void {
+  for (const { pageId, parentId } of stores.wikiParents) {
+    if (!stores.nodes.has(nodeRef('Wiki', parentId))) continue;
+    addRelationship(stores.relationships, {
       type: 'CHILD_OF',
       startKey: nodeRef('Wiki', pageId),
       endKey: nodeRef('Wiki', parentId),
       properties: {},
     });
   }
+}
 
-  const resolvedRelationships = [...relationships.values()].filter(
+function graphRecords(stores: StructuralGraphStores): {
+  resolvedRelationships: OntologyRelationship[];
+  records: GraphRecord[];
+} {
+  const resolvedRelationships = [...stores.relationships.values()].filter(
     (relationship) =>
       relationship.type !== 'REFERENCES' ||
-      (nodes.has(relationship.startKey) && nodes.has(relationship.endKey)),
+      (stores.nodes.has(relationship.startKey) && stores.nodes.has(relationship.endKey)),
   );
-  const records: GraphRecord[] = [...nodes.values(), ...resolvedRelationships];
+  return {
+    resolvedRelationships,
+    records: [...stores.nodes.values(), ...resolvedRelationships],
+  };
+}
+
+export async function extractStructural(options: StructuralExtractionOptions): Promise<StructuralExtractionResult> {
+  const raw = await readRawProject(options.dataRoot, options.project);
+  const stores = createStores();
+  addProject(options.project, stores);
+  addMembers(raw.members, stores);
+  addTags(raw.tags, stores);
+  for (const document of raw.posts) {
+    addPostDocument(options.project, raw.members, raw.tags, document, stores);
+  }
+  for (const wiki of raw.wikis) {
+    addWikiPage(options.project, wiki, stores);
+  }
+  addWikiParentRelationships(stores);
+
+  const { resolvedRelationships, records } = graphRecords(stores);
   const outputDir = path.join(options.dataRoot, 'graph', options.project);
-  const outputPath = path.join(outputDir, 'structural.jsonl');
+  const outputPath = path.join(outputDir, STRUCTURAL_GRAPH_FILE);
   await mkdir(outputDir, { recursive: true });
   await writeFile(outputPath, records.map((record) => JSON.stringify(record)).join('\n') + '\n', 'utf8');
-  return { outputPath, nodes: nodes.size, relationships: resolvedRelationships.length, records };
+  return { outputPath, nodes: stores.nodes.size, relationships: resolvedRelationships.length, records };
 }

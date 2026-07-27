@@ -539,6 +539,48 @@ test('JSON 파싱 실패는 한 번만 교정 요청한다', async () => {
   assert.equal(calls, 6);
 });
 
+test('교정 CLI 실패에도 최초와 교정 호출 수를 모두 보고한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  let calls = 0;
+  const result = await extractLlm({
+    dataRoot,
+    project: 'tc-ocr',
+    model: 'repair-failure-model',
+    llm: {
+      async complete(prompt) {
+        calls += 1;
+        if (prompt.includes('Your previous response was invalid JSON')) throw new Error('rate limited');
+        return { text: 'not json', elapsedMs: 1 };
+      },
+    },
+    maxAttempts: 3,
+    retryDelayMs: 0,
+  });
+  assert.equal(calls, 20);
+  assert.equal(result.calls, 20);
+  assert.equal(result.failed.length, 5);
+});
+
+test('교정 응답 파싱 실패에도 최초와 교정 호출 수를 모두 보고한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  let calls = 0;
+  const result = await extractLlm({
+    dataRoot,
+    project: 'tc-ocr',
+    model: 'repair-invalid-json-model',
+    llm: {
+      async complete(prompt) {
+        calls += 1;
+        return { text: prompt.includes('Your previous response was invalid JSON') ? 'still not json' : 'not json', elapsedMs: 1 };
+      },
+    },
+    retryDelayMs: 0,
+  });
+  assert.equal(calls, 10);
+  assert.equal(result.calls, 10);
+  assert.equal(result.failed.length, 5);
+});
+
 test('CLI 실패는 문서별 최대 3회 후 실패 목록에 기록한다', async () => {
   const dataRoot = await fixtureDataRoot();
   let calls = 0;
