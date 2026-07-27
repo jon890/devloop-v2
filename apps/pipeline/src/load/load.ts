@@ -909,26 +909,26 @@ async function collectStats(session: Session): Promise<{
 
 async function loadGraph(options: LoadOptions): Promise<void> {
   const prepared = await prepareLoadGraph(options);
-  const stats = await writeGraphToNeo4j(options, prepared.graph);
-
-  console.log(
-    JSON.stringify(
-      {
-        project: options.project,
-        dataDir: options.dataDir,
-        loaded: {
-          nodes: prepared.graph.nodes.length,
-          relationships: prepared.graph.relationships.length,
+  await writeGraphToNeo4j(options, prepared.graph, (stats) => {
+    console.log(
+      JSON.stringify(
+        {
+          project: options.project,
+          dataDir: options.dataDir,
+          loaded: {
+            nodes: prepared.graph.nodes.length,
+            relationships: prepared.graph.relationships.length,
+          },
+          stats,
+          unknownConcepts: Object.fromEntries([...prepared.graph.unknownConcepts.entries()].sort()),
+          droppedRelationships: prepared.droppedRelationships,
+          skippedRelationships: prepared.graph.skippedRelationships,
         },
-        stats,
-        unknownConcepts: Object.fromEntries([...prepared.graph.unknownConcepts.entries()].sort()),
-        droppedRelationships: prepared.droppedRelationships,
-        skippedRelationships: prepared.graph.skippedRelationships,
-      },
-      null,
-      2,
-    ),
-  );
+        null,
+        2,
+      ),
+    );
+  });
 }
 
 async function prepareLoadGraph(options: LoadOptions): Promise<PreparedLoadGraph> {
@@ -951,7 +951,11 @@ async function prepareLoadGraph(options: LoadOptions): Promise<PreparedLoadGraph
   };
 }
 
-async function writeGraphToNeo4j(options: LoadOptions, graph: NormalizedGraph): Promise<{
+async function writeGraphToNeo4j(
+  options: LoadOptions,
+  graph: NormalizedGraph,
+  onStatsCollected: (stats: { nodes: Record<string, number>; relationships: Record<string, number> }) => void,
+): Promise<{
   nodes: Record<string, number>;
   relationships: Record<string, number>;
 }> {
@@ -965,7 +969,9 @@ async function writeGraphToNeo4j(options: LoadOptions, graph: NormalizedGraph): 
     await removeLegacyUnknownTagDimensions(session, options.project);
     await mergeNodes(session, graph.nodes);
     await mergeRelationships(session, graph.relationships);
-    return await collectStats(session);
+    const stats = await collectStats(session);
+    onStatsCollected(stats);
+    return stats;
   } finally {
     await session.close();
     await driver.close();
