@@ -302,6 +302,7 @@ test('Task 인용 정규화는 URL, 소수, 한국어 접미사, 개행 prefix�
     '소수 #206.5',
     '접미사 #206번',
     '개행 Task\n#206',
+    '개행 업무\n#206',
   ].join('\n');
 
   const response = await service.query({ question: 'CloudTrail Task를 반환해줘.' });
@@ -312,7 +313,8 @@ test('Task 인용 정규화는 URL, 소수, 한국어 접미사, 개행 prefix�
     'URL https://dooray.example/tasks/#206',
     '소수 #206.5',
     '접미사 #206번',
-    '개행 Task\nTask #206',
+    '개행 Task\n#206',
+    '개행 업무\n#206',
   ].join('\n'));
 });
 

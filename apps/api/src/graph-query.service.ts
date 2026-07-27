@@ -466,7 +466,7 @@ function normalizeTaskCitations(answer: string, answerNodes: GraphNode[]): strin
       .map((node) => String(node.key)),
   );
   return answer.replace(
-    /(?:(?:Task|업무)[ \t]+)?(?<![\w/])#(\d+)(?![\w.]|번)/gi,
+    /(?:(?:Task|업무)[ \t]+)?(?<![\w/])(?<!Task\n)(?<!Task\r\n)(?<!업무\n)(?<!업무\r\n)#(\d+)(?![\w.]|번)/gi,
     (reference, taskNumber: string) => (taskNumbers.has(taskNumber) ? `Task #${taskNumber}` : reference),
   );
 }
