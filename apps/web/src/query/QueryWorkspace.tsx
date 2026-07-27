@@ -1,16 +1,14 @@
 import { GraphCanvas, legendItems } from '../GraphCanvas';
 import { EvidenceList } from './EvidenceList';
-import { useQueryWorkspace } from './useQueryWorkspace';
+import type { useQueryWorkspace } from './useQueryWorkspace';
 
 export function QueryWorkspace({
+  workspace,
   graphStatsError,
-  onResetGraphStatsError,
 }: {
+  workspace: ReturnType<typeof useQueryWorkspace>;
   graphStatsError: string | null;
-  onResetGraphStatsError: () => void;
 }) {
-  const workspace = useQueryWorkspace({ onSubmitStart: onResetGraphStatsError });
-
   return (
     <section className="workspace">
       <aside className="chat-panel">

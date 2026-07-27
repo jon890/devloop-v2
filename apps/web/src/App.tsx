@@ -4,6 +4,7 @@ import { getGraphStats, useMockApi } from './api-client';
 import { ExplorerPage } from './ExplorerPage';
 import { OntologyPage } from './OntologyPage';
 import { QueryWorkspace } from './query/QueryWorkspace';
+import { useQueryWorkspace } from './query/useQueryWorkspace';
 import { SchemaMapPage } from './SchemaMapPage';
 
 type ViewId = 'query' | 'ontology' | 'schema' | 'explorer';
@@ -30,6 +31,7 @@ export function App() {
   const [view, setView] = useState<ViewId>('query');
   const [stats, setStats] = useState<GraphStatsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const workspace = useQueryWorkspace({ onSubmitStart: () => setError(null) });
 
   useEffect(() => {
     getGraphStats().then(setStats).catch((cause: unknown) => {
@@ -40,7 +42,7 @@ export function App() {
   return (
     <main className="app-shell">
       <AppHeader view={view} stats={stats} onViewChange={setView} />
-      {view === 'query' && <QueryWorkspace graphStatsError={error} onResetGraphStatsError={() => setError(null)} />}
+      {view === 'query' && <QueryWorkspace workspace={workspace} graphStatsError={error} />}
       {view === 'ontology' && <OntologyPage />}
       {view === 'schema' && <SchemaMapPage />}
       {view === 'explorer' && <ExplorerPage />}
