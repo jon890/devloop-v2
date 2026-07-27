@@ -255,23 +255,32 @@ async function repairExtraction(
   context: ExtractionContext,
   options: Required<Pick<LlmExtractionOptions, 'maxAttempts' | 'retryDelayMs'>> & LlmExtractionOptions,
 ): Promise<{ extraction: LlmExtraction; calls: number }> {
-  const repair = await completeWithBackoff(
-    options.llm,
-    buildJsonRepairPrompt(prompt, firstText),
-    options.model,
-    context.effort,
-    options.timeoutMs,
-    options.maxAttempts,
-    options.retryDelayMs,
-  );
+  let repair;
+  try {
+    repair = await completeWithBackoff(
+      options.llm,
+      buildJsonRepairPrompt(prompt, firstText),
+      options.model,
+      context.effort,
+      options.timeoutMs,
+      options.maxAttempts,
+      options.retryDelayMs,
+    );
+  } catch (error) {
+    if (error instanceof CompletionError) {
+      throw new CompletionError(error.message, firstCalls + error.calls);
+    }
+    throw error;
+  }
   try {
     return {
       extraction: validateSourceDocId(parseJsonResponse(repair.text), context.document.sourceDocId),
       calls: firstCalls + repair.calls,
     };
   } catch (repairError) {
-    throw new Error(
+    throw new CompletionError(
       `JSON repair failed: ${repairError instanceof Error ? repairError.message : String(repairError)}; first error: ${firstParseError instanceof Error ? firstParseError.message : String(firstParseError)}`,
+      firstCalls + repair.calls,
     );
   }
 }
