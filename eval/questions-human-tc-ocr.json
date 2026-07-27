@@ -11,7 +11,11 @@
       "intent": "문서·참고",
       "question": "OCR 개발 컨벤션 정리된 문서 어디 있지?",
       "gold": {
-        "wikis": ["OCR 개발 컨벤션 — Dooray 업무·태그·PR 규칙"]
+        "required": {
+          "wikis": [
+            "OCR 개발 컨벤션 — Dooray 업무·태그·PR 규칙"
+          ]
+        }
       }
     },
     {
@@ -21,8 +25,14 @@
       "intent": "담당·사람",
       "question": "API Gateway 제거 작업 누가 담당했어?",
       "gold": {
-        "tasks": [483],
-        "persons": ["김병태"]
+        "required": {
+          "tasks": [
+            483
+          ],
+          "persons": [
+            "김병태"
+          ]
+        }
       }
     },
     {
@@ -32,8 +42,16 @@
       "intent": "문서·참고",
       "question": "요청 추적(traceId) 관련해서 정리된 문서나 업무 있어?",
       "gold": {
-        "tasks": [478],
-        "wikis": ["X-Request-Id 로 게이트웨이부터 모델까지 요청 추적하기"]
+        "required": {
+          "wikis": [
+            "X-Request-Id 로 게이트웨이부터 모델까지 요청 추적하기"
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            478
+          ]
+        }
       }
     },
     {
@@ -43,7 +61,11 @@
       "intent": "문서·참고",
       "question": "Log & Crash 쓰는 법 어디 봐야 해?",
       "gold": {
-        "wikis": ["NHN Cloud Log & Crash 사용 가이드 — 전송·검색·함정"]
+        "required": {
+          "wikis": [
+            "NHN Cloud Log & Crash 사용 가이드 — 전송·검색·함정"
+          ]
+        }
       }
     },
     {
@@ -53,8 +75,18 @@
       "intent": "문서·참고",
       "question": "모델서버 죽었을 때 참고할 문서 뭐 있지?",
       "gold": {
-        "tasks": [485, 487, 507],
-        "wikis": ["모델 서버 프로세스 구조와 연결 실패 대응"]
+        "required": {
+          "wikis": [
+            "모델 서버 프로세스 구조와 연결 실패 대응"
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            485,
+            487,
+            507
+          ]
+        }
       }
     },
     {
@@ -64,7 +96,17 @@
       "intent": "상태·진행",
       "question": "최근에 부하테스트 관련해서 뭐 했었지?",
       "gold": {
-        "tasks": [497, 499, 500]
+        "required": {
+          "tasks": [
+            499,
+            500
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            497
+          ]
+        }
       }
     },
     {
@@ -74,11 +116,18 @@
       "intent": "행동(코드 위치)",
       "question": "쿠콘 장애 나면 어디 코드 봐야 해?",
       "gold": {
-        "tasks": [492, 493],
-        "concepts": [
-          "DocumentIdCardAuthenticityService:82",
-          "ExceptionController:45"
-        ]
+        "required": {
+          "concepts": [
+            "DocumentIdCardAuthenticityService:82",
+            "ExceptionController:45"
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            492,
+            493
+          ]
+        }
       }
     },
     {
@@ -88,7 +137,18 @@
       "intent": "원인·히스토리",
       "question": "GPU 부족해서 했던 작업들 뭐야?",
       "gold": {
-        "tasks": [501, 502, 500, 482]
+        "required": {
+          "tasks": [
+            501,
+            502
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            500,
+            482
+          ]
+        }
       }
     },
     {
@@ -98,12 +158,23 @@
       "intent": "원인·히스토리",
       "question": "게이트웨이 뺀 거 왜 그랬지?",
       "gold": {
-        "tasks": [483, 491],
-        "wikis": ["OCR API Gateway 제거 — 외부 전용 ingress 로 분리한 작업"],
-        "expectedFacts": [
-          "데이터 전송량(파일 크기, 5MB) 제한이 사유",
-          "OCR 사용성 개선 목적"
-        ]
+        "required": {
+          "tasks": [
+            483
+          ],
+          "expectedFacts": [
+            "데이터 전송량(파일 크기, 5MB) 제한이 사유",
+            "OCR 사용성 개선 목적"
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            491
+          ],
+          "wikis": [
+            "OCR API Gateway 제거 — 외부 전용 ingress 로 분리한 작업"
+          ]
+        }
       }
     },
     {
@@ -113,8 +184,20 @@
       "intent": "의존·구조",
       "question": "잉그레스 그거 지원 종료된다던데 대응 어떻게 하기로 했지?",
       "gold": {
-        "tasks": [495, 494, 496],
-        "wikis": ["ingress-nginx 컨트롤러를 여러 개 둘 때 격리하는 법"]
+        "required": {
+          "tasks": [
+            495
+          ],
+          "wikis": [
+            "ingress-nginx 컨트롤러를 여러 개 둘 때 격리하는 법"
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            494,
+            496
+          ]
+        }
       }
     },
     {
@@ -124,7 +207,20 @@
       "intent": "집계·통계",
       "question": "그동안 굵직한 장애들 원인 유형별로 나눠서 정리해줘 — 모델 문제였는지 인프라 문제였는지.",
       "gold": {
-        "tasks": [485, 486, 487, 489, 491, 482],
+        "required": {
+          "tasks": [
+            485,
+            486
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            487,
+            489,
+            491,
+            482
+          ]
+        },
         "note": "모델 원인(485·487·489)과 인프라 원인(486·491·482)의 분류가 드러나야 함"
       }
     },
@@ -135,7 +231,21 @@
       "intent": "원인·히스토리",
       "question": "API Gateway 제거 결정부터 공인 진입점 전환까지 흐름을 시간순으로 정리해줘.",
       "gold": {
-        "tasks": [491, 483, 498, 494, 504, 505, 506],
+        "required": {
+          "tasks": [
+            491,
+            483,
+            498
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            494,
+            504,
+            505,
+            506
+          ]
+        },
         "note": "491(장애)→483(제거 결정)→498(등가성 검증)→494·504·505·506(공인 전환) 순서가 드러나야 함"
       }
     },
@@ -146,7 +256,11 @@
       "intent": "문서·참고",
       "question": "OCR 처음 출시할 때 기획서 어느 업무에 있지?",
       "gold": {
-        "tasks": [1]
+        "required": {
+          "tasks": [
+            1
+          ]
+        }
       }
     },
     {
@@ -156,8 +270,20 @@
       "intent": "원인·히스토리",
       "question": "미터링 누락됐을 때 재전송 처리한 사례들 있었지? 어떻게 했었어?",
       "gold": {
-        "tasks": [450, 446, 420],
-        "wikis": ["미터링 & 클라우드트레일"]
+        "required": {
+          "tasks": [
+            450
+          ],
+          "wikis": [
+            "미터링 & 클라우드트레일"
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            446,
+            420
+          ]
+        }
       }
     },
     {
@@ -167,7 +293,19 @@
       "intent": "원인·히스토리",
       "question": "모델 서버 OOM 때문에 했던 조치들 뭐야?",
       "gold": {
-        "tasks": [433, 435, 441, 442, 448]
+        "required": {
+          "tasks": [
+            433,
+            435
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            441,
+            442,
+            448
+          ]
+        }
       }
     },
     {
@@ -177,11 +315,22 @@
       "intent": "원인·히스토리",
       "question": "신용카드 OCR 출시 때 서비스 이용 신청 흐름은 뭘 만들어서 처리했지?",
       "gold": {
-        "tasks": [81, 82, 86, 89],
-        "expectedFacts": [
-          "이용목적 확인 인터셉터",
-          "운영자(또는 사용자)에게 메일 발송"
-        ]
+        "required": {
+          "tasks": [
+            81
+          ],
+          "expectedFacts": [
+            "이용목적 확인 인터셉터",
+            "운영자(또는 사용자)에게 메일 발송"
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            82,
+            86,
+            89
+          ]
+        }
       }
     },
     {
@@ -191,7 +340,18 @@
       "intent": "집계·통계",
       "question": "성능테스트는 그동안 언제 뭘 대상으로 했는지 시간순으로 정리해줘.",
       "gold": {
-        "tasks": [63, 76, 499, 500],
+        "required": {
+          "tasks": [
+            63,
+            499
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            76,
+            500
+          ]
+        },
         "note": "2021(사업자등록증 63, 차량번호판 76) → 2026(크기 상향 499, 노드 증설 500) 시간순이 드러나야 함"
       }
     },
@@ -202,7 +362,19 @@
       "intent": "원인·히스토리",
       "question": "CloudTrail 연동이 처음부터 지금까지 어떻게 변해왔는지 정리해줘.",
       "gold": {
-        "tasks": [26, 83, 206, 396, 481],
+        "required": {
+          "tasks": [
+            26,
+            396,
+            481
+          ]
+        },
+        "supporting": {
+          "tasks": [
+            83,
+            206
+          ]
+        },
         "note": "2021 연동 시작(26·83) → 2023 정리(206) → 2024 제거(396) → 2026 핸들링 강화(481) 흐름"
       }
     }
