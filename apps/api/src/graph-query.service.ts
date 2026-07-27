@@ -22,6 +22,8 @@ const FULLTEXT_INDEXES = ['task_subject_fulltext', 'wiki_subject_fulltext', 'con
 const AnchorResponseSchema = z.object({ terms: z.array(z.string().min(1)).min(1) });
 const CypherResponseSchema = z.object({ cypher: z.string().trim().min(1) });
 const AnswerResponseSchema = z.object({ answer: z.string().trim().min(1) });
+// anchor 8개는 프롬프트 few-shot의 Task 후보 3개와 교차 라벨 문맥을 함께 담기 위한 상한이다.
+// Wiki 최소 2개는 답변 근거에서 문서성 노드가 Task/Concept 점수에 밀려 사라지지 않게 하는 하한이다.
 const ANCHOR_CANDIDATE_LIMIT = 8;
 const ANCHOR_LABEL_QUOTAS: Partial<
   Record<GraphNode['label'], { min?: number; max?: number }>
@@ -229,7 +231,7 @@ export class GraphQueryService {
         `,
         {
           indexes: [...FULLTEXT_INDEXES],
-          q,
+          q: escapeLuceneQuery(q),
           perIndexLimit: neo4j.int(limit),
         },
       );
@@ -463,8 +465,9 @@ function normalizeTaskCitations(answer: string, answerNodes: GraphNode[]): strin
       .filter((node) => node.label === 'Task')
       .map((node) => String(node.key)),
   );
-  return answer.replace(/(?:Task\s+|업무\s+)?#(\d+)\b/gi, (reference, taskNumber: string) =>
-    taskNumbers.has(taskNumber) ? `Task #${taskNumber}` : reference,
+  return answer.replace(
+    /(?:(?:Task|업무)[ \t]+)?(?<![\w/])#(\d+)(?![\w.]|번)/gi,
+    (reference, taskNumber: string) => (taskNumbers.has(taskNumber) ? `Task #${taskNumber}` : reference),
   );
 }
 
@@ -521,7 +524,14 @@ export function rankAnchorCandidates(
     if (max !== undefined && (labelCounts.get(candidate.node.label) ?? 0) >= max) continue;
     select(candidate);
   }
+  for (const candidate of sorted) {
+    select(candidate);
+  }
   return sorted.filter(({ node }) => selectedIds.has(node.id)).map(({ node }) => node);
+}
+
+function escapeLuceneQuery(query: string): string {
+  return query.replace(/([+\-!(){}\[\]^"~*?:\\/]|&&|\|\|)/g, '\\$1');
 }
 
 function emptyEvidence(): NeighborsResponse {

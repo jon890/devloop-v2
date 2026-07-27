@@ -77,7 +77,7 @@ test('anchor 검색 결과를 중복 관련도 순으로 합쳐 상위 8개 후�
   assert.ok(anchors.some((anchor) => anchor.id.startsWith('second-')));
 });
 
-test('anchor 후보가 한 라벨에 몰려도 Wiki 슬롯과 라벨별 최대 정원을 지킨다', () => {
+test('anchor 후보가 한 라벨에 몰려도 Wiki 최소 슬롯을 지킨 뒤 남은 슬롯을 채운다', () => {
   const resultSet = [
     ...Array.from({ length: 6 }, (_, index) => ({
       node: node(`task-${index}`, 'Task'),
@@ -106,6 +106,45 @@ test('anchor 후보가 한 라벨에 몰려도 Wiki 슬롯과 라벨별 최대 �
   assert.deepEqual(
     anchors.filter(({ label }) => label === 'Wiki').map(({ id }) => id),
     ['wiki-0', 'wiki-1'],
+  );
+});
+
+test('anchor backfill은 단일 라벨 후보에서도 최대 정원 없이 8개를 채운다', () => {
+  for (const label of ['Task', 'Concept', 'Wiki']) {
+    const anchors = rankAnchorCandidates([
+      Array.from({ length: 10 }, (_, index) => ({
+        node: node(`${label.toLowerCase()}-${index}`, label),
+        score: 10 - index,
+      })),
+    ]);
+
+    assert.equal(anchors.length, 8);
+    assert.deepEqual(
+      anchors.map(({ id }) => id),
+      Array.from({ length: 8 }, (_, index) => `${label.toLowerCase()}-${index}`),
+    );
+  }
+});
+
+test('anchor mixed quota는 Wiki 최소 2개를 보장한 뒤 점수 순으로 남은 슬롯을 채운다', () => {
+  const anchors = rankAnchorCandidates([
+    [
+      ...Array.from({ length: 8 }, (_, index) => ({
+        node: node(`task-${index}`, 'Task'),
+        score: 100 - index,
+      })),
+      ...Array.from({ length: 2 }, (_, index) => ({
+        node: node(`wiki-${index}`, 'Wiki'),
+        score: 10 - index,
+      })),
+    ],
+  ]);
+
+  assert.equal(anchors.length, 8);
+  assert.equal(anchors.filter(({ label }) => label === 'Wiki').length, 2);
+  assert.deepEqual(
+    anchors.map(({ id }) => id),
+    ['task-0', 'task-1', 'task-2', 'task-3', 'task-4', 'task-5', 'wiki-0', 'wiki-1'],
   );
 });
 
@@ -217,6 +256,66 @@ test('근거 상한 밖의 Task도 답변에서 안정적인 Task 번호 형식�
   assert.deepEqual(response.evidence.nodes, []);
 });
 
+test('그래프 근거에 없는 Task 번호는 답변에서 Task 인용으로 바꾸지 않는다', async () => {
+  const task206 = {
+    ...node('task-206', 'Task', '클라우드트레일 이벤트 제거'),
+    key: '206',
+  };
+  const service = new GraphQueryService({}, {});
+  service.extractAnchorTerms = async () => ['CloudTrail'];
+  service.fulltextSearch = async () => [];
+  service.generateCypher = async () => 'MATCH (t:Task) RETURN t LIMIT 50';
+  service.executeGeneratedCypher = async (cypher) => ({
+    ok: true,
+    cypher,
+    rows: [{ t: task206 }],
+    evidence: { nodes: [task206], relationships: [] },
+  });
+  service.buildQueryEvidence = async () => ({ nodes: [], relationships: [] });
+  service.synthesizeAnswer = async () => '#999는 관련 없음';
+
+  const response = await service.query({ question: 'CloudTrail Task를 반환해줘.' });
+
+  assert.equal(response.answer, '#999는 관련 없음');
+});
+
+test('Task 인용 정규화는 URL, 소수, 한국어 접미사, 개행 prefix를 건드리지 않고 멱등성을 유지한다', async () => {
+  const task206 = {
+    ...node('task-206', 'Task', '클라우드트레일 이벤트 제거'),
+    key: '206',
+  };
+  const service = new GraphQueryService({}, {});
+  service.extractAnchorTerms = async () => ['CloudTrail'];
+  service.fulltextSearch = async () => [];
+  service.generateCypher = async () => 'MATCH (t:Task) RETURN t LIMIT 50';
+  service.executeGeneratedCypher = async (cypher) => ({
+    ok: true,
+    cypher,
+    rows: [{ t: task206 }],
+    evidence: { nodes: [task206], relationships: [] },
+  });
+  service.buildQueryEvidence = async () => ({ nodes: [], relationships: [] });
+  service.synthesizeAnswer = async () => [
+    '기존 #206',
+    '멱등 Task #206',
+    'URL https://dooray.example/tasks/#206',
+    '소수 #206.5',
+    '접미사 #206번',
+    '개행 Task\n#206',
+  ].join('\n');
+
+  const response = await service.query({ question: 'CloudTrail Task를 반환해줘.' });
+
+  assert.equal(response.answer, [
+    '기존 Task #206',
+    '멱등 Task #206',
+    'URL https://dooray.example/tasks/#206',
+    '소수 #206.5',
+    '접미사 #206번',
+    '개행 Task\nTask #206',
+  ].join('\n'));
+});
+
 test('fulltext 검색은 인덱스별 후보를 전역 LIMIT 없이 RRF 단계로 전달한다', async () => {
   let executedCypher;
   let executedParams;
@@ -233,7 +332,10 @@ test('fulltext 검색은 인덱스별 후보를 전역 LIMIT 없이 RRF 단계�
   };
   const service = new GraphQueryService(neo4jService, {});
 
-  await service.fulltextSearch('모델 서버', 8);
+  await service.fulltextSearch(
+    "A-12 유형 태그가 '장애'인 Task 들을 제품(1:) Concept 별로 집계해 건수와 함께 반환해줘.",
+    8,
+  );
 
   assert.match(executedCypher, /queryNodes\(indexName, \$q, \{limit: \$perIndexLimit\}\)/);
   assert.doesNotMatch(executedCypher, /LIMIT \$limit/);
@@ -242,8 +344,31 @@ test('fulltext 검색은 인덱스별 후보를 전역 LIMIT 없이 RRF 단계�
     'wiki_subject_fulltext',
     'concept_name_fulltext',
   ]);
+  assert.equal(
+    executedParams.q,
+    "A\\-12 유형 태그가 '장애'인 Task 들을 제품\\(1\\:\\) Concept 별로 집계해 건수와 함께 반환해줘.",
+  );
   assert.equal(executedParams.perIndexLimit.toNumber(), 8);
   assert.equal('limit' in executedParams, false);
+});
+
+test('search는 26개 이상 unique fulltext 결과도 25개로 자른다', async () => {
+  const service = new GraphQueryService({}, {});
+  let searchLimit;
+  service.fulltextSearch = async (_term, limit) => {
+    searchLimit = limit;
+    return Array.from({ length: 26 }, (_, index) => ({
+      node: node(`result-${index}`, index % 2 === 0 ? 'Task' : 'Concept'),
+      score: 100 - index,
+    }));
+  };
+
+  const results = await service.search('게이트웨이');
+
+  assert.equal(searchLimit, 25);
+  assert.equal(results.length, 25);
+  assert.equal(new Set(results.map(({ id }) => id)).size, 25);
+  assert.equal(results.at(-1).id, 'result-24');
 });
 
 test('Task anchor 후보만 Decision 연결 수를 함께 조회한다', async () => {
