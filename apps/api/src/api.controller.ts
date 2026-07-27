@@ -31,4 +31,12 @@ export class ApiController {
   search(@Query('q') q = ''): Promise<GraphSearchResponse> {
     return this.graphQueryService.search(q);
   }
+
+  @Get('graph/samples')
+  samples(
+    @Query('label') label = '',
+    @Query('relationship') relationship = '',
+  ): Promise<NeighborsResponse> {
+    return this.graphQueryService.samples(label, relationship);
+  }
 }
