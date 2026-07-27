@@ -77,9 +77,43 @@ test('anchor 검색 결과를 중복 관련도 순으로 합쳐 상위 8개 후�
   assert.ok(anchors.some((anchor) => anchor.id.startsWith('second-')));
 });
 
-test('생성된 한영 표기 변형을 모두 검색하고 영문 검색 후보를 합산한다', async () => {
+test('anchor 후보가 한 라벨에 몰려도 Wiki 슬롯과 라벨별 최대 정원을 지킨다', () => {
+  const resultSet = [
+    ...Array.from({ length: 6 }, (_, index) => ({
+      node: node(`task-${index}`, 'Task'),
+      score: 20 - index,
+    })),
+    ...Array.from({ length: 5 }, (_, index) => ({
+      node: node(`concept-${index}`, 'Concept'),
+      score: 14 - index,
+    })),
+    ...Array.from({ length: 3 }, (_, index) => ({
+      node: node(`wiki-${index}`, 'Wiki'),
+      score: 9 - index,
+    })),
+  ];
+
+  const anchors = rankAnchorCandidates([resultSet]);
+  const labelCounts = anchors.reduce(
+    (counts, anchor) => ({ ...counts, [anchor.label]: (counts[anchor.label] ?? 0) + 1 }),
+    {},
+  );
+
+  assert.equal(anchors.length, 8);
+  assert.equal(labelCounts.Wiki, 2);
+  assert.equal(labelCounts.Task, 5);
+  assert.equal(labelCounts.Concept, 1);
+  assert.deepEqual(
+    anchors.filter(({ label }) => label === 'Wiki').map(({ id }) => id),
+    ['wiki-0', 'wiki-1'],
+  );
+});
+
+test('생성된 한영 표기 변형에 질문 원문을 중복 없이 추가하고 모든 후보를 합산한다', async () => {
   const terms = ['게이트웨이', 'gateway', 'API Gateway', '제거'];
+  const question = '게이트웨이 뺀 거 왜 그랬지?';
   const searchedTerms = [];
+  const searchLimits = [];
   let generatedCandidates;
   const task483 = {
     ...node('task-483', 'Task', '[OCR] API Gateway 제거'),
@@ -95,8 +129,9 @@ test('생성된 한영 표기 변형을 모두 검색하고 영문 검색 후보
     },
   };
   const service = new GraphQueryService({}, llmCli);
-  service.fulltextSearch = async (term) => {
+  service.fulltextSearch = async (term, limit) => {
     searchedTerms.push(term);
+    searchLimits.push(limit);
     if (term === 'gateway' || term === 'API Gateway') {
       return [{ node: task483, score: 9 }];
     }
@@ -122,12 +157,69 @@ test('생성된 한영 표기 변형을 모두 검색하고 영문 검색 후보
   service.buildQueryEvidence = async () => ({ nodes: [], relationships: [] });
   service.synthesizeAnswer = async () => 'API Gateway 제거 근거';
 
-  await service.query({ question: '게이트웨이 뺀 거 왜 그랬지?' });
+  await service.query({ question });
 
-  assert.deepEqual(searchedTerms, terms);
+  assert.deepEqual(searchedTerms, [...terms, question]);
+  assert.deepEqual(searchLimits, Array(terms.length + 1).fill(8));
   assert.equal(generatedCandidates[0].node.id, 'task-483');
   assert.equal(generatedCandidates[0].decisionCount, 8);
   assert.ok(generatedCandidates.some(({ node: candidate }) => candidate.id === 'task-489'));
+});
+
+test('LLM이 질문 원문 전체를 반환해도 검색어를 중복 추가하지 않는다', async () => {
+  const question = 'Log & Crash 쓰는 법 어디 봐야 해?';
+  const searchedTerms = [];
+  const service = new GraphQueryService({}, {
+    async complete() {
+      return { text: JSON.stringify({ terms: ['Log & Crash', question] }) };
+    },
+  });
+  service.fulltextSearch = async (term) => {
+    searchedTerms.push(term);
+    return [];
+  };
+  service.generateCypher = async () => 'MATCH (n) RETURN n LIMIT 1';
+  service.executeGeneratedCypher = async (cypher) => ({
+    ok: true,
+    cypher,
+    rows: [],
+    evidence: { nodes: [], relationships: [] },
+  });
+  service.buildQueryEvidence = async () => ({ nodes: [], relationships: [] });
+  service.synthesizeAnswer = async () => '문서';
+
+  await service.query({ question });
+
+  assert.deepEqual(searchedTerms, ['Log & Crash', question]);
+});
+
+test('fulltext 검색은 인덱스별 후보를 전역 LIMIT 없이 RRF 단계로 전달한다', async () => {
+  let executedCypher;
+  let executedParams;
+  const neo4jService = {
+    async executeRead(work) {
+      return work({
+        async run(cypher, params) {
+          executedCypher = cypher;
+          executedParams = params;
+          return { records: [] };
+        },
+      });
+    },
+  };
+  const service = new GraphQueryService(neo4jService, {});
+
+  await service.fulltextSearch('모델 서버', 8);
+
+  assert.match(executedCypher, /queryNodes\(indexName, \$q, \{limit: \$perIndexLimit\}\)/);
+  assert.doesNotMatch(executedCypher, /LIMIT \$limit/);
+  assert.deepEqual(executedParams.indexes, [
+    'task_subject_fulltext',
+    'wiki_subject_fulltext',
+    'concept_name_fulltext',
+  ]);
+  assert.equal(executedParams.perIndexLimit.toNumber(), 8);
+  assert.equal('limit' in executedParams, false);
 });
 
 test('Task anchor 후보만 Decision 연결 수를 함께 조회한다', async () => {

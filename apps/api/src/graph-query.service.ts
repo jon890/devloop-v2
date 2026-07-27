@@ -23,6 +23,13 @@ const AnchorResponseSchema = z.object({ terms: z.array(z.string().min(1)).min(1)
 const CypherResponseSchema = z.object({ cypher: z.string().trim().min(1) });
 const AnswerResponseSchema = z.object({ answer: z.string().trim().min(1) });
 const ANCHOR_CANDIDATE_LIMIT = 8;
+const ANCHOR_LABEL_QUOTAS: Partial<
+  Record<GraphNode['label'], { min?: number; max?: number }>
+> = {
+  Task: { max: 5 },
+  Wiki: { min: 2, max: 3 },
+  Concept: { max: 2 },
+};
 const EVIDENCE_NODE_LIMIT = 30;
 
 interface FulltextMatch {
@@ -95,6 +102,7 @@ export class GraphQueryService {
       terms = [question];
       diagnostics.push(`anchor 용어 추출 실패: ${formatError(error)}`);
     }
+    terms = uniqueTerms([...terms, question]);
 
     const searchResults = await Promise.allSettled(
       terms.map((term) => this.fulltextSearch(term, ANCHOR_CANDIDATE_LIMIT)),
@@ -211,15 +219,14 @@ export class GraphQueryService {
         UNWIND $indexes AS indexName
         CALL db.index.fulltext.queryNodes(indexName, $q, {limit: $perIndexLimit})
         YIELD node, score
-        RETURN node, max(score) AS score
+        WITH node, max(score) AS score
+        RETURN node, score
         ORDER BY score DESC
-        LIMIT $limit
         `,
         {
           indexes: [...FULLTEXT_INDEXES],
           q,
           perIndexLimit: neo4j.int(limit),
-          limit: neo4j.int(limit),
         },
       );
       return result.records.map((record) => ({
@@ -441,6 +448,10 @@ function uniqueNodes(nodes: GraphNode[]): GraphNode[] {
   return [...new Map(nodes.map((node) => [node.id, node])).values()];
 }
 
+function uniqueTerms(terms: string[]): string[] {
+  return [...new Set(terms.map((term) => term.trim()).filter(Boolean))];
+}
+
 export function rankAnchorCandidates(
   resultSets: FulltextMatch[][],
   limit = ANCHOR_CANDIDATE_LIMIT,
@@ -467,15 +478,34 @@ export function rankAnchorCandidates(
       firstSeen += 1;
     });
   }
-  return [...ranked.values()]
-    .sort(
-      (left, right) =>
-        right.reciprocalRank - left.reciprocalRank ||
-        right.bestScore - left.bestScore ||
-        left.firstSeen - right.firstSeen,
-    )
-    .slice(0, limit)
-    .map(({ node }) => node);
+  const sorted = [...ranked.values()].sort(
+    (left, right) =>
+      right.reciprocalRank - left.reciprocalRank ||
+      right.bestScore - left.bestScore ||
+      left.firstSeen - right.firstSeen,
+  );
+  const selectedIds = new Set<string>();
+  const labelCounts = new Map<GraphNode['label'], number>();
+  const select = ({ node }: (typeof sorted)[number]): void => {
+    if (selectedIds.has(node.id) || selectedIds.size >= limit) return;
+    selectedIds.add(node.id);
+    labelCounts.set(node.label, (labelCounts.get(node.label) ?? 0) + 1);
+  };
+
+  for (const [label, { min = 0 }] of Object.entries(ANCHOR_LABEL_QUOTAS) as Array<
+    [GraphNode['label'], { min?: number; max?: number }]
+  >) {
+    sorted
+      .filter(({ node }) => node.label === label)
+      .slice(0, Math.min(min, limit))
+      .forEach(select);
+  }
+  for (const candidate of sorted) {
+    const max = ANCHOR_LABEL_QUOTAS[candidate.node.label]?.max;
+    if (max !== undefined && (labelCounts.get(candidate.node.label) ?? 0) >= max) continue;
+    select(candidate);
+  }
+  return sorted.filter(({ node }) => selectedIds.has(node.id)).map(({ node }) => node);
 }
 
 function emptyEvidence(): NeighborsResponse {
