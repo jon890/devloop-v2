@@ -193,6 +193,30 @@ test('LLM이 질문 원문 전체를 반환해도 검색어를 중복 추가하�
   assert.deepEqual(searchedTerms, ['Log & Crash', question]);
 });
 
+test('근거 상한 밖의 Task도 답변에서 안정적인 Task 번호 형식으로 인용한다', async () => {
+  const task206 = {
+    ...node('task-206', 'Task', '클라우드트레일 이벤트 제거'),
+    key: '206',
+  };
+  const service = new GraphQueryService({}, {});
+  service.extractAnchorTerms = async () => ['CloudTrail'];
+  service.fulltextSearch = async () => [];
+  service.generateCypher = async () => 'MATCH (t:Task) RETURN t LIMIT 50';
+  service.executeGeneratedCypher = async (cypher) => ({
+    ok: true,
+    cypher,
+    rows: [{ t: task206 }],
+    evidence: { nodes: [task206], relationships: [] },
+  });
+  service.buildQueryEvidence = async () => ({ nodes: [], relationships: [] });
+  service.synthesizeAnswer = async () => '21. #206 클라우드트레일 이벤트 제거';
+
+  const response = await service.query({ question: 'CloudTrail Task를 반환해줘.' });
+
+  assert.equal(response.answer, '21. Task #206 클라우드트레일 이벤트 제거');
+  assert.deepEqual(response.evidence.nodes, []);
+});
+
 test('fulltext 검색은 인덱스별 후보를 전역 LIMIT 없이 RRF 단계로 전달한다', async () => {
   let executedCypher;
   let executedParams;

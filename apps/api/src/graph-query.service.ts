@@ -199,7 +199,11 @@ export class GraphQueryService {
 
     try {
       const answer = await this.synthesizeAnswer(question, final.rows, evidence);
-      return { answer, evidence, cypher: final.cypher };
+      return {
+        answer: normalizeTaskCitations(answer, final.evidence.nodes),
+        evidence,
+        cypher: final.cypher,
+      };
     } catch (error) {
       return {
         answer: synthesisFallbackAnswer(final.rows, terms, final.cypher, [
@@ -405,6 +409,7 @@ export class GraphQueryService {
     const prompt = [
       '질문과 Cypher 결과, 근거 그래프를 바탕으로 한국어 답변을 작성하라.',
       '응답은 반드시 JSON 하나만 출력한다. 형식: {"answer":"답변"}',
+      'Task를 인용할 때는 번호만 #123처럼 쓰지 말고 반드시 Task #123 형식으로 써라.',
       '여러 Task 후보의 Decision이 함께 조회되었다면 행 순서나 fulltext 1위만으로 단정하지 말고, Task subject·Decision summary·Comment excerpt를 질문과 비교해 가장 관련성 높은 근거로 답하라.',
       `Question: ${question}`,
       `Rows: ${JSON.stringify(rows, jsonSafeReplacer)}`,
@@ -450,6 +455,17 @@ function uniqueNodes(nodes: GraphNode[]): GraphNode[] {
 
 function uniqueTerms(terms: string[]): string[] {
   return [...new Set(terms.map((term) => term.trim()).filter(Boolean))];
+}
+
+function normalizeTaskCitations(answer: string, answerNodes: GraphNode[]): string {
+  const taskNumbers = new Set(
+    answerNodes
+      .filter((node) => node.label === 'Task')
+      .map((node) => String(node.key)),
+  );
+  return answer.replace(/(?:Task\s+|업무\s+)?#(\d+)\b/gi, (reference, taskNumber: string) =>
+    taskNumbers.has(taskNumber) ? `Task #${taskNumber}` : reference,
+  );
 }
 
 export function rankAnchorCandidates(
