@@ -24,7 +24,18 @@ const FULLTEXT_INDEXES = ['task_subject_fulltext', 'wiki_subject_fulltext', 'con
 const AnchorResponseSchema = z.object({ terms: z.array(z.string().min(1)).min(1) });
 const CypherResponseSchema = z.object({ cypher: z.string().trim().min(1) });
 const AnswerResponseSchema = z.object({ answer: z.string().trim().min(1) });
+// anchor 8개는 프롬프트 few-shot의 Task 후보 3개와 교차 라벨 문맥을 함께 담기 위한 상한이다.
+// Wiki 최소 2개는 답변 근거에서 문서성 노드가 Task/Concept 점수에 밀려 사라지지 않게 하는 하한이다.
 const ANCHOR_CANDIDATE_LIMIT = 8;
+// Task 최대 5, Wiki 최대 3, Concept 최대 2는 backfill 전 소프트 쿼터다.
+// 후보가 부족하면 backfill이 최대를 넘어 채우고, Wiki는 최소 2개를 별도로 보장한다.
+const ANCHOR_LABEL_QUOTAS: Partial<
+  Record<GraphNode['label'], { min?: number; max?: number }>
+> = {
+  Task: { max: 5 },
+  Wiki: { min: 2, max: 3 },
+  Concept: { max: 2 },
+};
 const EVIDENCE_NODE_LIMIT = 30;
 
 interface FulltextMatch {
@@ -65,7 +76,7 @@ export class GraphQueryService {
     const { q } = GraphSearchQuerySchema.parse({ q: rawQ });
     if (!q.trim()) return [];
     const results = await this.fulltextSearch(q, 25);
-    return uniqueNodes(results.map(({ node }) => node));
+    return uniqueNodes(results.map(({ node }) => node)).slice(0, 25);
   }
 
   async samples(rawLabel = '', rawRelationship = ''): Promise<NeighborsResponse> {
@@ -126,6 +137,7 @@ export class GraphQueryService {
       terms = [question];
       diagnostics.push(`anchor 용어 추출 실패: ${formatError(error)}`);
     }
+    terms = uniqueTerms([...terms, question]);
 
     const searchResults = await Promise.allSettled(
       terms.map((term) => this.fulltextSearch(term, ANCHOR_CANDIDATE_LIMIT)),
@@ -222,7 +234,11 @@ export class GraphQueryService {
 
     try {
       const answer = await this.synthesizeAnswer(question, final.rows, evidence);
-      return { answer, evidence, cypher: final.cypher };
+      return {
+        answer: normalizeTaskCitations(answer, final.evidence.nodes),
+        evidence,
+        cypher: final.cypher,
+      };
     } catch (error) {
       return {
         answer: synthesisFallbackAnswer(final.rows, terms, final.cypher, [
@@ -242,15 +258,14 @@ export class GraphQueryService {
         UNWIND $indexes AS indexName
         CALL db.index.fulltext.queryNodes(indexName, $q, {limit: $perIndexLimit})
         YIELD node, score
-        RETURN node, max(score) AS score
+        WITH node, max(score) AS score
+        RETURN node, score
         ORDER BY score DESC
-        LIMIT $limit
         `,
         {
           indexes: [...FULLTEXT_INDEXES],
-          q,
+          q: escapeLuceneQuery(q),
           perIndexLimit: neo4j.int(limit),
-          limit: neo4j.int(limit),
         },
       );
       return result.records.map((record) => ({
@@ -429,6 +444,7 @@ export class GraphQueryService {
     const prompt = [
       '질문과 Cypher 결과, 근거 그래프를 바탕으로 한국어 답변을 작성하라.',
       '응답은 반드시 JSON 하나만 출력한다. 형식: {"answer":"답변"}',
+      'Task를 인용할 때는 번호만 #123처럼 쓰지 말고 반드시 Task #123 형식으로 써라.',
       '여러 Task 후보의 Decision이 함께 조회되었다면 행 순서나 fulltext 1위만으로 단정하지 말고, Task subject·Decision summary·Comment excerpt를 질문과 비교해 가장 관련성 높은 근거로 답하라.',
       `Question: ${question}`,
       `Rows: ${JSON.stringify(rows, jsonSafeReplacer)}`,
@@ -472,6 +488,22 @@ function uniqueNodes(nodes: GraphNode[]): GraphNode[] {
   return [...new Map(nodes.map((node) => [node.id, node])).values()];
 }
 
+function uniqueTerms(terms: string[]): string[] {
+  return [...new Set(terms.map((term) => term.trim()).filter(Boolean))];
+}
+
+function normalizeTaskCitations(answer: string, answerNodes: GraphNode[]): string {
+  const taskNumbers = new Set(
+    answerNodes
+      .filter((node) => node.label === 'Task')
+      .map((node) => String(node.key)),
+  );
+  return answer.replace(
+    /(?:(?:Task|업무)[ \t]+)?(?<![\w/])(?<!Task\n)(?<!Task\r\n)(?<!업무\n)(?<!업무\r\n)#(\d+)(?![\w.]|번)/gi,
+    (reference, taskNumber: string) => (taskNumbers.has(taskNumber) ? `Task #${taskNumber}` : reference),
+  );
+}
+
 export function rankAnchorCandidates(
   resultSets: FulltextMatch[][],
   limit = ANCHOR_CANDIDATE_LIMIT,
@@ -498,15 +530,41 @@ export function rankAnchorCandidates(
       firstSeen += 1;
     });
   }
-  return [...ranked.values()]
-    .sort(
-      (left, right) =>
-        right.reciprocalRank - left.reciprocalRank ||
-        right.bestScore - left.bestScore ||
-        left.firstSeen - right.firstSeen,
-    )
-    .slice(0, limit)
-    .map(({ node }) => node);
+  const sorted = [...ranked.values()].sort(
+    (left, right) =>
+      right.reciprocalRank - left.reciprocalRank ||
+      right.bestScore - left.bestScore ||
+      left.firstSeen - right.firstSeen,
+  );
+  const selectedIds = new Set<string>();
+  const labelCounts = new Map<GraphNode['label'], number>();
+  const select = ({ node }: (typeof sorted)[number]): void => {
+    if (selectedIds.has(node.id) || selectedIds.size >= limit) return;
+    selectedIds.add(node.id);
+    labelCounts.set(node.label, (labelCounts.get(node.label) ?? 0) + 1);
+  };
+
+  for (const [label, { min = 0 }] of Object.entries(ANCHOR_LABEL_QUOTAS) as Array<
+    [GraphNode['label'], { min?: number; max?: number }]
+  >) {
+    sorted
+      .filter(({ node }) => node.label === label)
+      .slice(0, Math.min(min, limit))
+      .forEach(select);
+  }
+  for (const candidate of sorted) {
+    const max = ANCHOR_LABEL_QUOTAS[candidate.node.label]?.max;
+    if (max !== undefined && (labelCounts.get(candidate.node.label) ?? 0) >= max) continue;
+    select(candidate);
+  }
+  for (const candidate of sorted) {
+    select(candidate);
+  }
+  return sorted.filter(({ node }) => selectedIds.has(node.id)).map(({ node }) => node);
+}
+
+function escapeLuceneQuery(query: string): string {
+  return query.replace(/([+\-!(){}\[\]^"~*?:\\/]|&&|\|\|)/g, '\\$1');
 }
 
 function emptyEvidence(): NeighborsResponse {
