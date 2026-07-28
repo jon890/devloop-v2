@@ -14,12 +14,25 @@
 {"label":"Comment","key":"comment-2","properties":{"commentId":"comment-2","createdAt":"2026-01-03","excerpt":"Keep Cypher sessions read only."}}
 {"label":"Comment","key":"comment-3","properties":{"commentId":"comment-3","createdAt":"2026-01-04","excerpt":"The OCR rollout is approved."}}
 {"label":"Comment","key":"comment-4","properties":{"commentId":"comment-4","createdAt":"2026-01-05","excerpt":"Follow up after the API incident."}}
-{"label":"Concept","key":"OCR 모델","properties":{"name":"OCR 모델","kind":"product"}}
-{"label":"Concept","key":"Graph API","properties":{"name":"Graph API","kind":"component"}}
-{"label":"Concept","key":"Nest.js","properties":{"name":"Nest.js","kind":"tech"}}
-{"label":"Concept","key":"Neo4J","properties":{"name":"Neo4J","kind":"tech"}}
-{"label":"Concept","key":"  새   도메인  ","properties":{"name":"  새   도메인  ","kind":"type"}}
-{"label":"Decision","key":"101-1","properties":{"id":"101-1","summary":"Migrate the OCR pipeline to Graph API.","decidedAt":"2026-01-03"}}
-{"label":"Decision","key":"102-1","properties":{"id":"102-1","summary":"Use the cjk fulltext analyzer.","decidedAt":"2026-01-04"}}
-{"label":"Decision","key":"103-1","properties":{"id":"103-1","summary":"Run generated Cypher in read sessions.","decidedAt":"2026-01-05"}}
-{"label":"Decision","key":"104-1","properties":{"id":"104-1","summary":"Release General OCR after validation.","decidedAt":"2026-01-06"}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"101","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"102","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"103","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"104","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"105","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"106","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"wiki-1","properties":{}}
+{"type":"CONTAINS","startKey":"e2e","endKey":"wiki-2","properties":{}}
+{"type":"ASSIGNED_TO","startKey":"101","endKey":"member-1","properties":{"role":"to"}}
+{"type":"ASSIGNED_TO","startKey":"102","endKey":"member-2","properties":{"role":"to"}}
+{"type":"AUTHORED","startKey":"member-1","endKey":"101","properties":{}}
+{"type":"AUTHORED","startKey":"member-2","endKey":"102","properties":{}}
+{"type":"HAS_COMMENT","startKey":"102","endKey":"comment-1","properties":{}}
+{"type":"HAS_COMMENT","startKey":"103","endKey":"comment-2","properties":{}}
+{"type":"HAS_COMMENT","startKey":"104","endKey":"comment-3","properties":{}}
+{"type":"HAS_COMMENT","startKey":"105","endKey":"comment-4","properties":{}}
+{"type":"COMMENTED","startKey":"member-3","endKey":"comment-1","properties":{}}
+{"type":"COMMENTED","startKey":"member-1","endKey":"comment-2","properties":{}}
+{"type":"TAGGED","startKey":"101","endKey":"Graph API","properties":{"dimension":"component"}}
+{"type":"TAGGED","startKey":"103","endKey":"Nest.js","properties":{"dimension":"tech"}}
+{"type":"REFERENCES","startKey":"105","endKey":"101","properties":{}}
+{"type":"CHILD_OF","startKey":"105","endKey":"101","properties":{}}
