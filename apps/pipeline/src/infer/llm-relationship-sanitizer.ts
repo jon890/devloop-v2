@@ -1,6 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { LLM_GRAPH_FILE } from "@devloop/shared";
+import { INFERRED_GRAPH_FILE } from "@devloop/shared";
 import type { OntologyRelationship, RawDoorayObject } from "@devloop/shared";
 import { LlmNodeSchema, LlmRelationshipSchema, type LlmExtraction } from "./llm-extraction.schema";
 import { firstString, readRawProject } from "../raw-reader";
@@ -208,8 +208,8 @@ function parseLlmGraphRecord(value: unknown): LlmGraphRecord {
 }
 
 export async function sanitizeLlmGraphFile(dataRoot: string, project: string): Promise<SanitizeLlmGraphFileResult> {
-  const outputPath = path.join(dataRoot, "graph", project, LLM_GRAPH_FILE);
-  const reportPath = path.join(dataRoot, "graph", project, "llm-dropped-relationships.json");
+  const outputPath = path.join(dataRoot, "graph", project, INFERRED_GRAPH_FILE);
+  const reportPath = path.join(dataRoot, "graph", project, "inference-dropped-relationships.json");
   let content: string;
   let previousDropped: DroppedRelationship[];
   try {

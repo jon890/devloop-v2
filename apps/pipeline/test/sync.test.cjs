@@ -47,17 +47,17 @@ test('LLM 유래 미해석 관계는 최대 10개 샘플과 함께 건너뛴다'
     [{ label: 'Task', key: '483', properties: { number: '483' } }],
     relationships,
     new Map(),
-    relationships.map(() => 'llm.jsonl'),
+    relationships.map(() => 'inferred.jsonl'),
   );
 
   assert.equal(graph.relationships.length, 0);
   assert.equal(graph.skippedRelationships.count, 12);
   assert.equal(graph.skippedRelationships.samples.length, 10);
-  assert.ok(graph.skippedRelationships.samples.every((sample) => sample.sourceFile === 'llm.jsonl'));
+  assert.ok(graph.skippedRelationships.samples.every((sample) => sample.sourceFile === 'inferred.jsonl'));
   assert.match(graph.skippedRelationships.samples[0].error, /Missing endKey node/);
 });
 
-test('structural.jsonl 유래 미해석 관계는 구조적 버그로 계속 실패한다', () => {
+test('parsed.jsonl 유래 미해석 관계는 구조적 버그로 계속 실패한다', () => {
   assert.throws(
     () => normalizeGraph(
       [{ label: 'Task', key: '483', properties: { number: '483' } }],
@@ -68,7 +68,7 @@ test('structural.jsonl 유래 미해석 관계는 구조적 버그로 계속 실
         properties: { project: 'tc-ocr' },
       }],
       new Map(),
-      ['structural.jsonl'],
+      ['parsed.jsonl'],
     ),
     /Missing endKey node "Task:999"/,
   );

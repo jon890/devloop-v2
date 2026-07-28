@@ -33,7 +33,7 @@ test("강화 키로 사전 Concept을 canonical 노드 하나로 병합한다", 
     [],
     aliasMap,
     undefined,
-    ["structural.jsonl", "llm.jsonl"],
+    ["parsed.jsonl", "inferred.jsonl"],
   );
 
   assert.equal(graph.nodes.length, 1);
@@ -58,7 +58,7 @@ test("사전 exact 매칭은 강화 키 매칭보다 우선한다", () => {
     [],
     aliasMap,
     undefined,
-    ["llm.jsonl"],
+    ["inferred.jsonl"],
   );
 
   assert.equal(graph.nodes[0].key, "Document AI");
@@ -94,7 +94,7 @@ test("부당 병합 denylist는 API 경로와 일반 이름을 분리한다", ()
     [],
     aliasMap,
     undefined,
-    ["llm.jsonl", "llm.jsonl"],
+    ["inferred.jsonl", "inferred.jsonl"],
   );
 
   assert.deepEqual(graph.nodes.map((node) => node.key).sort(), ["/analysis", "analysis"]);
@@ -127,7 +127,7 @@ test("사전 밖 Concept에도 부당 병합 denylist를 적용한다", () => {
     [],
     new Map(),
     undefined,
-    ["llm.jsonl", "llm.jsonl", "llm.jsonl", "llm.jsonl"],
+    ["inferred.jsonl", "inferred.jsonl", "inferred.jsonl", "inferred.jsonl"],
   );
 
   assert.deepEqual(graph.nodes.map((node) => node.key).sort(), ["*.cloud.toast.com", "/analysis", "analysis", "cloud.toast.com"]);
@@ -173,8 +173,8 @@ test("사전 밖 Concept은 관계 참조가 가장 많은 표기로 병합하�
       },
     ],
     new Map(),
-    ["llm.jsonl", "llm.jsonl", "llm.jsonl"],
-    ["structural.jsonl", "llm.jsonl", "llm.jsonl"],
+    ["inferred.jsonl", "inferred.jsonl", "inferred.jsonl"],
+    ["parsed.jsonl", "inferred.jsonl", "inferred.jsonl"],
   );
 
   assert.deepEqual(
@@ -202,7 +202,7 @@ test("사전 밖 Concept의 연결 수와 등장 수가 같으면 사전순 대�
     [],
     new Map(),
     undefined,
-    ["llm.jsonl", "llm.jsonl"],
+    ["inferred.jsonl", "inferred.jsonl"],
   );
 
   assert.equal(graph.nodes.length, 1);
@@ -250,8 +250,8 @@ test("태그 alias는 별도 canonical 없이 같은 Concept 관계 끝점으로
       },
     ],
     aliasMap,
-    ["structural.jsonl", "llm.jsonl"],
-    ["structural.jsonl", "structural.jsonl", "llm.jsonl"],
+    ["parsed.jsonl", "inferred.jsonl"],
+    ["parsed.jsonl", "parsed.jsonl", "inferred.jsonl"],
   );
 
   assert.equal(graph.nodes.filter((node) => node.label === "Concept").length, 1);
@@ -285,7 +285,7 @@ test("LLM Concept의 사전 매칭 여부와 출처를 독립적으로 기록한
     [],
     aliasMap,
     undefined,
-    ["llm.jsonl", "llm.jsonl"],
+    ["inferred.jsonl", "inferred.jsonl"],
   );
 
   const matched = graph.nodes.find((node) => node.key === "Request-Key");

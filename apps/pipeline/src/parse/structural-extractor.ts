@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { STRUCTURAL_GRAPH_FILE } from "@devloop/shared";
+import { PARSED_GRAPH_FILE } from "@devloop/shared";
 import type { ConceptKind, OntologyNode, OntologyRelationship, RawDoorayObject } from "@devloop/shared";
 import { GraphRecordSchema, nodeRef, type GraphRecord } from "./graph-record.schema";
 import { CODE_REFERENCE_PATTERN, TAG_DIMENSION_PATTERN } from "./structural-extractor.const";
@@ -381,7 +381,7 @@ export async function extractStructural(options: StructuralExtractionOptions): P
 
   const { resolvedRelationships, records } = graphRecords(stores);
   const outputDir = path.join(options.dataRoot, "graph", options.project);
-  const outputPath = path.join(outputDir, STRUCTURAL_GRAPH_FILE);
+  const outputPath = path.join(outputDir, PARSED_GRAPH_FILE);
   await mkdir(outputDir, { recursive: true });
   await writeFile(outputPath, records.map((record) => JSON.stringify(record)).join("\n") + "\n", "utf8");
   return { outputPath, nodes: stores.nodes.size, relationships: resolvedRelationships.length, records };

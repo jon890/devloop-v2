@@ -4,7 +4,7 @@ export interface PipelineOptions {
   project: string;
   stage?: string;
   limit?: number;
-  /** LLM 추출 부분 실행용 sourceDocId 목록 (--docs Task:483,Wiki:123) */
+  /** 지식 추론 부분 실행용 sourceDocId 목록 (--docs Task:483,Wiki:123) */
   docs?: string[];
 }
 
