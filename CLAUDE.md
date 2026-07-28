@@ -34,10 +34,31 @@ apps/pipeline/    ingest/  extract/  load/  llm/
 pnpm -r build                          # 전체 빌드
 pnpm --filter pipeline test            # 파이프라인 테스트
 pnpm schema:apply                      # Neo4j 제약·인덱스 적용
-pnpm --filter pipeline load            # 적재
+pnpm --filter pipeline sync-neo4j      # 적재
 pnpm api                               # API 기동 (:3000)
 pnpm web                               # UI 기동 (:5173)
 ```
+
+### 파이프라인 단계 이름은 산출물과 비용을 드러낸다
+
+```
+fetch-dooray → seed-concepts → parse-structure → infer-knowledge → sync-neo4j
+체인 밖: audit-concepts · apply-schema
+```
+
+| 단계 | 산출물 | 재실행 비용 |
+| --- | --- | --- |
+| `fetch-dooray` | `data/raw/` | 네트워크. Dooray 가 살아 있어야 한다 |
+| `seed-concepts` | `data/concepts/` | 공짜 |
+| `parse-structure` | `graph/parsed.jsonl` | **공짜** (수 초) |
+| `infer-knowledge` | `graph/inferred.jsonl` | **LLM 537회** |
+| `sync-neo4j` | Neo4j | 되돌리기 어렵다 |
+
+`parse-structure` 는 규칙 파싱이라 공짜고 `infer-knowledge` 는 LLM 이라 비싸다.
+**구조만 고쳤으면 `parse-structure` 만 다시 돌린다.** 옛 이름(`extract:structural`·`extract:llm`)은
+둘 다 `extract:` 라 이 차이가 안 보였다.
+
+`infer-knowledge` 캐시 키에 `promptVersion` 이 들어 있다 — 추출 프롬프트를 고치면 캐시가 전부 빗나간다.
 
 ## 실측으로 확립된 사실
 
@@ -208,12 +229,35 @@ prettier 를 도입하기로 했으므로, 포맷 통일은 **기능 변경과 �
 아무 테스트도 돌지 않았는데 성공으로 보인다. 실제로 머지 직전에 이것에 걸렸다.
 
 - api 는 `test:unit` 을 쓴다. 통과 표시가 아니라 **테스트 개수**를 확인하라
-- 현재 개수 — api 46, pipeline 48 (2026-07-28 기준). 줄었으면 무언가 실행되지 않는 것이다
+- 현재 개수 — api 51, pipeline 48 (2026-07-28 기준). 줄었으면 무언가 실행되지 않는 것이다
+
+**가장 나쁜 함정 — e2e 는 오래 깨져 있었고 아무도 몰랐다.**
+
+`apps/api/test/fixtures/graph/e2e/` 의 fixture 가 Concept 을 `nodes.jsonl` 에 담고 있었다.
+`sync-neo4j` 의 `conceptSource` 는 `parsed.jsonl`·`inferred.jsonl` 만 허용하므로 예외로 죽는다.
+이름 변경 이전(`structural.jsonl`·`llm.jsonl` 시절)에도 같은 예외가 났다 — 실측으로 확인했다.
+
+- 발견되지 않은 이유는 **7688 포트 충돌로 컨테이너 기동에서 먼저 막혀** 예외까지 도달조차 못 했기 때문이다
+- 즉 "실행이 실패했다" 와 "테스트가 실패했다" 가 구분되지 않으면 결함이 무한히 숨는다
+- fixture 는 이제 실제 파이프라인 형상과 같다 — `parsed.jsonl` 에 구조 노드, `inferred.jsonl` 에 Concept·Decision
+- e2e 를 손댔으면 **적재 단계만 따로 실행해** 확인하라. 이 예외는 DB 접속 전에 나므로 Neo4j 없이 재현된다
+
+  ```bash
+  pnpm --filter pipeline sync-neo4j --project e2e --data-dir <절대경로>/apps/api/test/fixtures
+  ```
 
 ### 측정 환경의 함정
 
-- **운영 Neo4j(7687)는 ssh 터널이다.** 원격 인스턴스로 포워딩되므로 샌드박스 환경에서는 접근이 막힌다.
-  codex 를 샌드박스로 돌리면 "Neo4j 가 안 뜬다" 고 보고한다. Docker 로 띄울 대상이 아니다
+- **운영 Neo4j(7687)는 이 저장소의 로컬 Docker 컨테이너다** (`docker-compose.yml` 의 `neo4j`,
+  컨테이너 `devloop-v2-neo4j-1`). `lsof` 에 `ssh` 로 보이는 것은 **colima** 가 Docker 를 Lima VM 으로
+  돌리며 포트를 포워딩하기 때문이고, 원격 서버 터널이 아니다.
+    - 앞서 이 문서에 "원격 인스턴스로 포워딩되므로 Docker 로 띄울 대상이 아니다" 라고 적혀 있었으나 틀렸다
+    - 샌드박스에서 접근이 막히는 현상은 맞다. codex 를 샌드박스로 돌리면 "Neo4j 가 안 뜬다" 고 보고한다
+- **테스트용 7688 은 다른 프로젝트 컨테이너가 점유하고 있다** (`fos-graphrag-neo4j-1`).
+  그래서 `pnpm --filter api test:e2e` 는 컨테이너 기동 단계에서 막힌다.
+    - 그 인스턴스는 이 저장소 자격증명을 거부하므로 데이터가 지워질 위험은 없다. 다만 우연히 막힌 것이다
+    - GHE 계획 Phase 1 이 staging 으로 7689 를 쓰려는데 같은 충돌이 재현될 수 있다
+- **`--data-dir` 에는 절대 경로를 써라.** 상대 경로는 pipeline 패키지 기준으로 풀려 파일을 못 찾는다
 - **측정 중에 같은 API 로 브라우저 질의를 하면 결과가 불안정해진다.** LLM CLI 호출이 경쟁한다.
   측정 쪽은 근거 6~29건을 받는데 브라우저 질의만 0건이 반복됐다
 - **playwright 의 `fill()` 은 React onChange 를 우회한다.** 입력값이 state 에 반영되지 않아 **이전 질문이 재전송**된다.
@@ -254,10 +298,26 @@ S2 판정식을 적재기 정규화 함수와 같게 만들면, 적재기가 보
 | 질의에 DOCUMENTS 관계 반영 | **머지 완료** (`80a79a7`). A-07 이 3회 전부 통과로 바뀌었다 |
 | `REFERENCES` 오탐 제거 | **머지 완료** (`64b97ca`). 786 → 328 |
 | API 환경설정 config 통합 | **머지 완료** (`4e79013`). 필수 값 부재를 기동 실패로 만들었다 |
-| 사전 별칭 보강 (2층) | 후보 조사 완료. **사람이 5쌍을 판단하는 단계** |
-| gold 재검토 | 조사 완료. "근거 없음" 4문항(A-06·A-10·H-12·H-17) 처리 방침 결정 필요 |
-| 스키마 맵 표본 페이징 | 진행 중 (`feat/samples-paging`) |
-| GitHub Enterprise 통합 | **보류**. 기존 품질을 먼저 올린 뒤 재개 |
+| 스키마 맵 표본 페이징 | **머지 완료** (`ef0c5a5`).<br>정렬은 키 속성 뒤 `elementId` 로 동순위를 깬다<br>limit 상한 100, offset 상한 `MAX_SAFE_INTEGER` |
+| 파이프라인 단계 이름·모듈 배치 | **머지 완료** (`ffefdae`). 1단계 |
+| 파이프라인 2단계 — `sync-neo4j` 분해 | **예정**. `resolve-graph` 신설, `migrate-neo4j`·`reset-neo4j` 분리 |
+| 사전 별칭 보강 (2층) | **5쌍 승인됨**. 등록은 `resolve-graph` dry-run 이 생긴 뒤에 한다 |
+| gold 3문항 (A-06·A-10·H-12) | **`supporting` 하향으로 결정.** 미실행 |
+| gold H-17 | **별칭·추출 프롬프트 둘 다로 결정.** 미실행. 프롬프트 변경은 LLM 537회 |
+| A-14 인수 기준 | **문구 변경으로 결정.** "FAIL 전환 0개" → "원인이 가짜 엣지 제거임을 증명". 미실행 |
+| GitHub Enterprise 통합 | **보류**. Phase 1(staging·초기화)만 남았다 |
+
+### 별칭 등록은 `resolve-graph` dry-run 이 생긴 뒤에 한다
+
+승인된 5쌍은 `eval/reports/2026-07-28-concept-alias-candidates.md` 에 있다.
+지금 등록하면 효과를 미리 볼 수 없고 틀리면 그래프를 다시 비워야 한다 —
+정규화가 `sync-neo4j` 안에 묶여 있어 적재 없이 확인할 방법이 없기 때문이다.
+
+2단계에서 `resolve-graph` 가 순수 함수로 분리되면 `graph/resolved.jsonl` 을 diff 해서
+무엇이 합쳐지는지 먼저 볼 수 있다. 그때 등록하는 것이 안전하다.
+
+**`gateway api`(쿠버네티스 표준 Gateway API)와 `nat gateway` 는 병합 대상이 아니다.**
+`api gateway` 와 토큰 집합이 같지만 다른 개체다. 토큰 일치만으로 자동 병합하면 안 되는 실측 사례다.
 
 ### 다음 개선의 단위는 문항이 아니라 노드다
 
