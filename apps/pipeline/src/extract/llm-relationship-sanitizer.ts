@@ -1,13 +1,9 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
-import { LLM_GRAPH_FILE } from '@devloop/shared';
-import type { OntologyRelationship, RawDoorayObject } from '@devloop/shared';
-import {
-  LlmNodeSchema,
-  LlmRelationshipSchema,
-  type LlmExtraction,
-} from './llm-extraction.schema';
-import { firstString, readRawProject } from './raw-reader';
+import { readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { LLM_GRAPH_FILE } from "@devloop/shared";
+import type { OntologyRelationship, RawDoorayObject } from "@devloop/shared";
+import { LlmNodeSchema, LlmRelationshipSchema, type LlmExtraction } from "./llm-extraction.schema";
+import { firstString, readRawProject } from "./raw-reader";
 
 interface EndpointIndex {
   taskNumbers: Set<string>;
@@ -39,45 +35,40 @@ export interface SanitizeLlmGraphFileResult {
   droppedRelationships: DroppedRelationshipsReport;
 }
 
-type LlmGraphRecord = LlmExtraction['nodes'][number] | LlmExtraction['relationships'][number];
+type LlmGraphRecord = LlmExtraction["nodes"][number] | LlmExtraction["relationships"][number];
 
 async function readPostSummaries(dataRoot: string, project: string): Promise<RawDoorayObject[]> {
-  const summaryPath = path.join(dataRoot, 'raw', project, 'posts.json');
+  const summaryPath = path.join(dataRoot, "raw", project, "posts.json");
   try {
-    const value = JSON.parse(await readFile(summaryPath, 'utf8')) as unknown;
+    const value = JSON.parse(await readFile(summaryPath, "utf8")) as unknown;
     if (!Array.isArray(value)) throw new Error(`${summaryPath} must contain a JSON array.`);
-    return value.filter(
-      (entry): entry is RawDoorayObject => Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry),
-    );
+    return value.filter((entry): entry is RawDoorayObject => Boolean(entry) && typeof entry === "object" && !Array.isArray(entry));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;
   }
 }
 
 async function buildEndpointIndex(dataRoot: string, project: string): Promise<EndpointIndex> {
-  const [raw, postSummaries] = await Promise.all([
-    readRawProject(dataRoot, project),
-    readPostSummaries(dataRoot, project),
-  ]);
+  const [raw, postSummaries] = await Promise.all([readRawProject(dataRoot, project), readPostSummaries(dataRoot, project)]);
   const taskNumbers = new Set<string>();
   const taskIdToNumber = new Map<string, string>();
 
   for (const post of [...postSummaries, ...raw.posts.map((document) => document.post)]) {
-    const number = firstString(post, ['number', 'postNumber']);
+    const number = firstString(post, ["number", "postNumber"]);
     if (!number) continue;
     taskNumbers.add(number);
-    const id = firstString(post, ['id']);
+    const id = firstString(post, ["id"]);
     if (id) taskIdToNumber.set(id, number);
   }
 
   const wikiPageIds = new Set<string>();
   const wikiIdToPageId = new Map<string, string>();
   for (const wiki of raw.wikis) {
-    const pageId = firstString(wiki, ['pageId', 'id']);
+    const pageId = firstString(wiki, ["pageId", "id"]);
     if (!pageId) continue;
     wikiPageIds.add(pageId);
-    for (const alias of [firstString(wiki, ['pageId']), firstString(wiki, ['id'])]) {
+    for (const alias of [firstString(wiki, ["pageId"]), firstString(wiki, ["id"])]) {
       if (alias) wikiIdToPageId.set(alias, pageId);
     }
   }
@@ -86,16 +77,16 @@ async function buildEndpointIndex(dataRoot: string, project: string): Promise<En
 }
 
 function normalizeEndpoint(endpoint: string, index: EndpointIndex): { key?: string; rewritten: boolean; error?: string } {
-  if (endpoint.startsWith('Task:')) {
-    const key = endpoint.slice('Task:'.length);
+  if (endpoint.startsWith("Task:")) {
+    const key = endpoint.slice("Task:".length);
     if (index.taskNumbers.has(key)) return { key: endpoint, rewritten: false };
     const number = index.taskIdToNumber.get(key);
     if (number) return { key: `Task:${number}`, rewritten: true };
     return { rewritten: false, error: `Task endpoint ${endpoint} is absent from the raw task number and post id indexes.` };
   }
 
-  if (endpoint.startsWith('Wiki:')) {
-    const key = endpoint.slice('Wiki:'.length);
+  if (endpoint.startsWith("Wiki:")) {
+    const key = endpoint.slice("Wiki:".length);
     if (index.wikiPageIds.has(key)) return { key: endpoint, rewritten: false };
     const pageId = index.wikiIdToPageId.get(key);
     if (pageId) return { key: `Wiki:${pageId}`, rewritten: true };
@@ -125,31 +116,28 @@ function reportDroppedRelationships(dropped: readonly DroppedRelationship[]): Dr
 
 async function readDroppedRelationships(reportPath: string): Promise<DroppedRelationship[]> {
   try {
-    const value = JSON.parse(await readFile(reportPath, 'utf8')) as {
+    const value = JSON.parse(await readFile(reportPath, "utf8")) as {
       droppedRelationships?: { documents?: Array<{ relationships?: unknown[] }> };
     };
     const dropped: DroppedRelationship[] = [];
     for (const document of value.droppedRelationships?.documents ?? []) {
       for (const entry of document.relationships ?? []) {
-        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
         const candidate = entry as { relationship?: unknown; reason?: unknown };
         const relationship = LlmRelationshipSchema.safeParse(candidate.relationship);
-        if (relationship.success && typeof candidate.reason === 'string') {
+        if (relationship.success && typeof candidate.reason === "string") {
           dropped.push({ relationship: relationship.data, reason: candidate.reason });
         }
       }
     }
     return dropped;
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT' || error instanceof SyntaxError) return [];
+    if ((error as NodeJS.ErrnoException).code === "ENOENT" || error instanceof SyntaxError) return [];
     throw error;
   }
 }
 
-function mergeDroppedRelationships(
-  previous: readonly DroppedRelationship[],
-  current: readonly DroppedRelationship[],
-): DroppedRelationship[] {
+function mergeDroppedRelationships(previous: readonly DroppedRelationship[], current: readonly DroppedRelationship[]): DroppedRelationship[] {
   const merged = new Map<string, DroppedRelationship>();
   for (const entry of [...previous, ...current]) {
     merged.set(JSON.stringify(entry), entry);
@@ -158,14 +146,14 @@ function mergeDroppedRelationships(
 }
 
 function sanitizeRelationships(
-  relationships: readonly LlmExtraction['relationships'][number][],
+  relationships: readonly LlmExtraction["relationships"][number][],
   index: EndpointIndex,
 ): {
-  relationships: LlmExtraction['relationships'];
+  relationships: LlmExtraction["relationships"];
   rewrittenRelationships: number;
   dropped: DroppedRelationship[];
 } {
-  const sanitized: LlmExtraction['relationships'] = [];
+  const sanitized: LlmExtraction["relationships"] = [];
   const dropped: DroppedRelationship[] = [];
   let rewrittenRelationships = 0;
 
@@ -219,22 +207,16 @@ function parseLlmGraphRecord(value: unknown): LlmGraphRecord {
   return LlmRelationshipSchema.parse(value);
 }
 
-export async function sanitizeLlmGraphFile(
-  dataRoot: string,
-  project: string,
-): Promise<SanitizeLlmGraphFileResult> {
-  const outputPath = path.join(dataRoot, 'graph', project, LLM_GRAPH_FILE);
-  const reportPath = path.join(dataRoot, 'graph', project, 'llm-dropped-relationships.json');
+export async function sanitizeLlmGraphFile(dataRoot: string, project: string): Promise<SanitizeLlmGraphFileResult> {
+  const outputPath = path.join(dataRoot, "graph", project, LLM_GRAPH_FILE);
+  const reportPath = path.join(dataRoot, "graph", project, "llm-dropped-relationships.json");
   let content: string;
   let previousDropped: DroppedRelationship[];
   try {
-    [content, previousDropped] = await Promise.all([
-      readFile(outputPath, 'utf8'),
-      readDroppedRelationships(reportPath),
-    ]);
+    [content, previousDropped] = await Promise.all([readFile(outputPath, "utf8"), readDroppedRelationships(reportPath)]);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
-    content = '';
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    content = "";
     previousDropped = await readDroppedRelationships(reportPath);
   }
   const records = content
@@ -247,7 +229,7 @@ export async function sanitizeLlmGraphFile(
   let rewrittenRelationships = 0;
   const outputRecords: LlmGraphRecord[] = [];
   for (const record of records) {
-    if (!('type' in record)) {
+    if (!("type" in record)) {
       outputRecords.push(record);
       continue;
     }
@@ -256,16 +238,10 @@ export async function sanitizeLlmGraphFile(
     rewrittenRelationships += result.rewrittenRelationships;
     outputRecords.push(...result.relationships);
   }
-  const droppedRelationships = reportDroppedRelationships(
-    mergeDroppedRelationships(previousDropped, dropped),
-  );
+  const droppedRelationships = reportDroppedRelationships(mergeDroppedRelationships(previousDropped, dropped));
   await Promise.all([
-    writeFile(
-      outputPath,
-      outputRecords.length ? `${outputRecords.map((record) => JSON.stringify(record)).join('\n')}\n` : '',
-      'utf8',
-    ),
-    writeFile(reportPath, `${JSON.stringify({ droppedRelationships }, null, 2)}\n`, 'utf8'),
+    writeFile(outputPath, outputRecords.length ? `${outputRecords.map((record) => JSON.stringify(record)).join("\n")}\n` : "", "utf8"),
+    writeFile(reportPath, `${JSON.stringify({ droppedRelationships }, null, 2)}\n`, "utf8"),
   ]);
   return {
     outputPath,

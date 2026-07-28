@@ -1,1 +1,1 @@
-export * from './ontology/ontology.controller';
+export * from "./ontology/ontology.controller";

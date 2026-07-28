@@ -1,17 +1,12 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import path from 'node:path';
-import {
-  ConceptDictionarySchema,
-  type ConceptDictionary,
-  type ConceptEntry,
-  type ConceptKind,
-} from '@devloop/shared';
-import { firstString, readRawProject } from './raw-reader';
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { ConceptDictionarySchema, type ConceptDictionary, type ConceptEntry, type ConceptKind } from "@devloop/shared";
+import { firstString, readRawProject } from "./raw-reader";
 
 const TAG_KINDS: Record<string, ConceptKind> = {
-  '0': 'type',
-  '1': 'product',
-  '2': 'component',
+  "0": "type",
+  "1": "product",
+  "2": "component",
 };
 
 const ENGLISH_TITLE_TOKEN = /[A-Za-z][A-Za-z0-9.&_-]+/g;
@@ -26,27 +21,27 @@ export interface ConceptSeedResult {
   concepts: ConceptDictionary;
 }
 
-function inferKind(name: string, hint = ''): ConceptKind {
+function inferKind(name: string, hint = ""): ConceptKind {
   const value = `${name} ${hint}`.toLowerCase();
-  if (/(service|controller|interceptor|component|module|컴포넌트|모듈)/.test(value)) return 'component';
-  if (/(api|sdk|db|database|docker|kubernetes|kafka|redis|typescript|java|python|기술|플랫폼)/.test(value)) return 'tech';
-  if (/(product|제품|서비스)/.test(value)) return 'product';
-  return 'type';
+  if (/(service|controller|interceptor|component|module|컴포넌트|모듈)/.test(value)) return "component";
+  if (/(api|sdk|db|database|docker|kubernetes|kafka|redis|typescript|java|python|기술|플랫폼)/.test(value)) return "tech";
+  if (/(product|제품|서비스)/.test(value)) return "product";
+  return "type";
 }
 
 function aliasesFor(canonical: string, aliases: string[] = []): string[] {
-  const dotAlias = canonical.includes('.') ? canonical.replaceAll('.', ' ').replace(/\s+/g, ' ').trim() : undefined;
+  const dotAlias = canonical.includes(".") ? canonical.replaceAll(".", " ").replace(/\s+/g, " ").trim() : undefined;
   return [...new Set([...aliases, ...(dotAlias && dotAlias !== canonical ? [dotAlias] : [])])].sort();
 }
 
 function normalizeConceptName(name: string): string {
-  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 function isDotPartAlias(canonical: string, alias: string): boolean {
-  if (!canonical.includes('.')) return false;
+  if (!canonical.includes(".")) return false;
   const normalizedAlias = normalizeConceptName(alias);
-  return canonical.split('.').some((part) => normalizeConceptName(part) === normalizedAlias);
+  return canonical.split(".").some((part) => normalizeConceptName(part) === normalizedAlias);
 }
 
 function removeConflictingAliases(entries: readonly ConceptEntry[]): ConceptEntry[] {
@@ -72,9 +67,7 @@ function removeConflictingAliases(entries: readonly ConceptEntry[]): ConceptEntr
     aliases: entry.aliases.filter((alias) => {
       if (isDotPartAlias(entry.canonical, alias)) return false;
       const aliasName = normalizeConceptName(alias);
-      const otherCanonical = [...(canonicalOwners.get(aliasName) ?? [])].some(
-        (canonical) => canonical !== entry.canonical,
-      );
+      const otherCanonical = [...(canonicalOwners.get(aliasName) ?? [])].some((canonical) => canonical !== entry.canonical);
       const sharedAlias = (aliasOwners.get(aliasName)?.size ?? 0) > 1;
       return !otherCanonical && !sharedAlias;
     }),
@@ -89,9 +82,7 @@ function titleConcepts(title: string): string[] {
   for (let index = 1; index <= matches.length; index += 1) {
     const previous = matches[index - 1];
     const current = matches[index];
-    const separator = current
-      ? title.slice((previous.index ?? 0) + previous[0].length, current.index)
-      : undefined;
+    const separator = current ? title.slice((previous.index ?? 0) + previous[0].length, current.index) : undefined;
     if (separator !== undefined && /^\s+(?:&\s+)?$/.test(separator)) continue;
     if (index - phraseStart > 1) {
       const first = matches[phraseStart];
@@ -109,9 +100,9 @@ function titlePrefix(subject: string): string | undefined {
 
 async function readExisting(outputPath: string): Promise<ConceptDictionary> {
   try {
-    return ConceptDictionarySchema.parse(JSON.parse(await readFile(outputPath, 'utf8')));
+    return ConceptDictionarySchema.parse(JSON.parse(await readFile(outputPath, "utf8")));
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw error;
   }
 }
@@ -142,7 +133,7 @@ function tagConcept(name: string): ConceptEntry {
 
 export async function seedConcepts(options: ConceptSeedOptions): Promise<ConceptSeedResult> {
   const raw = await readRawProject(options.dataRoot, options.project);
-  const outputPath = path.join(options.dataRoot, 'concepts', `${options.project}.json`);
+  const outputPath = path.join(options.dataRoot, "concepts", `${options.project}.json`);
   const concepts = new Map<string, ConceptEntry>();
   const existingConcepts = await readExisting(outputPath);
 
@@ -151,18 +142,18 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
   }
 
   for (const document of raw.posts) {
-    const subject = firstString(document.post, ['subject', 'title']);
+    const subject = firstString(document.post, ["subject", "title"]);
     const prefix = subject ? titlePrefix(subject) : undefined;
     if (!prefix) continue;
     mergeConcept(concepts, {
       canonical: prefix,
-      kind: 'component',
+      kind: "component",
       aliases: [],
     });
   }
 
   for (const wiki of raw.wikis) {
-    const subject = firstString(wiki, ['subject', 'title']);
+    const subject = firstString(wiki, ["subject", "title"]);
     if (!subject) continue;
     for (const concept of titleConcepts(subject)) {
       mergeConcept(concepts, { canonical: concept, kind: inferKind(concept, subject), aliases: [] });
@@ -174,11 +165,9 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
   }
 
   const result = ConceptDictionarySchema.parse(
-    removeConflictingAliases([...concepts.values()]).sort((left, right) =>
-      left.canonical.localeCompare(right.canonical),
-    ),
+    removeConflictingAliases([...concepts.values()]).sort((left, right) => left.canonical.localeCompare(right.canonical)),
   );
   await mkdir(path.dirname(outputPath), { recursive: true });
-  await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
+  await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
   return { outputPath, concepts: result };
 }

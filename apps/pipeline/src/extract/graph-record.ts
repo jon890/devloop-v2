@@ -1,1 +1,1 @@
-export * from './graph-record.schema';
+export * from "./graph-record.schema";

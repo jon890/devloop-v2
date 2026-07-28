@@ -1,14 +1,8 @@
-import { GraphCanvas, legendItems } from '../GraphCanvas';
-import { EvidenceList } from './EvidenceList';
-import type { useQueryWorkspace } from './useQueryWorkspace';
+import { GraphCanvas, legendItems } from "../GraphCanvas";
+import { EvidenceList } from "./EvidenceList";
+import type { useQueryWorkspace } from "./useQueryWorkspace";
 
-export function QueryWorkspace({
-  workspace,
-  graphStatsError,
-}: {
-  workspace: ReturnType<typeof useQueryWorkspace>;
-  graphStatsError: string | null;
-}) {
+export function QueryWorkspace({ workspace, graphStatsError }: { workspace: ReturnType<typeof useQueryWorkspace>; graphStatsError: string | null }) {
   return (
     <section className="workspace">
       <aside className="chat-panel">
@@ -24,7 +18,7 @@ export function QueryWorkspace({
             value={workspace.question}
             onChange={(event) => workspace.setQuestion(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
+              if (event.key === "Enter" && !event.shiftKey) {
                 event.preventDefault();
                 event.currentTarget.form?.requestSubmit();
               }
@@ -36,17 +30,23 @@ export function QueryWorkspace({
             <span>Enter로 질문 · Shift + Enter로 줄바꿈</span>
             <button type="submit" disabled={workspace.loading || !workspace.question.trim()}>
               {workspace.loading ? <span className="spinner" aria-hidden="true" /> : <span aria-hidden="true">↗</span>}
-              {workspace.loading ? '근거 찾는 중' : '질문하기'}
+              {workspace.loading ? "근거 찾는 중" : "질문하기"}
             </button>
           </div>
         </form>
 
-        {(workspace.error || graphStatsError) && <div className="error-message" role="alert">{workspace.error ?? graphStatsError}</div>}
+        {(workspace.error || graphStatsError) && (
+          <div className="error-message" role="alert">
+            {workspace.error ?? graphStatsError}
+          </div>
+        )}
 
-        <div className={`answer-stack ${workspace.result ? 'has-result' : ''}`} aria-live="polite">
+        <div className={`answer-stack ${workspace.result ? "has-result" : ""}`} aria-live="polite">
           {!workspace.result && !workspace.loading && (
             <div className="empty-answer">
-              <div className="empty-orbit" aria-hidden="true"><span /></div>
+              <div className="empty-orbit" aria-hidden="true">
+                <span />
+              </div>
               <h2>답과 근거를 한 화면에서</h2>
               <p>질문하면 관련 결정과 업무를 추려 오른쪽 그래프에 표시합니다.</p>
             </div>
@@ -54,7 +54,9 @@ export function QueryWorkspace({
 
           {workspace.loading && (
             <div className="answer-skeleton" aria-label="답변을 만드는 중">
-              <span /><span /><span />
+              <span />
+              <span />
+              <span />
             </div>
           )}
 
@@ -71,8 +73,13 @@ export function QueryWorkspace({
               <EvidenceList evidence={workspace.result.evidence} onFocus={workspace.focusEvidence} focusedId={workspace.focusedNodeId} />
 
               <details className="cypher-disclosure">
-                <summary><span>생성된 Cypher</span><small>질의 검증용</small></summary>
-                <pre><code>{workspace.result.cypher}</code></pre>
+                <summary>
+                  <span>생성된 Cypher</span>
+                  <small>질의 검증용</small>
+                </summary>
+                <pre>
+                  <code>{workspace.result.cypher}</code>
+                </pre>
               </details>
             </>
           )}
@@ -83,9 +90,17 @@ export function QueryWorkspace({
         <div className="graph-toolbar">
           <div>
             <span className="section-kicker light">근거 그래프</span>
-            <p>{workspace.nodes.length ? `${workspace.nodes.length}개 노드 · ${workspace.relationships.length}개 관계` : '질문을 입력하면 그래프가 구성됩니다.'}</p>
+            <p>
+              {workspace.nodes.length
+                ? `${workspace.nodes.length}개 노드 · ${workspace.relationships.length}개 관계`
+                : "질문을 입력하면 그래프가 구성됩니다."}
+            </p>
           </div>
-          {workspace.expandingId && <span className="expansion-status"><span className="spinner" /> 이웃 확장 중</span>}
+          {workspace.expandingId && (
+            <span className="expansion-status">
+              <span className="spinner" /> 이웃 확장 중
+            </span>
+          )}
         </div>
 
         <GraphCanvas
@@ -116,13 +131,20 @@ export function QueryWorkspace({
               <circle cx="167" cy="44" r="21" />
               <circle cx="206" cy="131" r="11" />
             </svg>
-            <p>질문의 근거가<br />여기에 연결됩니다</p>
+            <p>
+              질문의 근거가
+              <br />
+              여기에 연결됩니다
+            </p>
           </div>
         )}
 
         <div className="legend" aria-label="노드 라벨 범례">
           {legendItems.map((item) => (
-            <span key={item.label}><i style={{ background: item.color }} />{item.name}</span>
+            <span key={item.label}>
+              <i style={{ background: item.color }} />
+              {item.name}
+            </span>
           ))}
         </div>
         <p className="graph-hint">노드에 마우스를 올려 이름 확인 · 클릭해서 이웃 확장</p>

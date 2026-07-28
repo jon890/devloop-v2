@@ -1,17 +1,17 @@
-import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
-const apiTarget = process.env.VITE_API_TARGET ?? 'http://127.0.0.1:3000';
+const apiTarget = process.env.VITE_API_TARGET ?? "http://127.0.0.1:3000";
 
 export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': apiTarget,
+      "/api": apiTarget,
     },
   },
   optimizeDeps: {
-    include: ['@devloop/shared'],
+    include: ["@devloop/shared"],
   },
   build: {
     commonjsOptions: {
@@ -20,7 +20,7 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          graph: ['cytoscape'],
+          graph: ["cytoscape"],
         },
       },
     },

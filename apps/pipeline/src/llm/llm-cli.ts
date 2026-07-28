@@ -1,6 +1,6 @@
-import { z } from 'zod';
+import { z } from "zod";
 
-export const LlmReasoningEffortSchema = z.enum(['minimal', 'low', 'medium', 'high']);
+export const LlmReasoningEffortSchema = z.enum(["minimal", "low", "medium", "high"]);
 
 export const LlmOptionsSchema = z.object({
   timeoutMs: z.number().int().positive().optional(),

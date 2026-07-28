@@ -1,6 +1,6 @@
-import { readdir, readFile } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
-import neo4j, { type Driver, type Integer, type Session } from 'neo4j-driver';
+import { readdir, readFile } from "node:fs/promises";
+import { basename, resolve } from "node:path";
+import neo4j, { type Driver, type Integer, type Session } from "neo4j-driver";
 import {
   CORE_CONCEPTS,
   ConceptDictionarySchema,
@@ -17,15 +17,10 @@ import {
   type OntologyNode,
   type OntologyRelationship,
   type RelationshipType,
-} from '@devloop/shared';
-import { sanitizeLlmGraphFile } from '../extract/llm-relationship-sanitizer';
-import {
-  CONCEPT_KEY_CANONICAL_OVERRIDES,
-  CONCEPT_KEY_MERGE_DENYLIST,
-  CONCEPT_LABEL,
-  RELATIONSHIP_IDENTITY_PROPERTIES,
-} from './load.const';
-import { neo4jCredentials } from './neo4j-config';
+} from "@devloop/shared";
+import { sanitizeLlmGraphFile } from "../extract/llm-relationship-sanitizer";
+import { CONCEPT_KEY_CANONICAL_OVERRIDES, CONCEPT_KEY_MERGE_DENYLIST, CONCEPT_LABEL, RELATIONSHIP_IDENTITY_PROPERTIES } from "./load.const";
+import { neo4jCredentials } from "./neo4j-config";
 
 interface LoadOptions {
   project: string;
@@ -83,16 +78,13 @@ interface RelationshipMergeScope {
 }
 
 type DatabaseKey = string | Integer;
-type ConceptSource = 'llm' | 'structural';
+type ConceptSource = "llm" | "structural";
 
-export { CONCEPT_KEY_MERGE_DENYLIST } from './load.const';
+export { CONCEPT_KEY_MERGE_DENYLIST } from "./load.const";
 
 function parseArgs(args: readonly string[]): LoadOptions {
-  const project = readFlag(args, '--project') ?? 'tc-ocr';
-  const dataDir =
-    readFlag(args, '--data-dir') ??
-    process.env.PIPELINE_DATA_DIR ??
-    resolve(__dirname, '../../data');
+  const project = readFlag(args, "--project") ?? "tc-ocr";
+  const dataDir = readFlag(args, "--data-dir") ?? process.env.PIPELINE_DATA_DIR ?? resolve(__dirname, "../../data");
 
   return { project, dataDir: resolve(dataDir) };
 }
@@ -104,12 +96,12 @@ function readFlag(args: readonly string[], flag: string): string | undefined {
 }
 
 async function loadConceptDictionary(dataDir: string, project: string): Promise<ConceptDictionary> {
-  const path = resolve(dataDir, 'concepts', `${project}.json`);
+  const path = resolve(dataDir, "concepts", `${project}.json`);
   try {
-    const raw = await readFile(path, 'utf8');
+    const raw = await readFile(path, "utf8");
     return ConceptDictionarySchema.parse([...CORE_CONCEPTS, ...JSON.parse(raw)]);
   } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
       return ConceptDictionarySchema.parse(CORE_CONCEPTS);
     }
     throw error;
@@ -117,11 +109,11 @@ async function loadConceptDictionary(dataDir: string, project: string): Promise<
 }
 
 function normalizeText(value: string): string {
-  return value.trim().replace(/\s+/g, ' ').toLowerCase();
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
 export function normalizeConceptKey(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9가-힣]/g, '');
+  return value.toLowerCase().replace(/[^a-z0-9가-힣]/g, "");
 }
 
 function conceptLookupKeys(value: string): string[] {
@@ -178,21 +170,15 @@ export function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string,
   return aliases;
 }
 
-function conceptDictionaryConflict(
-  key: string,
-  owners: readonly ConceptEntry[],
-): Error {
+function conceptDictionaryConflict(key: string, owners: readonly ConceptEntry[]): Error {
   return new Error(
     `Concept key "${key}" has conflicting canonical entries: ` +
-      `${owners.map((entry) => entry.canonical).join(', ')}. ` +
-      'Merge the entries in the concept dictionary or add a canonical override.',
+      `${owners.map((entry) => entry.canonical).join(", ")}. ` +
+      "Merge the entries in the concept dictionary or add a canonical override.",
   );
 }
 
-function conceptEntry(
-  value: string,
-  aliasMap: ReadonlyMap<string, ConceptEntry>,
-): ConceptEntry | undefined {
+function conceptEntry(value: string, aliasMap: ReadonlyMap<string, ConceptEntry>): ConceptEntry | undefined {
   return conceptLookupKeys(value)
     .map((key) => aliasMap.get(key))
     .find((candidate): candidate is ConceptEntry => candidate !== undefined);
@@ -200,27 +186,24 @@ function conceptEntry(
 
 function conceptSource(sourceFile: string): ConceptSource {
   if (sourceFile === LLM_GRAPH_FILE) {
-    return 'llm';
+    return "llm";
   }
   if (sourceFile === STRUCTURAL_GRAPH_FILE) {
-    return 'structural';
+    return "structural";
   }
-  throw new Error(
-    `Unsupported Concept source file "${sourceFile}". ` +
-      `Expected ${LLM_GRAPH_FILE} or ${STRUCTURAL_GRAPH_FILE}.`,
-  );
+  throw new Error(`Unsupported Concept source file "${sourceFile}". ` + `Expected ${LLM_GRAPH_FILE} or ${STRUCTURAL_GRAPH_FILE}.`);
 }
 
 async function readJsonlRecords(graphDir: string): Promise<SourcedRecord[]> {
   const entries = await readdir(graphDir, { withFileTypes: true });
   const jsonlFiles = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.jsonl'))
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl"))
     .map((entry) => resolve(graphDir, entry.name))
     .sort();
 
   const records: SourcedRecord[] = [];
   for (const file of jsonlFiles) {
-    const content = await readFile(file, 'utf8');
+    const content = await readFile(file, "utf8");
     content
       .split(/\r?\n/)
       .map((line) => line.trim())
@@ -278,25 +261,10 @@ export function normalizeGraph(
 ): NormalizedGraph {
   validateNormalizationSources(inputNodes, inputRelationships, relationshipSources, nodeSources);
   const unknownConcepts = new Map<string, number>();
-  const unmatchedRepresentatives = buildUnmatchedConceptRepresentatives(
-    inputNodes,
-    inputRelationships,
-    aliasMap,
-    nodeSources,
-  );
-  const { nodesByIdentity, endpointAliases } = normalizeNodes(
-    inputNodes,
-    aliasMap,
-    unmatchedRepresentatives,
-    unknownConcepts,
-    nodeSources,
-  );
+  const unmatchedRepresentatives = buildUnmatchedConceptRepresentatives(inputNodes, inputRelationships, aliasMap, nodeSources);
+  const { nodesByIdentity, endpointAliases } = normalizeNodes(inputNodes, aliasMap, unmatchedRepresentatives, unknownConcepts, nodeSources);
   addDictionaryEndpointAliases(endpointAliases, nodesByIdentity, aliasMap);
-  const { relationships, skippedRelationships } = normalizeRelationships(
-    inputRelationships,
-    endpointAliases,
-    relationshipSources,
-  );
+  const { relationships, skippedRelationships } = normalizeRelationships(inputRelationships, endpointAliases, relationshipSources);
 
   return {
     nodes: [...nodesByIdentity.values()],
@@ -313,10 +281,10 @@ function validateNormalizationSources(
   nodeSources?: readonly string[],
 ): void {
   if (relationshipSources && relationshipSources.length !== inputRelationships.length) {
-    throw new Error('relationshipSources must have the same length as inputRelationships.');
+    throw new Error("relationshipSources must have the same length as inputRelationships.");
   }
   if (nodeSources && nodeSources.length !== inputNodes.length) {
-    throw new Error('nodeSources must have the same length as inputNodes.');
+    throw new Error("nodeSources must have the same length as inputNodes.");
   }
 }
 
@@ -333,13 +301,7 @@ function normalizeNodes(
   const nodesByIdentity = new Map<string, OntologyNode>();
   const endpointAliases = new Map<string, NodeRef[]>();
   inputNodes.forEach((inputNode, index) => {
-    const node = normalizeNode(
-      inputNode,
-      aliasMap,
-      unmatchedRepresentatives,
-      unknownConcepts,
-      nodeSources?.[index] ?? STRUCTURAL_GRAPH_FILE,
-    );
+    const node = normalizeNode(inputNode, aliasMap, unmatchedRepresentatives, unknownConcepts, nodeSources?.[index] ?? STRUCTURAL_GRAPH_FILE);
     const identity = `${node.label}:${node.key}`;
     const existing = nodesByIdentity.get(identity);
     nodesByIdentity.set(identity, mergeNode(existing, node));
@@ -355,9 +317,7 @@ function addDictionaryEndpointAliases(
   aliasMap: ReadonlyMap<string, ConceptEntry>,
 ): void {
   for (const entry of aliasMap.values()) {
-    const ref = nodesByIdentity.has(`${CONCEPT_LABEL}:${entry.canonical}`)
-      ? { label: CONCEPT_LABEL, key: entry.canonical }
-      : undefined;
+    const ref = nodesByIdentity.has(`${CONCEPT_LABEL}:${entry.canonical}`) ? { label: CONCEPT_LABEL, key: entry.canonical } : undefined;
     if (!ref) {
       continue;
     }
@@ -389,12 +349,9 @@ function normalizeRelationships(
   return { relationships, skippedRelationships };
 }
 
-function normalizeRelationship(
-  relationship: OntologyRelationship,
-  endpointAliases: Map<string, NodeRef[]>,
-): OntologyRelationship {
-  const start = resolveEndpoint(endpointAliases, relationship.startKey, 'startKey', relationship);
-  const end = resolveEndpoint(endpointAliases, relationship.endKey, 'endKey', relationship);
+function normalizeRelationship(relationship: OntologyRelationship, endpointAliases: Map<string, NodeRef[]>): OntologyRelationship {
+  const start = resolveEndpoint(endpointAliases, relationship.startKey, "startKey", relationship);
+  const end = resolveEndpoint(endpointAliases, relationship.endKey, "endKey", relationship);
   return {
     ...relationship,
     startKey: start.key,
@@ -430,18 +387,10 @@ function buildUnmatchedConceptRepresentatives(
   aliasMap: ReadonlyMap<string, ConceptEntry>,
   nodeSources?: readonly string[],
 ): Map<string, string> {
-  const groups = new Map<
-    string,
-    Map<string, { occurrences: number; referenceKey: string }>
-  >();
+  const groups = new Map<string, Map<string, { occurrences: number; referenceKey: string }>>();
 
   inputNodes.forEach((node, index) => {
-    addUnmatchedConceptCandidate(
-      groups,
-      node,
-      aliasMap,
-      nodeSources?.[index] ?? STRUCTURAL_GRAPH_FILE,
-    );
+    addUnmatchedConceptCandidate(groups, node, aliasMap, nodeSources?.[index] ?? STRUCTURAL_GRAPH_FILE);
   });
 
   const referenceCounts = conceptReferenceCounts(inputRelationships);
@@ -458,10 +407,8 @@ function addUnmatchedConceptCandidate(
     return;
   }
   const source = conceptSource(sourceFile);
-  if (source === 'structural') {
-    throw new Error(
-      `Structural Concept "${node.key}" is missing from the concept dictionary.`,
-    );
+  if (source === "structural") {
+    throw new Error(`Structural Concept "${node.key}" is missing from the concept dictionary.`);
   }
 
   const key = normalizeConceptKey(node.key);
@@ -488,8 +435,7 @@ function selectUnmatchedRepresentatives(
       key,
       [...candidates.entries()].sort(
         ([leftName, left], [rightName, right]) =>
-          (referenceCounts.get(right.referenceKey) ?? 0) -
-            (referenceCounts.get(left.referenceKey) ?? 0) ||
+          (referenceCounts.get(right.referenceKey) ?? 0) - (referenceCounts.get(left.referenceKey) ?? 0) ||
           right.occurrences - left.occurrences ||
           compareCodePoints(leftName, rightName),
       )[0][0],
@@ -497,15 +443,11 @@ function selectUnmatchedRepresentatives(
   );
 }
 
-function conceptReferenceCounts(
-  relationships: readonly OntologyRelationship[],
-): Map<string, number> {
+function conceptReferenceCounts(relationships: readonly OntologyRelationship[]): Map<string, number> {
   const counts = new Map<string, number>();
   for (const relationship of relationships) {
     for (const endpoint of [relationship.startKey, relationship.endKey]) {
-      const conceptKey = endpoint.startsWith(`${CONCEPT_LABEL}:`)
-        ? endpoint.slice(CONCEPT_LABEL.length + 1)
-        : endpoint;
+      const conceptKey = endpoint.startsWith(`${CONCEPT_LABEL}:`) ? endpoint.slice(CONCEPT_LABEL.length + 1) : endpoint;
       const key = normalizeText(conceptKey);
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
@@ -535,13 +477,7 @@ function normalizeNode(
   const entry = conceptEntry(node.key, aliasMap);
   const source = conceptSource(sourceFile);
   if (!entry) {
-    return normalizeUnmatchedConceptNode(
-      node,
-      normalized,
-      source,
-      unmatchedRepresentatives,
-      unknownConcepts,
-    );
+    return normalizeUnmatchedConceptNode(node, normalized, source, unmatchedRepresentatives, unknownConcepts);
   }
 
   return {
@@ -574,13 +510,10 @@ function normalizeUnmatchedConceptNode(
   unmatchedRepresentatives: ReadonlyMap<string, string>,
   unknownConcepts: Map<string, number>,
 ): OntologyNode {
-  if (source === 'structural') {
-    throw new Error(
-      `Structural Concept "${node.key}" is missing from the concept dictionary.`,
-    );
+  if (source === "structural") {
+    throw new Error(`Structural Concept "${node.key}" is missing from the concept dictionary.`);
   }
-  const representative =
-    unmatchedRepresentatives.get(normalizeConceptKey(node.key)) ?? normalized;
+  const representative = unmatchedRepresentatives.get(normalizeConceptKey(node.key)) ?? normalized;
   unknownConcepts.set(normalized, (unknownConcepts.get(normalized) ?? 0) + 1);
   return {
     label: CONCEPT_LABEL,
@@ -595,7 +528,7 @@ function normalizeUnmatchedConceptNode(
 }
 
 function normalizedKey(label: NodeLabel, key: string): string | number {
-  if (label !== 'Task') return key;
+  if (label !== "Task") return key;
   const number = Number(key);
   if (!Number.isSafeInteger(number)) {
     throw new Error(`Task key must be a safe integer: ${key}`);
@@ -605,7 +538,7 @@ function normalizedKey(label: NodeLabel, key: string): string | number {
 
 function databaseKey(label: NodeLabel, key: string): DatabaseKey {
   const normalized = normalizedKey(label, key);
-  return typeof normalized === 'number' ? neo4j.int(normalized) : normalized;
+  return typeof normalized === "number" ? neo4j.int(normalized) : normalized;
 }
 
 function mergeNode(existing: OntologyNode | undefined, incoming: OntologyNode): OntologyNode {
@@ -628,12 +561,8 @@ function mergeNode(existing: OntologyNode | undefined, incoming: OntologyNode): 
     properties: {
       ...merged.properties,
       // 'llm'은 이 Concept이 llm.jsonl에 한 번이라도 등장했음을 뜻한다.
-      source:
-        existing.properties.source === 'llm' || incoming.properties.source === 'llm'
-          ? 'llm'
-          : 'structural',
-      dictMatched:
-        existing.properties.dictMatched === true || incoming.properties.dictMatched === true,
+      source: existing.properties.source === "llm" || incoming.properties.source === "llm" ? "llm" : "structural",
+      dictMatched: existing.properties.dictMatched === true || incoming.properties.dictMatched === true,
     },
   };
 }
@@ -649,24 +578,16 @@ function addEndpointAlias(index: Map<string, NodeRef[]>, key: string, ref: NodeR
   }
 }
 
-function resolveEndpoint(
-  index: Map<string, NodeRef[]>,
-  key: string,
-  field: 'startKey' | 'endKey',
-  relationship: OntologyRelationship,
-): NodeRef {
+function resolveEndpoint(index: Map<string, NodeRef[]>, key: string, field: "startKey" | "endKey", relationship: OntologyRelationship): NodeRef {
   const refs = index.get(key) ?? index.get(normalizeText(key)) ?? [];
   if (refs.length === 0) {
     throw new Error(
-      `Missing ${field} node "${key}" for ${relationship.type} relationship ` +
-        `(${relationship.startKey} -> ${relationship.endKey}).`,
+      `Missing ${field} node "${key}" for ${relationship.type} relationship ` + `(${relationship.startKey} -> ${relationship.endKey}).`,
     );
   }
   if (refs.length > 1) {
-    const candidates = refs.map((ref) => `${ref.label}:${ref.key}`).join(', ');
-    throw new Error(
-      `Ambiguous ${field} node "${key}" for ${relationship.type} relationship: ${candidates}.`,
-    );
+    const candidates = refs.map((ref) => `${ref.label}:${ref.key}`).join(", ");
+    throw new Error(`Ambiguous ${field} node "${key}" for ${relationship.type} relationship: ${candidates}.`);
   }
   return refs[0];
 }
@@ -698,10 +619,7 @@ async function mergeNodes(session: Session, nodes: readonly OntologyNode[]): Pro
   }
 }
 
-async function mergeRelationships(
-  session: Session,
-  relationships: readonly OntologyRelationship[],
-): Promise<void> {
+async function mergeRelationships(session: Session, relationships: readonly OntologyRelationship[]): Promise<void> {
   for (const type of RELATIONSHIP_TYPES) {
     const rows = relationships
       .filter((relationship) => relationship.type === type)
@@ -718,23 +636,13 @@ async function mergeRelationships(
 
     for (const startLabel of NODE_LABELS) {
       for (const endLabel of NODE_LABELS) {
-        const scopedRows = rows.filter(
-          (row) => row.startLabel === startLabel && row.endLabel === endLabel,
-        );
+        const scopedRows = rows.filter((row) => row.startLabel === startLabel && row.endLabel === endLabel);
         if (scopedRows.length === 0) {
           continue;
         }
         const startKeyProperty = NODE_KEY_PROPERTIES[startLabel];
         const endKeyProperty = NODE_KEY_PROPERTIES[endLabel];
-        await mergeRelationshipRows(
-          session,
-          type,
-          startLabel,
-          endLabel,
-          startKeyProperty,
-          endKeyProperty,
-          scopedRows,
-        );
+        await mergeRelationshipRows(session, type, startLabel, endLabel, startKeyProperty, endKeyProperty, scopedRows);
       }
     }
   }
@@ -765,10 +673,7 @@ async function mergeRelationshipRows(
     return;
   }
 
-  const { rowsWithIdentity, rowsWithoutIdentity } = splitRowsByIdentity(
-    preparedRows,
-    identityProperty,
-  );
+  const { rowsWithIdentity, rowsWithoutIdentity } = splitRowsByIdentity(preparedRows, identityProperty);
 
   if (rowsWithoutIdentity.length > 0) {
     await mergeRowsWithoutIdentity(scope, rowsWithoutIdentity);
@@ -798,12 +703,8 @@ function splitRowsByIdentity(
   rowsWithoutIdentity: Array<{ startKey: DatabaseKey; endKey: DatabaseKey; properties: Record<string, unknown> }>;
 } {
   return {
-    rowsWithIdentity: rows.filter(
-      (row) => row.properties[identityProperty] !== undefined && row.properties[identityProperty] !== null,
-    ),
-    rowsWithoutIdentity: rows.filter(
-      (row) => row.properties[identityProperty] === undefined || row.properties[identityProperty] === null,
-    ),
+    rowsWithIdentity: rows.filter((row) => row.properties[identityProperty] !== undefined && row.properties[identityProperty] !== null),
+    rowsWithoutIdentity: rows.filter((row) => row.properties[identityProperty] === undefined || row.properties[identityProperty] === null),
   };
 }
 
@@ -871,9 +772,7 @@ async function removeLegacyUnknownTagDimensions(session: Session, project: strin
 }
 
 function sanitizeProperties(properties: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(properties).filter(([, value]) => value !== undefined && value !== null),
-  );
+  return Object.fromEntries(Object.entries(properties).filter(([, value]) => value !== undefined && value !== null));
 }
 
 function stripResolverProperties(properties: Record<string, unknown>): Record<string, unknown> {
@@ -898,12 +797,8 @@ async function collectStats(session: Session): Promise<{
     `);
 
   return {
-    nodes: Object.fromEntries(
-      nodeResult.records.map((record) => [record.get('label'), record.get('count').toNumber()]),
-    ),
-    relationships: Object.fromEntries(
-      relationshipResult.records.map((record) => [record.get('type'), record.get('count').toNumber()]),
-    ),
+    nodes: Object.fromEntries(nodeResult.records.map((record) => [record.get("label"), record.get("count").toNumber()])),
+    relationships: Object.fromEntries(relationshipResult.records.map((record) => [record.get("type"), record.get("count").toNumber()])),
   };
 }
 
@@ -932,19 +827,13 @@ async function loadGraph(options: LoadOptions): Promise<void> {
 }
 
 async function prepareLoadGraph(options: LoadOptions): Promise<PreparedLoadGraph> {
-  const graphDir = resolve(options.dataDir, 'graph', options.project);
+  const graphDir = resolve(options.dataDir, "graph", options.project);
   const dictionary = await loadConceptDictionary(options.dataDir, options.project);
   const aliasMap = buildConceptAliasMap(dictionary);
   const llmSanitization = await sanitizeLlmGraphFile(options.dataDir, options.project);
   const records = await readJsonlRecords(graphDir);
   const parsed = parseGraphRecords(records);
-  const graph = normalizeGraph(
-    parsed.nodes,
-    parsed.relationships,
-    aliasMap,
-    parsed.relationshipSources,
-    parsed.nodeSources,
-  );
+  const graph = normalizeGraph(parsed.nodes, parsed.relationships, aliasMap, parsed.relationshipSources, parsed.nodeSources);
   return {
     graph,
     droppedRelationships: llmSanitization.droppedRelationships,
@@ -959,10 +848,10 @@ async function writeGraphToNeo4j(
   nodes: Record<string, number>;
   relationships: Record<string, number>;
 }> {
-  const uri = process.env.NEO4J_URI ?? 'bolt://localhost:7687';
+  const uri = process.env.NEO4J_URI ?? "bolt://localhost:7687";
   const { user, password } = neo4jCredentials();
   const driver: Driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
-  const session = driver.session({ database: 'neo4j' });
+  const session = driver.session({ database: "neo4j" });
 
   try {
     await migrateTaskNumberType(session);

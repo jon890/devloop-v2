@@ -5,8 +5,6 @@ export function neo4jCredentials(): { user: string; password: string } {
     return { user: envUser, password: envPassword };
   }
 
-  const [user = 'neo4j', password = 'devloop-password'] = (
-    process.env.NEO4J_AUTH ?? 'neo4j/devloop-password'
-  ).split('/', 2);
+  const [user = "neo4j", password = "devloop-password"] = (process.env.NEO4J_AUTH ?? "neo4j/devloop-password").split("/", 2);
   return { user, password };
 }

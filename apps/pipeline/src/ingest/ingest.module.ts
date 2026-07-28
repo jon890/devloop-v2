@@ -1,7 +1,7 @@
-import { Module } from '@nestjs/common';
-import { ChildProcessDoorayExecutor } from './dooray-executor';
-import { DOORAY_EXECUTOR } from './ingest.const';
-import { IngestService } from './ingest.service';
+import { Module } from "@nestjs/common";
+import { ChildProcessDoorayExecutor } from "./dooray-executor";
+import { DOORAY_EXECUTOR } from "./ingest.const";
+import { IngestService } from "./ingest.service";
 
 @Module({
   providers: [

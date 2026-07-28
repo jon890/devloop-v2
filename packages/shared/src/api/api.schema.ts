@@ -1,9 +1,6 @@
-import { z } from 'zod';
-import {
-  OntologyNodeDefinitionSchema,
-  OntologyRelationshipDefinitionSchema,
-} from '../ontology/ontology.schema';
-import { GraphNodeSchema, GraphRelSchema } from '../graph/graph.schema';
+import { z } from "zod";
+import { OntologyNodeDefinitionSchema, OntologyRelationshipDefinitionSchema } from "../ontology/ontology.schema";
+import { GraphNodeSchema, GraphRelSchema } from "../graph/graph.schema";
 
 export const EvidenceSchema = z.object({
   nodes: z.array(GraphNodeSchema),
@@ -41,7 +38,7 @@ export const GraphSamplesResponseSchema = EvidenceSchema;
 export type GraphSamplesResponse = z.infer<typeof GraphSamplesResponseSchema>;
 
 export const GraphSearchQuerySchema = z.object({
-  q: z.string().default(''),
+  q: z.string().default(""),
 });
 export type GraphSearchQuery = z.infer<typeof GraphSearchQuerySchema>;
 

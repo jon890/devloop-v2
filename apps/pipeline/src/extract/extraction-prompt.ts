@@ -1,9 +1,9 @@
-import type { ConceptDictionary } from '@devloop/shared';
-export { EXTRACTION_PROMPT_VERSION } from './extraction-prompt.const';
+import type { ConceptDictionary } from "@devloop/shared";
+export { EXTRACTION_PROMPT_VERSION } from "./extraction-prompt.const";
 
 export interface ExtractionPromptDocument {
   sourceDocId: string;
-  label: 'Task' | 'Wiki';
+  label: "Task" | "Wiki";
   key: string;
   subject: string;
   content: string;
@@ -39,10 +39,7 @@ Few-shot example:
 sourceDocId=Task:42, subject="[OCR.API] gateway removal", content="We decided to remove API Gateway because it caused timeouts. Follow-up: demo/41. Evidence is comment c-7."
 output={"nodes":[{"label":"Concept","key":"API Gateway","properties":{"name":"API Gateway","kind":"component","sourceDocId":"Task:42"}},{"label":"Decision","key":"42-1","properties":{"id":"42-1","summary":"Remove API Gateway because it caused timeouts","sourceDocId":"Task:42"}}],"relationships":[{"type":"MENTIONS","startKey":"Task:42","endKey":"Concept:API Gateway","properties":{"sourceDocId":"Task:42"}},{"type":"DECIDED_IN","startKey":"Decision:42-1","endKey":"Task:42","properties":{"sourceDocId":"Task:42"}},{"type":"EVIDENCED_BY","startKey":"Decision:42-1","endKey":"Comment:c-7","properties":{"sourceDocId":"Task:42"}},{"type":"AFFECTS","startKey":"Decision:42-1","endKey":"Concept:API Gateway","properties":{"sourceDocId":"Task:42"}},{"type":"RELATES_TO","startKey":"Task:42","endKey":"Task:41","properties":{"kind":"follows-up","sourceDocId":"Task:42"}}]}`;
 
-export function buildExtractionPrompt(
-  document: ExtractionPromptDocument,
-  concepts: ConceptDictionary,
-): string {
+export function buildExtractionPrompt(document: ExtractionPromptDocument, concepts: ConceptDictionary): string {
   const dictionary = concepts.map((entry) => ({
     canonical: entry.canonical,
     kind: entry.kind,

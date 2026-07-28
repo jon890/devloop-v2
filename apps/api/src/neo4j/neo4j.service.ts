@@ -1,35 +1,9 @@
-import {
-  Injectable,
-  InternalServerErrorException,
-  OnApplicationShutdown,
-} from "@nestjs/common";
+import { Injectable, InternalServerErrorException, OnApplicationShutdown } from "@nestjs/common";
 import type { GraphNode, GraphRel } from "@devloop/shared";
-import {
-  NODE_KEY_PROPERTIES,
-  NODE_LABELS,
-  RELATIONSHIP_TYPES,
-} from "@devloop/shared";
-import neo4j, {
-  Driver,
-  Integer,
-  Node,
-  Path,
-  Relationship,
-  Session,
-  auth,
-  int,
-  isInt,
-} from "neo4j-driver";
+import { NODE_KEY_PROPERTIES, NODE_LABELS, RELATIONSHIP_TYPES } from "@devloop/shared";
+import neo4j, { Driver, Integer, Node, Path, Relationship, Session, auth, int, isInt } from "neo4j-driver";
 
-type NeoValue =
-  | null
-  | string
-  | number
-  | boolean
-  | Integer
-  | Date
-  | NeoValue[]
-  | { [key: string]: NeoValue };
+type NeoValue = null | string | number | boolean | Integer | Date | NeoValue[] | { [key: string]: NeoValue };
 
 interface NeoRecordLike {
   keys: readonly PropertyKey[];
@@ -46,13 +20,8 @@ export class Neo4jService implements OnApplicationShutdown {
 
   constructor() {
     const uri = process.env.NEO4J_URI ?? "bolt://localhost:7687";
-    const user =
-      process.env.NEO4J_USER ?? process.env.NEO4J_USERNAME ?? "neo4j";
-    const password =
-      process.env.NEO4J_PASSWORD ??
-      process.env.NEO4J_PASS ??
-      parseNeo4jAuthPassword() ??
-      "devloop-password";
+    const user = process.env.NEO4J_USER ?? process.env.NEO4J_USERNAME ?? "neo4j";
+    const password = process.env.NEO4J_PASSWORD ?? process.env.NEO4J_PASS ?? parseNeo4jAuthPassword() ?? "devloop-password";
     this.driver = neo4j.driver(uri, auth.basic(user, password));
   }
 
@@ -77,13 +46,9 @@ export class Neo4jService implements OnApplicationShutdown {
   }
 
   nodeToGraphNode(node: Node): GraphNode {
-    const label = NODE_LABELS.find((candidate) =>
-      node.labels.includes(candidate),
-    );
+    const label = NODE_LABELS.find((candidate) => node.labels.includes(candidate));
     if (!label) {
-      throw new InternalServerErrorException(
-        `Unknown node label: ${node.labels.join(", ")}`,
-      );
+      throw new InternalServerErrorException(`Unknown node label: ${node.labels.join(", ")}`);
     }
     const properties = sanitizeProperties(node.properties);
     const keyProperty = NODE_KEY_PROPERTIES[label];
@@ -100,9 +65,7 @@ export class Neo4jService implements OnApplicationShutdown {
   relationshipToGraphRel(rel: Relationship): GraphRel {
     const type = RELATIONSHIP_TYPES.find((candidate) => candidate === rel.type);
     if (!type) {
-      throw new InternalServerErrorException(
-        `Unknown relationship type: ${rel.type}`,
-      );
+      throw new InternalServerErrorException(`Unknown relationship type: ${rel.type}`);
     }
     return {
       id: rel.elementId,
@@ -131,12 +94,7 @@ export class Neo4jService implements OnApplicationShutdown {
   }
 }
 
-function collectEvidence(
-  value: unknown,
-  nodes: Map<string, GraphNode>,
-  relationships: Map<string, GraphRel>,
-  mapper: Neo4jService,
-): void {
+function collectEvidence(value: unknown, nodes: Map<string, GraphNode>, relationships: Map<string, GraphRel>, mapper: Neo4jService): void {
   if (!value) return;
   if (value instanceof Node) {
     const node = mapper.nodeToGraphNode(value);
@@ -159,8 +117,7 @@ function collectEvidence(
     return;
   }
   if (Array.isArray(value)) {
-    for (const item of value)
-      collectEvidence(item, nodes, relationships, mapper);
+    for (const item of value) collectEvidence(item, nodes, relationships, mapper);
     return;
   }
   if (typeof value === "object") {
@@ -170,38 +127,21 @@ function collectEvidence(
   }
 }
 
-function sanitizeProperties(
-  properties: Record<string, unknown>,
-): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(properties).map(([key, value]) => [
-      key,
-      sanitizeValue(value),
-    ]),
-  );
+function sanitizeProperties(properties: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(properties).map(([key, value]) => [key, sanitizeValue(value)]));
 }
 
 function sanitizeValue(value: unknown): unknown {
-  if (isInt(value))
-    return value.inSafeRange() ? value.toNumber() : value.toString();
+  if (isInt(value)) return value.inSafeRange() ? value.toNumber() : value.toString();
   if (value instanceof Date) return value.toISOString();
   if (Array.isArray(value)) return value.map(sanitizeValue);
   if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value as Record<string, NeoValue>).map(([key, nested]) => [
-        key,
-        sanitizeValue(nested),
-      ]),
-    );
+    return Object.fromEntries(Object.entries(value as Record<string, NeoValue>).map(([key, nested]) => [key, sanitizeValue(nested)]));
   }
   return value;
 }
 
-function displayFor(
-  label: GraphNode["label"],
-  properties: Record<string, unknown>,
-  key: string,
-): string {
+function displayFor(label: GraphNode["label"], properties: Record<string, unknown>, key: string): string {
   if (label === "Task") return String(properties.subject ?? key);
   if (label === "Wiki") return String(properties.subject ?? key);
   if (label === "Person") return String(properties.name ?? key);

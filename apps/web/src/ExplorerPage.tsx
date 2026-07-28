@@ -1,7 +1,7 @@
-import type { GraphNode, GraphRel } from '@devloop/shared';
-import { FormEvent, useMemo, useState } from 'react';
-import { getNeighbors, searchGraph } from './api-client';
-import { GraphCanvas, labelColors, legendItems } from './GraphCanvas';
+import type { GraphNode, GraphRel } from "@devloop/shared";
+import { FormEvent, useMemo, useState } from "react";
+import { getNeighbors, searchGraph } from "./api-client";
+import { GraphCanvas, labelColors, legendItems } from "./GraphCanvas";
 
 type GraphSnapshot = {
   nodes: GraphNode[];
@@ -14,7 +14,7 @@ function mergeById<T extends { id: string }>(current: T[], incoming: T[]): T[] {
 }
 
 export function ExplorerPage() {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState<GraphNode[]>([]);
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [relationships, setRelationships] = useState<GraphRel[]>([]);
@@ -25,15 +25,10 @@ export function ExplorerPage() {
   const [error, setError] = useState<string | null>(null);
 
   const selectedNode = useMemo(
-    () => nodes.find((node) => node.id === selectedNodeId)
-      ?? results.find((node) => node.id === selectedNodeId)
-      ?? null,
+    () => nodes.find((node) => node.id === selectedNodeId) ?? results.find((node) => node.id === selectedNodeId) ?? null,
     [nodes, results, selectedNodeId],
   );
-  const evidenceIds = useMemo(
-    () => new Set(selectedNodeId ? [selectedNodeId] : []),
-    [selectedNodeId],
-  );
+  const evidenceIds = useMemo(() => new Set(selectedNodeId ? [selectedNodeId] : []), [selectedNodeId]);
 
   const submitSearch = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -46,7 +41,7 @@ export function ExplorerPage() {
       const response = await searchGraph(nextQuery);
       setResults(response);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '노드를 검색하지 못했습니다.');
+      setError(cause instanceof Error ? cause.message : "노드를 검색하지 못했습니다.");
     } finally {
       setSearching(false);
     }
@@ -66,14 +61,11 @@ export function ExplorerPage() {
     setError(null);
     try {
       const neighbors = await getNeighbors(nodeId);
-      setHistory((current) => [
-        ...current,
-        { nodes, relationships, selectedNodeId: nodeId },
-      ]);
+      setHistory((current) => [...current, { nodes, relationships, selectedNodeId: nodeId }]);
       setNodes((current) => mergeById(current, neighbors.nodes));
       setRelationships((current) => mergeById(current, neighbors.relationships));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '이웃 노드를 불러오지 못했습니다.');
+      setError(cause instanceof Error ? cause.message : "이웃 노드를 불러오지 못했습니다.");
     } finally {
       setExpandingId(null);
     }
@@ -100,36 +92,34 @@ export function ExplorerPage() {
         <form className="graph-search-form" onSubmit={submitSearch}>
           <label htmlFor="graph-search">노드 검색</label>
           <div>
-            <input
-              id="graph-search"
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="예: Graph API, 모델 서버"
-            />
+            <input id="graph-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="예: Graph API, 모델 서버" />
             <button type="submit" disabled={searching || !query.trim()}>
-              {searching ? '검색 중' : '검색'}
+              {searching ? "검색 중" : "검색"}
             </button>
           </div>
         </form>
 
-        {error && <div className="error-message" role="alert">{error}</div>}
+        {error && (
+          <div className="error-message" role="alert">
+            {error}
+          </div>
+        )}
 
         <div className="search-results" aria-live="polite">
           <div className="result-heading">
             <span>검색 결과</span>
-            <small>{results.length ? `${results.length}개` : '검색어를 입력하세요'}</small>
+            <small>{results.length ? `${results.length}개` : "검색어를 입력하세요"}</small>
           </div>
           {results.length > 0 ? (
             <ul>
               {results.map((node) => (
                 <li key={node.id}>
-                  <button
-                    type="button"
-                    className={selectedNodeId === node.id ? 'active' : ''}
-                    onClick={() => selectSearchResult(node)}
-                  >
+                  <button type="button" className={selectedNodeId === node.id ? "active" : ""} onClick={() => selectSearchResult(node)}>
                     <i style={{ background: labelColors[node.label] }} />
-                    <span><small>{node.label}</small><strong>{node.display}</strong></span>
+                    <span>
+                      <small>{node.label}</small>
+                      <strong>{node.display}</strong>
+                    </span>
                     <span aria-hidden="true">→</span>
                   </button>
                 </li>
@@ -147,12 +137,8 @@ export function ExplorerPage() {
               <strong>{selectedNode.display}</strong>
               <small>키 · {selectedNode.key}</small>
             </div>
-            <button
-              type="button"
-              onClick={() => expandNode(selectedNode.id)}
-              disabled={expandingId !== null}
-            >
-              {expandingId === selectedNode.id ? '이웃 불러오는 중' : '이웃 1단계 확장'}
+            <button type="button" onClick={() => expandNode(selectedNode.id)} disabled={expandingId !== null}>
+              {expandingId === selectedNode.id ? "이웃 불러오는 중" : "이웃 1단계 확장"}
             </button>
           </article>
         )}
@@ -162,7 +148,9 @@ export function ExplorerPage() {
         <div className="explorer-toolbar">
           <div>
             <span className="section-kicker light">라이브 그래프</span>
-            <p>{nodes.length}개 노드 · {relationships.length}개 관계</p>
+            <p>
+              {nodes.length}개 노드 · {relationships.length}개 관계
+            </p>
           </div>
           <button type="button" onClick={undoExpansion} disabled={!history.length}>
             <span aria-hidden="true">↶</span> 이전 확장 되돌리기
@@ -193,7 +181,10 @@ export function ExplorerPage() {
 
         <div className="legend explorer-legend" aria-label="노드 라벨 범례">
           {legendItems.map((item) => (
-            <span key={item.label}><i style={{ background: item.color }} />{item.name}</span>
+            <span key={item.label}>
+              <i style={{ background: item.color }} />
+              {item.name}
+            </span>
           ))}
         </div>
         <p className="graph-hint">노드 클릭으로 바로 이웃 확장 · 상단 버튼으로 한 단계 되돌리기</p>
