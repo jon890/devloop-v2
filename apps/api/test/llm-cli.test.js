@@ -4,8 +4,9 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { ClaudeCliAdapter, CodexCliAdapter } = require('../dist/llm-cli');
+const { ClaudeCliAdapter, CodexCliAdapter, createLlmCli } = require('../dist/llm-cli');
 const { QueryService } = require('../dist/query/query.service');
+const { testApiConfig } = require('./helpers/test-config');
 
 test('API CLI 어댑터가 Codex effort를 전달하고 Claude에서는 무시한다', async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'devloop-api-cli-test-'));
@@ -25,31 +26,24 @@ process.stdin.on('end', () => process.stdout.write('mock response'));
   await Promise.all([chmod(codexPath, 0o755), chmod(claudePath, 0o755)]);
 
   const previousPath = process.env.PATH;
-  const previousEffort = process.env.LLM_REASONING_EFFORT;
-  const previousQueryModel = process.env.QUERY_LLM_MODEL;
-  const previousModel = process.env.LLM_MODEL;
   process.env.PATH = `${temporary}:${previousPath}`;
   process.env.DEVLOOP_API_ARGS_FILE = argsFile;
-  process.env.LLM_REASONING_EFFORT = 'low';
+  const lowEffortConfig = testApiConfig({
+    llm: { provider: 'codex', queryModel: 'query-model', reasoningEffort: 'low' },
+  });
   try {
-    const codex = await new CodexCliAdapter().complete('prompt', { model: 'codex-model' });
+    const codex = await new CodexCliAdapter(lowEffortConfig).complete('prompt', { model: 'codex-model' });
     assert.equal(codex.text, 'mock response');
     assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
       'exec', '-m', 'codex-model', '-c', 'model_reasoning_effort=low',
     ]);
 
-    await new CodexCliAdapter().complete('prompt', { model: 'codex-model', effort: 'high' });
+    await new CodexCliAdapter(lowEffortConfig).complete('prompt', { model: 'codex-model', effort: 'high' });
     assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
       'exec', '-m', 'codex-model', '-c', 'model_reasoning_effort=high',
     ]);
 
-    process.env.LLM_REASONING_EFFORT = 'unsupported';
-    assert.throws(
-      () => new CodexCliAdapter().complete('prompt', { model: 'codex-model' }),
-      /Unsupported LLM reasoning effort: unsupported/,
-    );
-
-    const claude = await new ClaudeCliAdapter().complete('prompt', {
+    const claude = await new ClaudeCliAdapter(lowEffortConfig).complete('prompt', {
       model: 'claude-model',
       effort: 'medium',
     });
@@ -58,30 +52,45 @@ process.stdin.on('end', () => process.stdout.write('mock response'));
       '-p', '--model', 'claude-model',
     ]);
 
-    process.env.LLM_REASONING_EFFORT = 'low';
-    process.env.QUERY_LLM_MODEL = 'query-model';
-    process.env.LLM_MODEL = 'extraction-model';
-    await new CodexCliAdapter().complete('prompt');
+    // opts.model이 없으면 환경설정의 QUERY_LLM_MODEL이 그대로 쓰인다.
+    await new CodexCliAdapter(lowEffortConfig).complete('prompt');
     assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
       'exec', '-m', 'query-model', '-c', 'model_reasoning_effort=low',
     ]);
 
-    process.env.QUERY_LLM_MODEL = '';
-    await new ClaudeCliAdapter().complete('prompt');
+    const noEffortConfig = testApiConfig({ llm: { provider: 'claude', queryModel: 'query-model' } });
+    await new ClaudeCliAdapter(noEffortConfig).complete('prompt');
     assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
-      '-p', '--model', 'extraction-model',
+      '-p', '--model', 'query-model',
     ]);
+
+    await new CodexCliAdapter(noEffortConfig).complete('prompt');
+    assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), ['exec', '-m', 'query-model']);
   } finally {
     process.env.PATH = previousPath;
-    if (previousEffort === undefined) delete process.env.LLM_REASONING_EFFORT;
-    else process.env.LLM_REASONING_EFFORT = previousEffort;
-    if (previousQueryModel === undefined) delete process.env.QUERY_LLM_MODEL;
-    else process.env.QUERY_LLM_MODEL = previousQueryModel;
-    if (previousModel === undefined) delete process.env.LLM_MODEL;
-    else process.env.LLM_MODEL = previousModel;
     delete process.env.DEVLOOP_API_ARGS_FILE;
     await rm(temporary, { recursive: true, force: true });
   }
+});
+
+test('createLlmCli가 환경설정의 LLM_PROVIDER로 어댑터를 고른다', () => {
+  assert.ok(createLlmCli(testApiConfig({ llm: { provider: 'codex', queryModel: 'm' } })) instanceof CodexCliAdapter);
+  assert.ok(createLlmCli(testApiConfig({ llm: { provider: 'claude', queryModel: 'm' } })) instanceof ClaudeCliAdapter);
+});
+
+test('QueryService가 환경설정의 질의 모델을 LLM 호출에 전달한다', async () => {
+  const options = [];
+  const llmCli = {
+    async complete(prompt, opts) {
+      options.push(opts);
+      return { text: JSON.stringify({ cypher: 'MATCH (n) RETURN n LIMIT 1' }) };
+    },
+  };
+  const service = new QueryService({}, llmCli, testApiConfig({ llm: { provider: 'codex', queryModel: 'terra-model' } }));
+
+  await service.generateCypher('질문', []);
+
+  assert.deepEqual(options.map((option) => option.model), ['terra-model']);
 });
 
 test('Cypher 생성 프롬프트가 TAGGED 차원과 차원 조합 집계 패턴을 설명한다', async () => {
@@ -92,7 +101,7 @@ test('Cypher 생성 프롬프트가 TAGGED 차원과 차원 조합 집계 패턴
       return { text: JSON.stringify({ cypher: 'MATCH (n) RETURN n LIMIT 1' }) };
     },
   };
-  const service = new QueryService({}, llmCli);
+  const service = new QueryService({}, llmCli, testApiConfig());
 
   await service.generateCypher('한 태그 차원으로 Task를 고르고 다른 태그 차원별로 집계', []);
 
@@ -116,7 +125,7 @@ test('Cypher 생성 프롬프트가 개념을 다루는 문서에 MENTIONS와 DO
       return { text: JSON.stringify({ cypher: 'MATCH (n) RETURN n LIMIT 1' }) };
     },
   };
-  const service = new QueryService({}, llmCli);
+  const service = new QueryService({}, llmCli, testApiConfig());
 
   await service.generateCypher('ingress-nginx를 다루는 문서를 찾아줘', []);
 
@@ -144,7 +153,7 @@ test('anchor 용어 추출 프롬프트가 기술 용어의 한영 표기 변형
       return { text: JSON.stringify({ terms }) };
     },
   };
-  const service = new QueryService({}, llmCli);
+  const service = new QueryService({}, llmCli, testApiConfig());
 
   const koreanTerms = await service.extractAnchorTerms('게이트웨이 뺀 거 왜 그랬지?');
   const englishTerms = await service.extractAnchorTerms('ingress 제거 배경은?');
@@ -168,7 +177,7 @@ test('이유·결정 질문의 Cypher 생성 프롬프트가 다중 Task 후보�
       return { text: JSON.stringify({ cypher: 'MATCH (n) RETURN n LIMIT 1' }) };
     },
   };
-  const service = new QueryService({}, llmCli);
+  const service = new QueryService({}, llmCli, testApiConfig());
 
   await service.generateCypher('그 구성 요소를 뺀 배경은?', [
     {
@@ -235,7 +244,7 @@ test('답변 합성 프롬프트가 다중 후보 중 질문과 관련성 높은
       return { text: JSON.stringify({ answer: '관련 근거' }) };
     },
   };
-  const service = new QueryService({}, llmCli);
+  const service = new QueryService({}, llmCli, testApiConfig());
 
   await service.synthesizeAnswer(
     '그 구성 요소를 뺀 배경은?',

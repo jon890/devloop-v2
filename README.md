@@ -47,6 +47,7 @@ API e2e는 `pnpm --filter api test:e2e`로 실행하며, 테스트 전용 Neo4j 
 
 ## 모델 구성
 
-- `LLM_MODEL=gpt-5.5`: 파이프라인 추출 모델
+- `LLM_MODEL=gpt-5.5`: 파이프라인 추출 모델. API는 이 값을 읽지 않는다
 - `QUERY_LLM_MODEL=gpt-5.6-terra`: API 자연어 질의 모델
-- `QUERY_LLM_MODEL`이 없으면 API도 `LLM_MODEL`을 사용한다.
+- `QUERY_LLM_MODEL`이 없으면 API는 `LLM_MODEL`로 대체하지 않고 기동에 실패한다.
+  값이 없을 때 조용히 다른 모델로 질의가 도는 것을 막기 위해서다.

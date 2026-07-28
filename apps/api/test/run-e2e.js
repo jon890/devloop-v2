@@ -1,13 +1,11 @@
 const { spawnSync } = require('node:child_process');
 const { resolve } = require('node:path');
+// require 즉시 테스트 DB 로 환경을 고정한다. 아래 spawn 이 그 환경을 그대로 물려준다.
+const { applyE2eEnv } = require('./helpers/e2e-env');
 
 const repoRoot = resolve(__dirname, '../../..');
-const testUri = process.env.NEO4J_TEST_URI ?? 'bolt://localhost:7688';
-const parsedTestUri = new URL(testUri);
-
-if ((parsedTestUri.port || '7687') === '7687') {
-  throw new Error('NEO4J_TEST_URI must never target the production Neo4j port 7687.');
-}
+const envGuardPath = resolve(__dirname, 'helpers/e2e-env.js');
+const testUri = applyE2eEnv();
 
 const environment = {
   ...process.env,
@@ -16,7 +14,15 @@ const environment = {
 
 try {
   run('docker', ['compose', '--profile', 'test', 'up', '-d', '--wait', 'neo4j-test']);
-  run(process.execPath, ['--test', '--test-concurrency=1', 'apps/api/test/api.e2e.test.js']);
+  // --require 로 선주입한다. 테스트 파일이 dist/app.module 을 언제 require 하든
+  // 환경 고정이 먼저 끝나는 것을 node 가 보장한다.
+  run(process.execPath, [
+    '--test',
+    '--test-concurrency=1',
+    '--require',
+    envGuardPath,
+    'apps/api/test/api.e2e.test.js',
+  ]);
 } finally {
   spawnSync(
     'docker',

@@ -3,6 +3,7 @@ import type { GraphNode, GraphRel, NeighborsResponse, QueryRequest, QueryRespons
 import { QueryRequestSchema } from "@devloop/shared";
 import neo4j from "neo4j-driver";
 import type { z } from "zod";
+import { API_CONFIG, type ApiConfig } from "../config";
 import { LLM_CLI, LlmCli } from "../llm-cli";
 import { Neo4jService } from "../neo4j.service";
 import { ANCHOR_CANDIDATE_LIMIT, ANCHOR_LABEL_QUOTAS, EVIDENCE_NODE_LIMIT, FULLTEXT_INDEXES } from "./query.const";
@@ -23,6 +24,7 @@ export class QueryService {
   constructor(
     private readonly neo4jService: Neo4jService,
     @Inject(LLM_CLI) private readonly llmCli: LlmCli,
+    @Inject(API_CONFIG) private readonly config: ApiConfig,
   ) {}
 
   async query(rawRequest: QueryRequest): Promise<QueryResponse> {
@@ -184,7 +186,7 @@ export class QueryService {
     return (
       await this.completeStructured(prompt, AnchorResponseSchema, {
         timeoutMs: 60_000,
-        model: queryLlmModel(),
+        model: this.config.llm.queryModel,
       })
     ).terms;
   }
@@ -219,7 +221,7 @@ export class QueryService {
     return (
       await this.completeStructured(prompt, CypherResponseSchema, {
         timeoutMs: 90_000,
-        model: queryLlmModel(),
+        model: this.config.llm.queryModel,
       })
     ).cypher.trim();
   }
@@ -245,7 +247,7 @@ export class QueryService {
     return (
       await this.completeStructured(prompt, CypherResponseSchema, {
         timeoutMs: 90_000,
-        model: queryLlmModel(),
+        model: this.config.llm.queryModel,
       })
     ).cypher.trim();
   }
@@ -311,7 +313,7 @@ export class QueryService {
     return (
       await this.completeStructured(prompt, AnswerResponseSchema, {
         timeoutMs: 90_000,
-        model: queryLlmModel(),
+        model: this.config.llm.queryModel,
       })
     ).answer;
   }
@@ -491,10 +493,6 @@ function evidenceLabelPriority(label: GraphNode["label"]): number {
 
 function uniqueRelationships(relationships: GraphRel[]): GraphRel[] {
   return [...new Map(relationships.map((relationship) => [relationship.id, relationship])).values()];
-}
-
-function queryLlmModel(): string | undefined {
-  return process.env.QUERY_LLM_MODEL || process.env.LLM_MODEL;
 }
 
 function failureAnswer(message: string, terms: string[], anchorCount: number, diagnostics: string[]): string {
