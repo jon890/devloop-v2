@@ -1,0 +1,9 @@
+node_modules
+dist
+build
+coverage
+apps/pipeline/data
+docs/
+eval/
+**/*.md
+pnpm-lock.yaml

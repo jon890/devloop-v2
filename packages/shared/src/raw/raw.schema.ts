@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from "zod";
 
 export const RawDoorayObjectSchema = z.record(z.string(), z.unknown());
 export type RawDoorayObject = z.infer<typeof RawDoorayObjectSchema>;

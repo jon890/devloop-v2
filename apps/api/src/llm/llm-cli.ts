@@ -79,19 +79,14 @@ abstract class ChildProcessCliAdapter implements LlmCli {
 @Injectable()
 export class CodexCliAdapter extends ChildProcessCliAdapter {
   protected command(opts?: LlmOptions): { bin: string; args: string[] } {
-    const model =
-      opts?.model || process.env.QUERY_LLM_MODEL || process.env.LLM_MODEL;
+    const model = opts?.model || process.env.QUERY_LLM_MODEL || process.env.LLM_MODEL;
     const effort = opts?.effort ?? process.env.LLM_REASONING_EFFORT;
     if (effort && !["minimal", "low", "medium", "high"].includes(effort)) {
       throw new Error(`Unsupported LLM reasoning effort: ${effort}`);
     }
     return {
       bin: "codex",
-      args: [
-        "exec",
-        ...(model ? ["-m", model] : []),
-        ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : []),
-      ],
+      args: ["exec", ...(model ? ["-m", model] : []), ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : [])],
     };
   }
 }
@@ -99,8 +94,7 @@ export class CodexCliAdapter extends ChildProcessCliAdapter {
 @Injectable()
 export class ClaudeCliAdapter extends ChildProcessCliAdapter {
   protected command(opts?: LlmOptions): { bin: string; args: string[] } {
-    const model =
-      opts?.model || process.env.QUERY_LLM_MODEL || process.env.LLM_MODEL;
+    const model = opts?.model || process.env.QUERY_LLM_MODEL || process.env.LLM_MODEL;
     return {
       bin: "claude",
       args: ["-p", ...(model ? ["--model", model] : [])],
@@ -109,7 +103,5 @@ export class ClaudeCliAdapter extends ChildProcessCliAdapter {
 }
 
 export function createLlmCli(): LlmCli {
-  return process.env.LLM_PROVIDER === "claude"
-    ? new ClaudeCliAdapter()
-    : new CodexCliAdapter();
+  return process.env.LLM_PROVIDER === "claude" ? new ClaudeCliAdapter() : new CodexCliAdapter();
 }

@@ -1,1 +1,1 @@
-export const EXTRACTION_PROMPT_VERSION = 'wp2-v1';
+export const EXTRACTION_PROMPT_VERSION = "wp2-v1";

@@ -1,11 +1,5 @@
-import { z } from 'zod';
-import {
-  CONCEPT_KINDS,
-  NODE_KEY_PROPERTIES,
-  NODE_LABELS,
-  RELATES_TO_KINDS,
-  RELATIONSHIP_TYPES,
-} from './ontology.const';
+import { z } from "zod";
+import { CONCEPT_KINDS, NODE_KEY_PROPERTIES, NODE_LABELS, RELATES_TO_KINDS, RELATIONSHIP_TYPES } from "./ontology.const";
 
 export const NodeLabelSchema = z.enum(NODE_LABELS);
 export type NodeLabel = z.infer<typeof NodeLabelSchema>;

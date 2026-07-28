@@ -1,8 +1,5 @@
-import { z } from 'zod';
-import {
-  NodeLabelSchema,
-  RelationshipTypeSchema,
-} from '../ontology/ontology.schema';
+import { z } from "zod";
+import { NodeLabelSchema, RelationshipTypeSchema } from "../ontology/ontology.schema";
 
 export const GraphNodeSchema = z.object({
   id: z.string(),

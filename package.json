@@ -8,10 +8,13 @@
     "pipeline": "pnpm --filter pipeline pipeline",
     "schema:apply": "pnpm --filter pipeline schema:apply",
     "api": "pnpm --filter api start",
-    "web": "pnpm --filter web dev"
+    "web": "pnpm --filter web dev",
+    "format": "prettier --write \"**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx}\""
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "prettier": "^3.9.6",
     "typescript": "^5.9.0"
   }
 }

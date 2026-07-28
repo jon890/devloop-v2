@@ -1,4 +1,4 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable } from "@nestjs/common";
 import {
   RawDoorayObject,
   RawDoorayObjectSchema,
@@ -9,11 +9,11 @@ import {
   RawPosts,
   RawPostsSchema,
   RawWikiPageSchema,
-} from '@devloop/shared';
-import { mkdir, readFile, readdir, rename, writeFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
-import { DoorayExecutor } from './dooray-executor';
-import { DEFAULT_RETRY_DELAYS_MS, DOORAY_EXECUTOR } from './ingest.const';
+} from "@devloop/shared";
+import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
+import { dirname, join, resolve } from "node:path";
+import { DoorayExecutor } from "./dooray-executor";
+import { DEFAULT_RETRY_DELAYS_MS, DOORAY_EXECUTOR } from "./ingest.const";
 
 export interface IngestOptions {
   project: string;
@@ -68,42 +68,28 @@ export class IngestService {
     return this.buildResult(context, membersPath);
   }
 
-  private async collectProjectData(
-    options: IngestOptions,
-    context: IngestContext,
-  ): Promise<CollectedNameMaps> {
-    const posts = await this.collectPostList(
-      options.project,
-      join(context.projectRoot, 'posts.json'),
-      context.retryDelays,
-      context.failures,
-    );
+  private async collectProjectData(options: IngestOptions, context: IngestContext): Promise<CollectedNameMaps> {
+    const posts = await this.collectPostList(options.project, join(context.projectRoot, "posts.json"), context.retryDelays, context.failures);
     context.memberSources.push(posts);
 
     await this.collectPostDocuments(options, posts, context);
 
-    const wikiPages = await this.collectWiki(
-      options.project,
-      context.wikiDirectory,
-      options.limit,
-      context.retryDelays,
-      context.failures,
-    );
+    const wikiPages = await this.collectWiki(options.project, context.wikiDirectory, options.limit, context.retryDelays, context.failures);
     context.memberSources.push(wikiPages);
 
     await this.collectNameMap({
-      path: join(context.projectRoot, 'tags.json'),
-      args: ['project', 'tags', options.project, '--json'],
-      item: 'tags',
+      path: join(context.projectRoot, "tags.json"),
+      args: ["project", "tags", options.project, "--json"],
+      item: "tags",
       retryDelays: context.retryDelays,
       failures: context.failures,
     });
 
-    const membersPath = join(context.projectRoot, 'members.json');
+    const membersPath = join(context.projectRoot, "members.json");
     const members = await this.collectNameMap({
       path: membersPath,
-      args: ['member', 'list', options.project, '--json'],
-      item: 'members',
+      args: ["member", "list", options.project, "--json"],
+      item: "members",
       retryDelays: context.retryDelays,
       failures: context.failures,
     });
@@ -112,12 +98,9 @@ export class IngestService {
   }
 
   private async prepareContext(options: IngestOptions): Promise<IngestContext> {
-    const projectRoot = join(
-      options.dataRoot ?? resolve(__dirname, '../../data/raw'),
-      options.project,
-    );
-    const postsDirectory = join(projectRoot, 'posts');
-    const wikiDirectory = join(projectRoot, 'wiki');
+    const projectRoot = join(options.dataRoot ?? resolve(__dirname, "../../data/raw"), options.project);
+    const postsDirectory = join(projectRoot, "posts");
+    const wikiDirectory = join(projectRoot, "wiki");
     const retryDelays = options.retryDelaysMs ?? DEFAULT_RETRY_DELAYS_MS;
     const failures: IngestFailure[] = [];
     const memberSources: unknown[] = [];
@@ -135,28 +118,20 @@ export class IngestService {
     };
   }
 
-  private async collectPostDocuments(
-    options: IngestOptions,
-    posts: RawPosts,
-    context: IngestContext,
-  ): Promise<void> {
+  private async collectPostDocuments(options: IngestOptions, posts: RawPosts, context: IngestContext): Promise<void> {
     const selectedPosts = options.limit === undefined ? posts : posts.slice(0, options.limit);
     for (const summary of selectedPosts) {
       await this.collectPostDocument(options.project, summary, context);
     }
   }
 
-  private async collectPostDocument(
-    project: string,
-    summary: RawDoorayObject,
-    context: IngestContext,
-  ): Promise<void> {
+  private async collectPostDocument(project: string, summary: RawDoorayObject, context: IngestContext): Promise<void> {
     const number = getPostNumber(summary);
     if (number === undefined) {
       context.failures.push({
-        item: 'post:unknown',
-        command: 'dooray post list',
-        error: '업무 목록 항목에 number가 없습니다.',
+        item: "post:unknown",
+        command: "dooray post list",
+        error: "업무 목록 항목에 number가 없습니다.",
       });
       return;
     }
@@ -171,21 +146,12 @@ export class IngestService {
     await this.fetchPostDocument(project, number, destination, context);
   }
 
-  private async fetchPostDocument(
-    project: string,
-    number: string | number,
-    destination: string,
-    context: IngestContext,
-  ): Promise<void> {
-    const postArgs = ['post', 'get', project, String(number), '--json'];
-    const commentArgs = ['post', 'comment', 'list', project, String(number), '--json'];
+  private async fetchPostDocument(project: string, number: string | number, destination: string, context: IngestContext): Promise<void> {
+    const postArgs = ["post", "get", project, String(number), "--json"];
+    const commentArgs = ["post", "comment", "list", project, String(number), "--json"];
     try {
       const post = await this.executeJson(postArgs, RawDoorayObjectSchema.parse, context.retryDelays);
-      const comments = await this.executeJson(
-        commentArgs,
-        (value) => RawPostsSchema.parse(value),
-        context.retryDelays,
-      );
+      const comments = await this.executeJson(commentArgs, (value) => RawPostsSchema.parse(value), context.retryDelays);
       const document: RawPostDocument = { post, comments };
       await writeJson(destination, document);
       context.memberSources.push(document);
@@ -195,23 +161,17 @@ export class IngestService {
     }
   }
 
-  private async collectMissingMembers(
-    members: RawNameMap,
-    membersPath: string,
-    context: IngestContext,
-  ): Promise<void> {
-    const missingMemberIds = [...collectMemberIds(context.memberSources)]
-      .filter((memberId) => members[memberId] === undefined)
-      .sort();
+  private async collectMissingMembers(members: RawNameMap, membersPath: string, context: IngestContext): Promise<void> {
+    const missingMemberIds = [...collectMemberIds(context.memberSources)].filter((memberId) => members[memberId] === undefined).sort();
     let membersChanged = false;
 
     for (const memberId of missingMemberIds) {
-      const args = ['member', 'get', memberId, '--json'];
+      const args = ["member", "get", memberId, "--json"];
       try {
         const member = await this.executeJson(args, RawDoorayObjectSchema.parse, context.retryDelays);
-        const name = getString(member, 'name');
+        const name = getString(member, "name");
         if (!name) {
-          throw new Error('멤버 응답에 name이 없습니다.');
+          throw new Error("멤버 응답에 name이 없습니다.");
         }
         members[memberId] = name;
         membersChanged = true;
@@ -230,31 +190,26 @@ export class IngestService {
       stats: {
         posts: await countJsonFiles(context.postsDirectory),
         wiki: await countJsonFiles(context.wikiDirectory),
-        tags: await fileCount(join(context.projectRoot, 'tags.json')),
+        tags: await fileCount(join(context.projectRoot, "tags.json")),
         members: await fileCount(membersPath),
       },
       failures: context.failures,
     };
   }
 
-  private async collectPostList(
-    project: string,
-    destination: string,
-    retryDelays: readonly number[],
-    failures: IngestFailure[],
-  ): Promise<RawPosts> {
+  private async collectPostList(project: string, destination: string, retryDelays: readonly number[], failures: IngestFailure[]): Promise<RawPosts> {
     const existing = await readExistingJson(destination, RawPostsSchema);
     if (existing !== undefined) {
       return existing;
     }
 
-    const args = ['post', 'list', project, '--all', '--json'];
+    const args = ["post", "list", project, "--all", "--json"];
     try {
       const posts = await this.executeJson(args, RawPostsSchema.parse, retryDelays);
       await writeJson(destination, posts);
       return posts;
     } catch (error) {
-      failures.push(toFailure('posts', args, error));
+      failures.push(toFailure("posts", args, error));
       return [];
     }
   }
@@ -266,12 +221,12 @@ export class IngestService {
     retryDelays: readonly number[],
     failures: IngestFailure[],
   ): Promise<RawDoorayObject[]> {
-    const rootArgs = ['wiki', 'pages', project, '--json'];
+    const rootArgs = ["wiki", "pages", project, "--json"];
     let roots: RawPosts;
     try {
       roots = await this.executeJson(rootArgs, RawPostsSchema.parse, retryDelays);
     } catch (error) {
-      failures.push(toFailure('wiki:roots', rootArgs, error));
+      failures.push(toFailure("wiki:roots", rootArgs, error));
       return [];
     }
 
@@ -289,9 +244,9 @@ export class IngestService {
       if (!pageId || seen.has(pageId)) {
         if (!pageId) {
           failures.push({
-            item: 'wiki:unknown',
+            item: "wiki:unknown",
             command: formatCommand(rootArgs),
-            error: '위키 목록 항목에 id가 없습니다.',
+            error: "위키 목록 항목에 id가 없습니다.",
           });
         }
         continue;
@@ -303,7 +258,7 @@ export class IngestService {
       if (existing !== undefined) {
         pages.push(existing);
       } else {
-        const pageArgs = ['wiki', 'page', 'get', project, pageId, '--json'];
+        const pageArgs = ["wiki", "page", "get", project, pageId, "--json"];
         try {
           const page = await this.executeJson(pageArgs, RawWikiPageSchema.parse, retryDelays);
           await writeJson(destination, page);
@@ -317,7 +272,7 @@ export class IngestService {
         continue;
       }
 
-      const childArgs = ['wiki', 'pages', project, '--parent', pageId, '--json'];
+      const childArgs = ["wiki", "pages", project, "--parent", pageId, "--json"];
       try {
         const children = await this.executeJson(childArgs, RawPostsSchema.parse, retryDelays);
         queue.push(...children);
@@ -352,11 +307,7 @@ export class IngestService {
     }
   }
 
-  private async executeJson<T>(
-    args: readonly string[],
-    parse: (value: unknown) => T,
-    retryDelays: readonly number[],
-  ): Promise<T> {
+  private async executeJson<T>(args: readonly string[], parse: (value: unknown) => T, retryDelays: readonly number[]): Promise<T> {
     let lastError: unknown;
 
     for (let attempt = 0; attempt <= retryDelays.length; attempt += 1) {
@@ -386,30 +337,25 @@ class CommandFailure extends Error {
 
 function validateOptions(options: IngestOptions): void {
   if (!options.project.trim()) {
-    throw new Error('--project 값은 비어 있을 수 없습니다.');
+    throw new Error("--project 값은 비어 있을 수 없습니다.");
   }
-  if (
-    options.project === '.' ||
-    options.project === '..' ||
-    options.project.includes('/') ||
-    options.project.includes('\\')
-  ) {
-    throw new Error('--project 값에 경로 구분자를 사용할 수 없습니다.');
+  if (options.project === "." || options.project === ".." || options.project.includes("/") || options.project.includes("\\")) {
+    throw new Error("--project 값에 경로 구분자를 사용할 수 없습니다.");
   }
   if (options.limit !== undefined && (!Number.isInteger(options.limit) || options.limit < 1)) {
-    throw new Error('--limit 값은 1 이상의 정수여야 합니다.');
+    throw new Error("--limit 값은 1 이상의 정수여야 합니다.");
   }
 }
 
 function getPostNumber(post: RawDoorayObject): string | number | undefined {
   const number = post.number;
-  if (typeof number === 'string' || typeof number === 'number') {
+  if (typeof number === "string" || typeof number === "number") {
     return number;
   }
 
   const taskNumber = post.taskNumber;
-  if (typeof taskNumber === 'string') {
-    return taskNumber.split('/').at(-1);
+  if (typeof taskNumber === "string") {
+    return taskNumber.split("/").at(-1);
   }
 
   return undefined;
@@ -417,18 +363,18 @@ function getPostNumber(post: RawDoorayObject): string | number | undefined {
 
 function getId(value: RawDoorayObject): string | undefined {
   const id = value.id;
-  return typeof id === 'string' || typeof id === 'number' ? String(id) : undefined;
+  return typeof id === "string" || typeof id === "number" ? String(id) : undefined;
 }
 
 function getString(value: RawDoorayObject, key: string): string | undefined {
-  return typeof value[key] === 'string' && value[key].trim() ? value[key] : undefined;
+  return typeof value[key] === "string" && value[key].trim() ? value[key] : undefined;
 }
 
 function toNameMap(entries: RawPosts): RawNameMap {
   const result: RawNameMap = {};
   for (const entry of entries) {
-    const id = getId(entry) ?? getString(entry, 'organizationMemberId');
-    const name = getString(entry, 'name');
+    const id = getId(entry) ?? getString(entry, "organizationMemberId");
+    const name = getString(entry, "name");
     if (id && name) {
       result[id] = name;
     }
@@ -443,15 +389,12 @@ function collectMemberIds(values: unknown[]): Set<string> {
       value.forEach(visit);
       return;
     }
-    if (!value || typeof value !== 'object') {
+    if (!value || typeof value !== "object") {
       return;
     }
 
     for (const [key, nested] of Object.entries(value)) {
-      if (
-        (key === 'organizationMemberId' || key === 'memberId') &&
-        (typeof nested === 'string' || typeof nested === 'number')
-      ) {
+      if ((key === "organizationMemberId" || key === "memberId") && (typeof nested === "string" || typeof nested === "number")) {
         result.add(String(nested));
       }
       visit(nested);
@@ -462,12 +405,9 @@ function collectMemberIds(values: unknown[]): Set<string> {
   return result;
 }
 
-async function readExistingJson<T>(
-  path: string,
-  schema: { parse(value: unknown): T },
-): Promise<T | undefined> {
+async function readExistingJson<T>(path: string, schema: { parse(value: unknown): T }): Promise<T | undefined> {
   try {
-    const content = await readFile(path, 'utf8');
+    const content = await readFile(path, "utf8");
     return schema.parse(JSON.parse(content) as unknown);
   } catch (error) {
     if (isFileNotFound(error)) {
@@ -480,13 +420,13 @@ async function readExistingJson<T>(
 async function writeJson(path: string, value: unknown): Promise<void> {
   await mkdir(dirname(path), { recursive: true });
   const temporaryPath = `${path}.tmp`;
-  await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
+  await writeFile(temporaryPath, `${JSON.stringify(value, null, 2)}\n`, "utf8");
   await rename(temporaryPath, path);
 }
 
 async function countJsonFiles(directory: string): Promise<number> {
   const entries = await readdir(directory, { withFileTypes: true });
-  return entries.filter((entry) => entry.isFile() && entry.name.endsWith('.json')).length;
+  return entries.filter((entry) => entry.isFile() && entry.name.endsWith(".json")).length;
 }
 
 async function fileCount(path: string): Promise<number> {
@@ -502,12 +442,7 @@ async function fileCount(path: string): Promise<number> {
 }
 
 function isFileNotFound(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    'code' in error &&
-    error.code === 'ENOENT'
-  );
+  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
 
 function toFailure(item: string, args: readonly string[], error: unknown): IngestFailure {
@@ -520,7 +455,7 @@ function toFailure(item: string, args: readonly string[], error: unknown): Inges
 }
 
 function formatCommand(args: readonly string[]): string {
-  return ['dooray', ...args].join(' ');
+  return ["dooray", ...args].join(" ");
 }
 
 function errorMessage(error: unknown): string {
