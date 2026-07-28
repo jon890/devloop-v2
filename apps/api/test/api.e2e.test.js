@@ -186,11 +186,29 @@ test('schema, idempotent load, stats, fulltext search, and neighbors satisfy the
   );
   assert.equal(taskSamples.nodes.length, 5);
   assert.ok(taskSamples.nodes.every((node) => node.label === 'Task'));
+  assert.equal(taskSamples.total, 6);
+  assert.equal(taskSamples.offset, 0);
+  assert.equal(taskSamples.limit, 5);
+
+  const remainingTaskSamples = GraphSamplesResponseSchema.parse(
+    await jsonRequest('/api/graph/samples?label=Task&offset=5&limit=5'),
+  );
+  assert.equal(remainingTaskSamples.nodes.length, 1);
+  assert.equal(remainingTaskSamples.total, 6);
+  assert.equal(remainingTaskSamples.offset, 5);
+  assert.equal(remainingTaskSamples.limit, 5);
+  assert.equal(
+    remainingTaskSamples.nodes.some((node) =>
+      taskSamples.nodes.some((firstPageNode) => firstPageNode.id === node.id),
+    ),
+    false,
+  );
 
   const decisionSamples = GraphSamplesResponseSchema.parse(
     await jsonRequest('/api/graph/samples?relationship=DECIDED_IN'),
   );
   assert.equal(decisionSamples.relationships.length, 4);
+  assert.equal(decisionSamples.total, 4);
   assert.ok(
     decisionSamples.relationships.every((relationship) => relationship.type === 'DECIDED_IN'),
   );

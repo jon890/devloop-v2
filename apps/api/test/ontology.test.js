@@ -50,13 +50,22 @@ test('ontology response exposes the shared node and relationship contract', () =
   ]);
 });
 
-test('graph samples response reuses the evidence contract', () => {
+test('graph samples response extends evidence with pagination metadata', () => {
   const sample = GraphSamplesResponseSchema.parse({
     nodes: [],
     relationships: [],
+    total: 490,
+    offset: 5,
+    limit: 5,
   });
 
-  assert.deepEqual(sample, { nodes: [], relationships: [] });
+  assert.deepEqual(sample, {
+    nodes: [],
+    relationships: [],
+    total: 490,
+    offset: 5,
+    limit: 5,
+  });
 });
 
 function directionsFor(response, type) {

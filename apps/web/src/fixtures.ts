@@ -197,23 +197,27 @@ export function mockSearchGraph(query: string): GraphSearchResponse {
     .slice(0, 25);
 }
 
-export function mockGraphSamples(kind: "label" | "relationship", value: string): GraphSamplesResponse {
+export function mockGraphSamples(kind: "label" | "relationship", value: string, offset = 0, limit = 5): GraphSamplesResponse {
   if (kind === "label") {
+    const matchingNodes = Object.values(nodes).filter((node) => node.label === value);
     return {
-      nodes: Object.values(nodes)
-        .filter((node) => node.label === value)
-        .slice(0, 5),
+      nodes: matchingNodes.slice(offset, offset + limit),
       relationships: [],
+      total: matchingNodes.length,
+      offset,
+      limit,
     };
   }
 
-  const relationships = Object.values(rels)
-    .filter((relationship) => relationship.type === value)
-    .slice(0, 5);
+  const matchingRelationships = Object.values(rels).filter((relationship) => relationship.type === value);
+  const relationships = matchingRelationships.slice(offset, offset + limit);
   const nodeIds = new Set(relationships.flatMap((relationship) => [relationship.startId, relationship.endId]));
   return {
     nodes: Object.values(nodes).filter((node) => nodeIds.has(node.id)),
     relationships,
+    total: matchingRelationships.length,
+    offset,
+    limit,
   };
 }
 

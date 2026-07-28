@@ -1,4 +1,12 @@
-import type { GraphSearchResponse, GraphStatsResponse, NeighborsResponse, OntologyResponse, QueryRequest, QueryResponse } from "@devloop/shared";
+import type {
+  GraphSamplesResponse,
+  GraphSearchResponse,
+  GraphStatsResponse,
+  NeighborsResponse,
+  OntologyResponse,
+  QueryRequest,
+  QueryResponse,
+} from "@devloop/shared";
 import { mockGraphSamples, mockNeighbors, mockOntologyResponse, mockQueryResponse, mockSearchGraph, mockStatsResponse } from "./fixtures";
 
 export const useMockApi = import.meta.env.VITE_USE_MOCK === "1";
@@ -50,12 +58,17 @@ export async function searchGraph(query: string): Promise<GraphSearchResponse> {
   return request<GraphSearchResponse>(`/api/graph/search?q=${encodeURIComponent(query)}`);
 }
 
-export async function getGraphSamples(kind: "label" | "relationship", value: string): Promise<NeighborsResponse> {
+export async function getGraphSamples(kind: "label" | "relationship", value: string, offset = 0, limit = 5): Promise<GraphSamplesResponse> {
   if (useMockApi) {
     await wait(180);
-    return mockGraphSamples(kind, value);
+    return mockGraphSamples(kind, value, offset, limit);
   }
-  return request<NeighborsResponse>(`/api/graph/samples?${kind}=${encodeURIComponent(value)}`);
+  const query = new URLSearchParams({
+    [kind]: value,
+    offset: String(offset),
+    limit: String(limit),
+  });
+  return request<GraphSamplesResponse>(`/api/graph/samples?${query}`);
 }
 
 export async function getOntology(): Promise<OntologyResponse> {

@@ -8,6 +8,15 @@ function sum(values: Record<string, number> | undefined) {
   return Object.values(values ?? {}).reduce((total, count) => total + count, 0);
 }
 
+const SAMPLE_PAGE_SIZE = 5;
+const EMPTY_SAMPLES: GraphSamplesResponse = {
+  nodes: [],
+  relationships: [],
+  total: 0,
+  offset: 0,
+  limit: SAMPLE_PAGE_SIZE,
+};
+
 export function SchemaMapPage() {
   const [ontology, setOntology] = useState<OntologyResponse | null>(null);
   const [stats, setStats] = useState<GraphStatsResponse | null>(null);
@@ -15,25 +24,25 @@ export function SchemaMapPage() {
     kind: "label",
     value: "Project",
   });
-  const [samples, setSamples] = useState<GraphSamplesResponse>({ nodes: [], relationships: [] });
+  const [samples, setSamples] = useState<GraphSamplesResponse>(EMPTY_SAMPLES);
   const [loading, setLoading] = useState(true);
   const [sampleLoading, setSampleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const sampleRequestId = useRef(0);
 
-  const loadSamples = useCallback(async (nextSelection: SchemaSelection) => {
+  const loadSamples = useCallback(async (nextSelection: SchemaSelection, offset = 0) => {
     const requestId = sampleRequestId.current + 1;
     sampleRequestId.current = requestId;
     setSelection(nextSelection);
     setSampleLoading(true);
     setError(null);
     try {
-      const response = await getGraphSamples(nextSelection.kind, nextSelection.value);
+      const response = await getGraphSamples(nextSelection.kind, nextSelection.value, offset, SAMPLE_PAGE_SIZE);
       if (sampleRequestId.current === requestId) setSamples(response);
     } catch (cause) {
       if (sampleRequestId.current === requestId) {
         setError(cause instanceof Error ? cause.message : "인스턴스 샘플을 불러오지 못했습니다.");
-        setSamples({ nodes: [], relationships: [] });
+        setSamples({ ...EMPTY_SAMPLES, offset });
       }
     } finally {
       if (sampleRequestId.current === requestId) setSampleLoading(false);
@@ -59,6 +68,9 @@ export function SchemaMapPage() {
       ? ontology.nodes.find((definition) => definition.label === selection.value)
       : ontology.relationships.find((definition) => definition.type === selection.value);
   }, [ontology, selection]);
+
+  const sampleRangeStart = samples.total === 0 ? 0 : samples.offset + 1;
+  const sampleRangeEnd = Math.min(samples.offset + samples.limit, samples.total);
 
   return (
     <section className="schema-map-page page-surface">
@@ -106,7 +118,9 @@ export function SchemaMapPage() {
               <div className="sample-list" aria-live="polite">
                 <div className="sample-list-heading">
                   <span>운영 데이터 샘플</span>
-                  <small>최대 5개</small>
+                  <small>
+                    {sampleRangeStart.toLocaleString("ko-KR")}–{sampleRangeEnd.toLocaleString("ko-KR")} / {samples.total.toLocaleString("ko-KR")}
+                  </small>
                 </div>
                 {sampleLoading && <div className="sample-empty">샘플을 읽는 중입니다.</div>}
                 {!sampleLoading && selection.kind === "label" && samples.nodes.length > 0 && (
@@ -147,6 +161,22 @@ export function SchemaMapPage() {
                   ((selection.kind === "label" && !samples.nodes.length) || (selection.kind === "relationship" && !samples.relationships.length)) && (
                     <div className="sample-empty">이 타입의 운영 데이터 샘플이 없습니다.</div>
                   )}
+                <div className="sample-pagination">
+                  <button
+                    type="button"
+                    disabled={sampleLoading || samples.offset === 0}
+                    onClick={() => loadSamples(selection, Math.max(0, samples.offset - samples.limit))}
+                  >
+                    이전
+                  </button>
+                  <button
+                    type="button"
+                    disabled={sampleLoading || samples.offset + samples.limit >= samples.total}
+                    onClick={() => loadSamples(selection, samples.offset + samples.limit)}
+                  >
+                    다음
+                  </button>
+                </div>
               </div>
             </aside>
           </div>

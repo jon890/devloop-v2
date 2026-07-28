@@ -1,5 +1,5 @@
 import { Controller, Get, Param, Query } from "@nestjs/common";
-import type { GraphSearchResponse, GraphStatsResponse, NeighborsResponse } from "@devloop/shared";
+import type { GraphSamplesResponse, GraphSearchResponse, GraphStatsResponse, NeighborsResponse } from "@devloop/shared";
 import { GraphQueryService } from "../graph-query.service";
 
 @Controller("api")
@@ -22,7 +22,12 @@ export class GraphController {
   }
 
   @Get("graph/samples")
-  samples(@Query("label") label = "", @Query("relationship") relationship = ""): Promise<NeighborsResponse> {
-    return this.graphQueryService.samples(label, relationship);
+  samples(
+    @Query("label") label = "",
+    @Query("relationship") relationship = "",
+    @Query("offset") offset = "0",
+    @Query("limit") limit = "5",
+  ): Promise<GraphSamplesResponse> {
+    return this.graphQueryService.samples(label, relationship, offset, limit);
   }
 }
