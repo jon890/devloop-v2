@@ -108,6 +108,31 @@ test('Cypher 생성 프롬프트가 TAGGED 차원과 차원 조합 집계 패턴
   assert.match(generationPrompt, /RETURN c\.name, count\(t\)/);
 });
 
+test('Cypher 생성 프롬프트가 개념을 다루는 문서에 MENTIONS와 DOCUMENTS를 함께 매치하도록 지시한다', async () => {
+  let generationPrompt;
+  const llmCli = {
+    async complete(prompt) {
+      generationPrompt = prompt;
+      return { text: JSON.stringify({ cypher: 'MATCH (n) RETURN n LIMIT 1' }) };
+    },
+  };
+  const service = new QueryService({}, llmCli);
+
+  await service.generateCypher('ingress-nginx를 다루는 문서를 찾아줘', []);
+
+  const relationHint = generationPrompt
+    .split('\n')
+    .find((line) => line.includes('DOCUMENTS') && line.includes('MENTIONS'));
+
+  assert.ok(relationHint, '두 관계를 함께 설명하는 줄이 생성 프롬프트에 있어야 한다');
+  assert.match(relationHint, /DOCUMENTS는 MENTIONS의 강한 형태/);
+  assert.match(relationHint, /\[:MENTIONS\|DOCUMENTS\]/);
+  assert.match(relationHint, /함께 MATCH/);
+
+  assert.match(generationPrompt, /^MENTIONS: Task\|Wiki -> Concept$/m);
+  assert.match(generationPrompt, /^DOCUMENTS: Wiki -> Concept$/m);
+});
+
 test('anchor 용어 추출 프롬프트가 기술 용어의 한영 표기 변형을 양방향으로 요구한다', async () => {
   const anchorPrompts = [];
   const llmCli = {

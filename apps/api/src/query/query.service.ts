@@ -562,6 +562,7 @@ function ontologySummary(): string {
     "CHILD_OF: Task -> Task; Wiki -> Wiki",
     "MENTIONS: Task|Wiki -> Concept",
     "DOCUMENTS: Wiki -> Concept",
+    "DOCUMENTS는 MENTIONS의 강한 형태이며, 개념을 다루는 문서를 찾을 때는 [:MENTIONS|DOCUMENTS]로 두 관계를 함께 MATCH하라.",
     "DEPENDS_ON: Concept -> Concept",
     "DECIDED_IN: Decision -> Task",
     "EVIDENCED_BY: Decision -> Task|Comment",
