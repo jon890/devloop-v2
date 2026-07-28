@@ -47,7 +47,7 @@ export class GraphQueryService {
       limit: rawLimit,
     });
     if (!parsedPagination.success) {
-      throw new BadRequestException("offset must be a non-negative integer and limit must be an integer between 1 and 100.");
+      throw new BadRequestException("offset must be a non-negative safe integer and limit must be an integer between 1 and 100.");
     }
     const { offset, limit } = parsedPagination.data;
 

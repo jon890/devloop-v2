@@ -66,6 +66,15 @@ test('graph samples response extends evidence with pagination metadata', () => {
     offset: 5,
     limit: 5,
   });
+  assert.throws(() =>
+    GraphSamplesResponseSchema.parse({
+      nodes: [],
+      relationships: [],
+      total: 490,
+      offset: Number.MAX_SAFE_INTEGER + 1,
+      limit: 5,
+    }),
+  );
 });
 
 function directionsFor(response, type) {

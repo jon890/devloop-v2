@@ -133,6 +133,34 @@ test('graph samples applies offset and limit through the last page', async () =>
   assert.deepEqual(numericParameters(queries.at(-1).parameters), { offset: 10, limit: 5 });
 });
 
+test('graph samples accepts the safe integer offset boundary and rejects values above it', async () => {
+  const { queries, service } = createService();
+  const maximumSafeOffset = String(Number.MAX_SAFE_INTEGER);
+
+  const boundaryPage = await service.samples('Task', '', maximumSafeOffset, '5');
+  assert.equal(boundaryPage.offset, Number.MAX_SAFE_INTEGER);
+  assert.deepEqual(numericParameters(queries[1].parameters), {
+    offset: Number.MAX_SAFE_INTEGER,
+    limit: 5,
+  });
+
+  await assert.rejects(
+    service.samples('Task', '', '999999999999999999999999', '5'),
+    (error) => error.getStatus() === 400,
+  );
+  assert.equal(queries.length, 2);
+});
+
+test('graph samples limit cap rejects values that exceed JavaScript safe integer range', async () => {
+  const { queries, service } = createService();
+
+  await assert.rejects(
+    service.samples('Task', '', '0', '999999999999999999999999'),
+    (error) => error.getStatus() === 400,
+  );
+  assert.equal(queries.length, 0);
+});
+
 test('graph samples deterministic ordering keeps adjacent pages disjoint', async () => {
   const rows = Array.from({ length: 10 }, (_, index) => graphNode(`task-${index + 1}`));
   const { service } = createService(async (query, parameters) => {

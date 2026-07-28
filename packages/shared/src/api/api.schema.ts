@@ -35,14 +35,14 @@ export const NeighborsResponseSchema = EvidenceSchema;
 export type NeighborsResponse = z.infer<typeof NeighborsResponseSchema>;
 
 export const GraphSamplesQuerySchema = z.object({
-  offset: z.coerce.number().int().nonnegative().default(0),
+  offset: z.coerce.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).default(0),
   limit: z.coerce.number().int().min(1).max(100).default(5),
 });
 export type GraphSamplesQuery = z.infer<typeof GraphSamplesQuerySchema>;
 
 export const GraphSamplesResponseSchema = EvidenceSchema.extend({
   total: z.number().int().nonnegative(),
-  offset: z.number().int().nonnegative(),
+  offset: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   limit: z.number().int().min(1).max(100),
 });
 export type GraphSamplesResponse = z.infer<typeof GraphSamplesResponseSchema>;
