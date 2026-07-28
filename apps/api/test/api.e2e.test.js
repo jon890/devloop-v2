@@ -1,3 +1,9 @@
+// 이 require 는 반드시 첫 줄이어야 한다. dist/app.module 이 로드되기 전에
+// 테스트 DB 를 고정하지 않으면 앱이 루트 .env 의 운영 개발 DB(7687)를 물고 뜬다.
+const { applyE2eEnv, assertTestDatabaseUri } = require('./helpers/e2e-env');
+
+const testDatabaseUri = applyE2eEnv();
+
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const { after, before, test } = require('node:test');
@@ -13,6 +19,7 @@ const {
   QueryResponseSchema,
 } = require('@devloop/shared');
 const { AppModule } = require('../dist/app.module');
+const { API_CONFIG } = require('../dist/config');
 const { LLM_CLI } = require('../dist/llm-cli');
 
 const repoRoot = resolve(__dirname, '../../..');
@@ -43,19 +50,13 @@ let baseUrl;
 let driver;
 let mockLlm;
 let loadOutput;
+let resolvedApiConfig;
 
 before(async () => {
-  process.env.NEO4J_TEST_URI ??= 'bolt://localhost:7688';
-  assertTestDatabaseUri(process.env.NEO4J_TEST_URI);
-  process.env.NEO4J_URI = process.env.NEO4J_TEST_URI;
-  process.env.NEO4J_USER = 'neo4j';
-  process.env.NEO4J_PASSWORD = 'devloop-test-password';
-  process.env.LLM_MODEL = 'extraction-test-model';
-  process.env.QUERY_LLM_MODEL = 'query-test-model';
-  process.env.LLM_PROVIDER = 'codex';
+  assertTestDatabaseUri(testDatabaseUri);
 
   driver = neo4j.driver(
-    process.env.NEO4J_URI,
+    testDatabaseUri,
     neo4j.auth.basic(process.env.NEO4J_USER, process.env.NEO4J_PASSWORD),
   );
   await driver.verifyConnectivity();
@@ -112,6 +113,13 @@ before(async () => {
     .overrideProvider(LLM_CLI)
     .useValue(mockLlm)
     .compile();
+
+  // 앱이 실제로 무엇을 물고 떴는지 확인한 뒤에만 기동한다.
+  // 설정이 운영 개발 DB 를 가리키면 요청을 한 건도 보내기 전에 여기서 멈춘다.
+  resolvedApiConfig = moduleRef.get(API_CONFIG);
+  assertTestDatabaseUri(resolvedApiConfig.neo4j.uri);
+  assert.equal(resolvedApiConfig.neo4j.uri, testDatabaseUri);
+
   app = moduleRef.createNestApplication();
   await app.listen(0, '127.0.0.1');
   const address = app.getHttpServer().address();
@@ -412,11 +420,9 @@ test('query falls back to a non-empty answer when answer synthesis stays blank',
   assert.equal(response.cypher, cypher);
 });
 
-function assertTestDatabaseUri(uri) {
-  const parsed = new URL(uri);
-  assert.notEqual(
-    parsed.port || '7687',
-    '7687',
-    'NEO4J_TEST_URI must never target the production Neo4j port 7687.',
-  );
-}
+test('기동한 API는 운영 개발 DB가 아니라 테스트 DB에만 접속한다', () => {
+  assert.equal(resolvedApiConfig.neo4j.uri, testDatabaseUri);
+  assertTestDatabaseUri(resolvedApiConfig.neo4j.uri);
+  assert.equal(new URL(resolvedApiConfig.neo4j.uri).port, '7688');
+  assert.equal(resolvedApiConfig.neo4j.password, 'devloop-test-password');
+});
