@@ -3,10 +3,10 @@ import { NestFactory } from "@nestjs/core";
 import path from "node:path";
 import { AppModule } from "./app.module";
 import { parsePipelineOptions } from "./cli-options";
-import { IngestService } from "./ingest/ingest.service";
-import { seedConcepts } from "./extract/concept-seeder";
-import { extractLlm } from "./extract/llm-extractor";
-import { extractStructural } from "./extract/structural-extractor";
+import { IngestService } from "./fetch/ingest.service";
+import { seedConcepts } from "./concepts/concept-seeder";
+import { extractLlm } from "./infer/llm-extractor";
+import { extractStructural } from "./parse/structural-extractor";
 import { ClaudeCliAdapter, CodexCliAdapter, type LlmCli } from "./llm";
 
 function positiveInteger(value: string | undefined, fallback: number): number {

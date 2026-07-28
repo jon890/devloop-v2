@@ -8,11 +8,11 @@ const { ConceptDictionarySchema, OntologyNodeSchema, OntologyRelationshipSchema 
 const { ClaudeCliAdapter } = require('../dist/llm/claude-cli.adapter');
 const { CodexCliAdapter } = require('../dist/llm/codex-cli.adapter');
 const { LlmResultSchema } = require('../dist/llm/llm-cli');
-const { seedConcepts } = require('../dist/extract/concept-seeder');
-const { LlmNodeSchema, LlmRelationshipSchema } = require('../dist/extract/llm-extraction.schema');
-const { extractLlm } = require('../dist/extract/llm-extractor');
-const { sanitizeLlmGraphFile } = require('../dist/extract/llm-relationship-sanitizer');
-const { extractStructural } = require('../dist/extract/structural-extractor');
+const { seedConcepts } = require('../dist/concepts/concept-seeder');
+const { LlmNodeSchema, LlmRelationshipSchema } = require('../dist/infer/llm-extraction.schema');
+const { extractLlm } = require('../dist/infer/llm-extractor');
+const { sanitizeLlmGraphFile } = require('../dist/infer/llm-relationship-sanitizer');
+const { extractStructural } = require('../dist/parse/structural-extractor');
 
 async function fixtureDataRoot() {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'wp2-extract-test-'));

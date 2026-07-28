@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ConceptDictionarySchema, type ConceptDictionary, type ConceptEntry, type ConceptKind } from "@devloop/shared";
-import { firstString, readRawProject } from "./raw-reader";
+import { firstString, readRawProject } from "../raw-reader";
 
 const TAG_KINDS: Record<string, ConceptKind> = {
   "0": "type",

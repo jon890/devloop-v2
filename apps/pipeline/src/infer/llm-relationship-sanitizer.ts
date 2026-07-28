@@ -3,7 +3,7 @@ import path from "node:path";
 import { LLM_GRAPH_FILE } from "@devloop/shared";
 import type { OntologyRelationship, RawDoorayObject } from "@devloop/shared";
 import { LlmNodeSchema, LlmRelationshipSchema, type LlmExtraction } from "./llm-extraction.schema";
-import { firstString, readRawProject } from "./raw-reader";
+import { firstString, readRawProject } from "../raw-reader";
 
 interface EndpointIndex {
   taskNumbers: Set<string>;

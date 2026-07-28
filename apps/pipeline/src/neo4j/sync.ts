@@ -18,7 +18,7 @@ import {
   type OntologyRelationship,
   type RelationshipType,
 } from "@devloop/shared";
-import { sanitizeLlmGraphFile } from "../extract/llm-relationship-sanitizer";
+import { sanitizeLlmGraphFile } from "../infer/llm-relationship-sanitizer";
 import { CONCEPT_KEY_CANONICAL_OVERRIDES, CONCEPT_KEY_MERGE_DENYLIST, CONCEPT_LABEL, RELATIONSHIP_IDENTITY_PROPERTIES } from "./load.const";
 import { neo4jCredentials } from "./neo4j-config";
 

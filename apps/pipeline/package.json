@@ -4,17 +4,17 @@
   "private": true,
   "main": "dist/main.js",
   "scripts": {
-    "build": "pnpm --filter @devloop/shared build && tsc -p tsconfig.json && cp src/load/schema.cy dist/load/schema.cy",
+    "build": "pnpm --filter @devloop/shared build && tsc -p tsconfig.json && cp src/neo4j/schema.cy dist/neo4j/schema.cy",
     "ingest": "pnpm build && node dist/main.js ingest",
     "pipeline": "pnpm build && node dist/main.js",
     "start": "node dist/main.js",
-    "load": "pnpm build && node dist/load/load.js",
-    "concepts:audit-normalization": "pnpm build && node dist/load/audit-concept-normalization.js",
-    "schema:apply": "pnpm build && node dist/load/apply-schema.js",
+    "load": "pnpm build && node dist/neo4j/sync.js",
+    "concepts:audit-normalization": "pnpm build && node dist/concepts/audit.js",
+    "schema:apply": "pnpm build && node dist/neo4j/apply-schema.js",
     "concepts:seed": "pnpm build && node dist/main.js concepts:seed",
     "extract:structural": "pnpm build && node dist/main.js extract:structural",
     "extract:llm": "pnpm build && node dist/main.js extract:llm",
-    "test": "pnpm --filter @devloop/shared build && pnpm build && node --test dist/cli-options.test.js dist/ingest/*.test.js dist/load/*.test.js test/*.test.cjs"
+    "test": "pnpm --filter @devloop/shared build && pnpm build && node --test dist/cli-options.test.js dist/fetch/*.test.js dist/neo4j/*.test.js test/*.test.cjs"
   },
   "dependencies": {
     "@devloop/shared": "workspace:*",

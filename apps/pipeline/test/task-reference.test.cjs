@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { findTaskReferences } = require('../dist/extract/task-reference');
+const { findTaskReferences } = require('../dist/parse/task-reference');
 
 function refs(text, sourceKey = '999', project = 'tc-ocr') {
   return findTaskReferences(text, sourceKey, project).map((reference) => `${reference.project}/${reference.number}`);

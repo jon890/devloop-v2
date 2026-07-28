@@ -5,7 +5,7 @@ import { LlmReasoningEffortSchema, type LlmCli, type LlmReasoningEffort } from "
 import { buildExtractionPrompt, buildJsonRepairPrompt, EXTRACTION_PROMPT_VERSION, type ExtractionPromptDocument } from "./extraction-prompt";
 import { LlmExtractionSchema, type LlmExtraction } from "./llm-extraction.schema";
 import { sanitizeLlmExtractions, type DroppedRelationshipsReport } from "./llm-relationship-sanitizer";
-import { firstString, readRawProject, textContent } from "./raw-reader";
+import { firstString, readRawProject, textContent } from "../raw-reader";
 
 const CacheEntrySchema = LlmExtractionSchema.transform((result) => result);
 
