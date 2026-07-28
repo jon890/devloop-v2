@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { spawn } from "node:child_process";
+import { LLM_REASONING_EFFORTS, type ApiConfig } from "../config";
 
 export interface LlmOptions {
   timeoutMs?: number;
@@ -7,7 +8,7 @@ export interface LlmOptions {
   effort?: LlmReasoningEffort;
 }
 
-export type LlmReasoningEffort = "minimal" | "low" | "medium" | "high";
+export type LlmReasoningEffort = (typeof LLM_REASONING_EFFORTS)[number];
 
 export interface LlmResult {
   text: string;
@@ -22,10 +23,17 @@ export interface LlmCli {
 export const LLM_CLI = Symbol("LLM_CLI");
 
 abstract class ChildProcessCliAdapter implements LlmCli {
+  constructor(protected readonly config: ApiConfig) {}
+
   protected abstract command(opts?: LlmOptions): {
     bin: string;
     args: string[];
   };
+
+  /** opts.model 이 환경설정보다 우선한다. 설정값은 필수라 항상 채워져 있다. */
+  protected model(opts?: LlmOptions): string {
+    return opts?.model || this.config.llm.queryModel;
+  }
 
   complete(prompt: string, opts: LlmOptions = {}): Promise<LlmResult> {
     const started = Date.now();
@@ -79,14 +87,11 @@ abstract class ChildProcessCliAdapter implements LlmCli {
 @Injectable()
 export class CodexCliAdapter extends ChildProcessCliAdapter {
   protected command(opts?: LlmOptions): { bin: string; args: string[] } {
-    const model = opts?.model || process.env.QUERY_LLM_MODEL || process.env.LLM_MODEL;
-    const effort = opts?.effort ?? process.env.LLM_REASONING_EFFORT;
-    if (effort && !["minimal", "low", "medium", "high"].includes(effort)) {
-      throw new Error(`Unsupported LLM reasoning effort: ${effort}`);
-    }
+    // effort 값 검증은 기동 시 환경설정 스키마가 한다.
+    const effort = opts?.effort ?? this.config.llm.reasoningEffort;
     return {
       bin: "codex",
-      args: ["exec", ...(model ? ["-m", model] : []), ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : [])],
+      args: ["exec", "-m", this.model(opts), ...(effort ? ["-c", `model_reasoning_effort=${effort}`] : [])],
     };
   }
 }
@@ -94,14 +99,13 @@ export class CodexCliAdapter extends ChildProcessCliAdapter {
 @Injectable()
 export class ClaudeCliAdapter extends ChildProcessCliAdapter {
   protected command(opts?: LlmOptions): { bin: string; args: string[] } {
-    const model = opts?.model || process.env.QUERY_LLM_MODEL || process.env.LLM_MODEL;
     return {
       bin: "claude",
-      args: ["-p", ...(model ? ["--model", model] : [])],
+      args: ["-p", "--model", this.model(opts)],
     };
   }
 }
 
-export function createLlmCli(): LlmCli {
-  return process.env.LLM_PROVIDER === "claude" ? new ClaudeCliAdapter() : new CodexCliAdapter();
+export function createLlmCli(config: ApiConfig): LlmCli {
+  return config.llm.provider === "claude" ? new ClaudeCliAdapter(config) : new CodexCliAdapter(config);
 }

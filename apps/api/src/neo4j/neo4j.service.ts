@@ -1,7 +1,8 @@
-import { Injectable, InternalServerErrorException, OnApplicationShutdown } from "@nestjs/common";
+import { Inject, Injectable, InternalServerErrorException, OnApplicationShutdown } from "@nestjs/common";
 import type { GraphNode, GraphRel } from "@devloop/shared";
 import { NODE_KEY_PROPERTIES, NODE_LABELS, RELATIONSHIP_TYPES } from "@devloop/shared";
 import neo4j, { Driver, Integer, Node, Path, Relationship, Session, auth, int, isInt } from "neo4j-driver";
+import { API_CONFIG, type ApiConfig } from "../config";
 
 type NeoValue = null | string | number | boolean | Integer | Date | NeoValue[] | { [key: string]: NeoValue };
 
@@ -17,12 +18,11 @@ interface NeoResultLike {
 @Injectable()
 export class Neo4jService implements OnApplicationShutdown {
   private readonly driver: Driver;
+  private readonly database: string;
 
-  constructor() {
-    const uri = process.env.NEO4J_URI ?? "bolt://localhost:7687";
-    const user = process.env.NEO4J_USER ?? process.env.NEO4J_USERNAME ?? "neo4j";
-    const password = process.env.NEO4J_PASSWORD ?? process.env.NEO4J_PASS ?? parseNeo4jAuthPassword() ?? "devloop-password";
-    this.driver = neo4j.driver(uri, auth.basic(user, password));
+  constructor(@Inject(API_CONFIG) config: ApiConfig) {
+    this.database = config.neo4j.database;
+    this.driver = neo4j.driver(config.neo4j.uri, auth.basic(config.neo4j.user, config.neo4j.password));
   }
 
   async onApplicationShutdown(): Promise<void> {
@@ -31,7 +31,7 @@ export class Neo4jService implements OnApplicationShutdown {
 
   readSession(): Session {
     return this.driver.session({
-      database: process.env.NEO4J_DATABASE ?? "neo4j",
+      database: this.database,
       defaultAccessMode: neo4j.session.READ,
     });
   }
@@ -150,13 +150,6 @@ function displayFor(label: GraphNode["label"], properties: Record<string, unknow
   if (label === "Decision") return String(properties.summary ?? key);
   if (label === "Comment") return String(properties.excerpt ?? key);
   return key;
-}
-
-function parseNeo4jAuthPassword(): string | undefined {
-  const authValue = process.env.NEO4J_AUTH;
-  if (!authValue) return undefined;
-  const separator = authValue.indexOf("/");
-  return separator >= 0 ? authValue.slice(separator + 1) : undefined;
 }
 
 function integerToString(value: Integer): string {

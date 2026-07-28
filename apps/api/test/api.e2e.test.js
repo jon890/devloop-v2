@@ -52,6 +52,7 @@ before(async () => {
   process.env.NEO4J_PASSWORD = 'devloop-test-password';
   process.env.LLM_MODEL = 'extraction-test-model';
   process.env.QUERY_LLM_MODEL = 'query-test-model';
+  process.env.LLM_PROVIDER = 'codex';
 
   driver = neo4j.driver(
     process.env.NEO4J_URI,
@@ -251,7 +252,6 @@ test('query executes anchor, Cypher, and synthesis stages with a mock LlmCli', a
 
 test('query prompt exposes Wiki subject and fulltext anchor identity', async () => {
   const promptStart = mockLlm.prompts.length;
-  const configuredQueryModel = process.env.QUERY_LLM_MODEL;
   mockLlm.enqueue(
     JSON.stringify({ terms: ['Graph API'] }),
     JSON.stringify({
@@ -260,19 +260,16 @@ test('query prompt exposes Wiki subject and fulltext anchor identity', async () 
     JSON.stringify({ answer: '제목에 Graph API가 들어간 위키를 찾았습니다.' }),
   );
 
-  let response;
+  // 질의 모델은 기동 시점 설정으로 고정된다. 실행 중 환경변수를 지워도 바뀌지 않는다.
   delete process.env.QUERY_LLM_MODEL;
-  try {
-    response = QueryResponseSchema.parse(
-      await jsonRequest('/api/query', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ question: '제목에 Graph API가 들어가는 Wiki' }),
-      }),
-    );
-  } finally {
-    process.env.QUERY_LLM_MODEL = configuredQueryModel;
-  }
+  const response = QueryResponseSchema.parse(
+    await jsonRequest('/api/query', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ question: '제목에 Graph API가 들어가는 Wiki' }),
+    }),
+  );
+  process.env.QUERY_LLM_MODEL = 'query-test-model';
 
   assert.equal(response.answer, '제목에 Graph API가 들어간 위키를 찾았습니다.');
   assert.match(response.cypher, /w\.subject CONTAINS/);
@@ -285,7 +282,7 @@ test('query prompt exposes Wiki subject and fulltext anchor identity', async () 
   assert.ok(
     mockLlm.options
       .slice(promptStart, promptStart + 3)
-      .every((option) => option.model === 'extraction-test-model'),
+      .every((option) => option.model === 'query-test-model'),
   );
 });
 
