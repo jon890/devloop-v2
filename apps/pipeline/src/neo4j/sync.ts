@@ -19,7 +19,7 @@ import {
   type RelationshipType,
 } from "@devloop/shared";
 import { sanitizeLlmGraphFile } from "../infer/llm-relationship-sanitizer";
-import { CONCEPT_KEY_CANONICAL_OVERRIDES, CONCEPT_KEY_MERGE_DENYLIST, CONCEPT_LABEL, RELATIONSHIP_IDENTITY_PROPERTIES } from "./load.const";
+import { CONCEPT_KEY_CANONICAL_OVERRIDES, CONCEPT_KEY_MERGE_DENYLIST, CONCEPT_LABEL, RELATIONSHIP_IDENTITY_PROPERTIES } from "./sync.const";
 import { neo4jCredentials } from "./neo4j-config";
 
 interface LoadOptions {
@@ -80,7 +80,7 @@ interface RelationshipMergeScope {
 type DatabaseKey = string | Integer;
 type ConceptSource = "llm" | "structural";
 
-export { CONCEPT_KEY_MERGE_DENYLIST } from "./load.const";
+export { CONCEPT_KEY_MERGE_DENYLIST } from "./sync.const";
 
 function parseArgs(args: readonly string[]): LoadOptions {
   const project = readFlag(args, "--project") ?? "tc-ocr";
