@@ -6,7 +6,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "pipeline": "pnpm --filter pipeline pipeline",
-    "schema:apply": "pnpm --filter pipeline schema:apply",
+    "apply-schema": "pnpm --filter pipeline apply-schema",
     "api": "pnpm --filter api start",
     "web": "pnpm --filter web dev",
     "format": "prettier --write \"**/*.{ts,tsx}\"",

@@ -8,11 +8,11 @@ const { ConceptDictionarySchema, OntologyNodeSchema, OntologyRelationshipSchema 
 const { ClaudeCliAdapter } = require('../dist/llm/claude-cli.adapter');
 const { CodexCliAdapter } = require('../dist/llm/codex-cli.adapter');
 const { LlmResultSchema } = require('../dist/llm/llm-cli');
-const { seedConcepts } = require('../dist/extract/concept-seeder');
-const { LlmNodeSchema, LlmRelationshipSchema } = require('../dist/extract/llm-extraction.schema');
-const { extractLlm } = require('../dist/extract/llm-extractor');
-const { sanitizeLlmGraphFile } = require('../dist/extract/llm-relationship-sanitizer');
-const { extractStructural } = require('../dist/extract/structural-extractor');
+const { seedConcepts } = require('../dist/concepts/concept-seeder');
+const { LlmNodeSchema, LlmRelationshipSchema } = require('../dist/infer/llm-extraction.schema');
+const { extractLlm } = require('../dist/infer/llm-extractor');
+const { sanitizeLlmGraphFile } = require('../dist/infer/llm-relationship-sanitizer');
+const { extractStructural } = require('../dist/parse/structural-extractor');
 
 async function fixtureDataRoot() {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'wp2-extract-test-'));
@@ -93,7 +93,7 @@ test('fixture 5건을 온톨로지 구조 노드와 관계로 추출한다', asy
   delete childWiki.parentId;
   await writeFile(childWikiPath, JSON.stringify(childWiki));
   const result = await extractStructural({ dataRoot, project: 'tc-ocr' });
-  assert.equal(result.outputPath, path.join(dataRoot, 'graph', 'tc-ocr', 'structural.jsonl'));
+  assert.equal(result.outputPath, path.join(dataRoot, 'graph', 'tc-ocr', 'parsed.jsonl'));
   const records = await jsonLines(result.outputPath);
   const nodes = records.filter((record) => 'label' in record).map((record) => OntologyNodeSchema.parse(record));
   const relationships = records.filter((record) => 'type' in record).map((record) => OntologyRelationshipSchema.parse(record));
@@ -455,7 +455,7 @@ test('LLM Task/Wiki endpoint를 raw id로 교정하고 미해석 관계를 문�
   );
 });
 
-test('기존 llm.jsonl을 LLM 재호출 없이 같은 endpoint 규칙으로 정제한다', async () => {
+test('기존 inferred.jsonl을 LLM 재호출 없이 같은 endpoint 규칙으로 정제한다', async () => {
   const dataRoot = await fixtureDataRoot();
   const postsPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts.json');
   const posts = JSON.parse(await readFile(postsPath, 'utf8'));
@@ -463,7 +463,7 @@ test('기존 llm.jsonl을 LLM 재호출 없이 같은 endpoint 규칙으로 정�
   await writeFile(postsPath, JSON.stringify(posts));
   const graphDir = path.join(dataRoot, 'graph', 'tc-ocr');
   await mkdir(graphDir, { recursive: true });
-  const llmPath = path.join(graphDir, 'llm.jsonl');
+  const llmPath = path.join(graphDir, 'inferred.jsonl');
   await writeFile(llmPath, [
     {
       type: 'RELATES_TO',

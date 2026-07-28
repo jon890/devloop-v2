@@ -1,0 +1,26 @@
+{"label":"Concept","key":"OCR 모델","properties":{"name":"OCR 모델","kind":"product","sourceDocId":"Task:101"}}
+{"label":"Concept","key":"Graph API","properties":{"name":"Graph API","kind":"component","sourceDocId":"Task:101"}}
+{"label":"Concept","key":"Nest.js","properties":{"name":"Nest.js","kind":"tech","sourceDocId":"Task:103"}}
+{"label":"Concept","key":"Neo4J","properties":{"name":"Neo4J","kind":"tech","sourceDocId":"Task:102"}}
+{"label":"Concept","key":"  새   도메인  ","properties":{"name":"  새   도메인  ","kind":"type","sourceDocId":"Task:105"}}
+{"label":"Decision","key":"101-1","properties":{"id":"101-1","summary":"Migrate the OCR pipeline to Graph API.","decidedAt":"2026-01-03","sourceDocId":"Task:101"}}
+{"label":"Decision","key":"102-1","properties":{"id":"102-1","summary":"Use the cjk fulltext analyzer.","decidedAt":"2026-01-04","sourceDocId":"Task:102"}}
+{"label":"Decision","key":"103-1","properties":{"id":"103-1","summary":"Run generated Cypher in read sessions.","decidedAt":"2026-01-05","sourceDocId":"Task:103"}}
+{"label":"Decision","key":"104-1","properties":{"id":"104-1","summary":"Release General OCR after validation.","decidedAt":"2026-01-06","sourceDocId":"Task:104"}}
+{"type":"MENTIONS","startKey":"Task:101","endKey":"Concept:OCR 모델","properties":{"sourceDocId":"Task:101"}}
+{"type":"MENTIONS","startKey":"Task:102","endKey":"Concept:Neo4J","properties":{"sourceDocId":"Task:102"}}
+{"type":"MENTIONS","startKey":"Task:105","endKey":"Concept:  새   도메인  ","properties":{"sourceDocId":"Task:105"}}
+{"type":"DOCUMENTS","startKey":"Wiki:wiki-1","endKey":"Concept:OCR 모델","properties":{"sourceDocId":"Wiki:wiki-1"}}
+{"type":"DOCUMENTS","startKey":"Wiki:wiki-2","endKey":"Concept:Graph API","properties":{"sourceDocId":"Wiki:wiki-2"}}
+{"type":"DEPENDS_ON","startKey":"Concept:Graph API","endKey":"Concept:Nest.js","properties":{"sourceDocId":"Task:101"}}
+{"type":"DEPENDS_ON","startKey":"Concept:Graph API","endKey":"Concept:Neo4J","properties":{"sourceDocId":"Task:101"}}
+{"type":"DECIDED_IN","startKey":"Decision:101-1","endKey":"Task:101","properties":{"sourceDocId":"Task:101"}}
+{"type":"DECIDED_IN","startKey":"Decision:102-1","endKey":"Task:102","properties":{"sourceDocId":"Task:102"}}
+{"type":"DECIDED_IN","startKey":"Decision:103-1","endKey":"Task:103","properties":{"sourceDocId":"Task:103"}}
+{"type":"DECIDED_IN","startKey":"Decision:104-1","endKey":"Task:104","properties":{"sourceDocId":"Task:104"}}
+{"type":"AFFECTS","startKey":"Decision:101-1","endKey":"Concept:Graph API","properties":{"sourceDocId":"Task:101"}}
+{"type":"AFFECTS","startKey":"Decision:104-1","endKey":"Concept:OCR 모델","properties":{"sourceDocId":"Task:104"}}
+{"type":"EVIDENCED_BY","startKey":"Decision:102-1","endKey":"Comment:comment-1","properties":{"sourceDocId":"Task:102"}}
+{"type":"RELATES_TO","startKey":"Task:101","endKey":"Task:103","properties":{"sourceDocId":"Task:101","kind":"precedes"}}
+{"type":"RELATES_TO","startKey":"Task:101","endKey":"Task:103","properties":{"sourceDocId":"Task:101","kind":"causes"}}
+{"type":"RELATES_TO","startKey":"Task:105","endKey":"Task:101","properties":{"sourceDocId":"Task:105","kind":"follows-up"}}

@@ -4,13 +4,13 @@ import neo4j, { type Driver, type Integer, type Session } from "neo4j-driver";
 import {
   CORE_CONCEPTS,
   ConceptDictionarySchema,
-  LLM_GRAPH_FILE,
+  INFERRED_GRAPH_FILE,
   NODE_KEY_PROPERTIES,
   NODE_LABELS,
   OntologyNodeSchema,
   OntologyRelationshipSchema,
   RELATIONSHIP_TYPES,
-  STRUCTURAL_GRAPH_FILE,
+  PARSED_GRAPH_FILE,
   type ConceptDictionary,
   type ConceptEntry,
   type NodeLabel,
@@ -18,8 +18,8 @@ import {
   type OntologyRelationship,
   type RelationshipType,
 } from "@devloop/shared";
-import { sanitizeLlmGraphFile } from "../extract/llm-relationship-sanitizer";
-import { CONCEPT_KEY_CANONICAL_OVERRIDES, CONCEPT_KEY_MERGE_DENYLIST, CONCEPT_LABEL, RELATIONSHIP_IDENTITY_PROPERTIES } from "./load.const";
+import { sanitizeLlmGraphFile } from "../infer/llm-relationship-sanitizer";
+import { CONCEPT_KEY_CANONICAL_OVERRIDES, CONCEPT_KEY_MERGE_DENYLIST, CONCEPT_LABEL, RELATIONSHIP_IDENTITY_PROPERTIES } from "./sync.const";
 import { neo4jCredentials } from "./neo4j-config";
 
 interface LoadOptions {
@@ -80,7 +80,7 @@ interface RelationshipMergeScope {
 type DatabaseKey = string | Integer;
 type ConceptSource = "llm" | "structural";
 
-export { CONCEPT_KEY_MERGE_DENYLIST } from "./load.const";
+export { CONCEPT_KEY_MERGE_DENYLIST } from "./sync.const";
 
 function parseArgs(args: readonly string[]): LoadOptions {
   const project = readFlag(args, "--project") ?? "tc-ocr";
@@ -185,13 +185,13 @@ function conceptEntry(value: string, aliasMap: ReadonlyMap<string, ConceptEntry>
 }
 
 function conceptSource(sourceFile: string): ConceptSource {
-  if (sourceFile === LLM_GRAPH_FILE) {
+  if (sourceFile === INFERRED_GRAPH_FILE) {
     return "llm";
   }
-  if (sourceFile === STRUCTURAL_GRAPH_FILE) {
+  if (sourceFile === PARSED_GRAPH_FILE) {
     return "structural";
   }
-  throw new Error(`Unsupported Concept source file "${sourceFile}". ` + `Expected ${LLM_GRAPH_FILE} or ${STRUCTURAL_GRAPH_FILE}.`);
+  throw new Error(`Unsupported Concept source file "${sourceFile}". ` + `Expected ${INFERRED_GRAPH_FILE} or ${PARSED_GRAPH_FILE}.`);
 }
 
 async function readJsonlRecords(graphDir: string): Promise<SourcedRecord[]> {
@@ -301,7 +301,7 @@ function normalizeNodes(
   const nodesByIdentity = new Map<string, OntologyNode>();
   const endpointAliases = new Map<string, NodeRef[]>();
   inputNodes.forEach((inputNode, index) => {
-    const node = normalizeNode(inputNode, aliasMap, unmatchedRepresentatives, unknownConcepts, nodeSources?.[index] ?? STRUCTURAL_GRAPH_FILE);
+    const node = normalizeNode(inputNode, aliasMap, unmatchedRepresentatives, unknownConcepts, nodeSources?.[index] ?? PARSED_GRAPH_FILE);
     const identity = `${node.label}:${node.key}`;
     const existing = nodesByIdentity.get(identity);
     nodesByIdentity.set(identity, mergeNode(existing, node));
@@ -339,7 +339,7 @@ function normalizeRelationships(
   const relationships: OntologyRelationship[] = [];
   const skippedRelationships: SkippedRelationshipsReport = { count: 0, samples: [] };
   inputRelationships.forEach((relationship, index) => {
-    const sourceFile = relationshipSources?.[index] ?? STRUCTURAL_GRAPH_FILE;
+    const sourceFile = relationshipSources?.[index] ?? PARSED_GRAPH_FILE;
     try {
       relationships.push(normalizeRelationship(relationship, endpointAliases));
     } catch (error) {
@@ -370,7 +370,7 @@ function recordSkippedRelationship(
   error: unknown,
   skippedRelationships: SkippedRelationshipsReport,
 ): void {
-  if (sourceFile === STRUCTURAL_GRAPH_FILE) throw error;
+  if (sourceFile === PARSED_GRAPH_FILE) throw error;
   skippedRelationships.count += 1;
   if (skippedRelationships.samples.length < 10) {
     skippedRelationships.samples.push({
@@ -390,7 +390,7 @@ function buildUnmatchedConceptRepresentatives(
   const groups = new Map<string, Map<string, { occurrences: number; referenceKey: string }>>();
 
   inputNodes.forEach((node, index) => {
-    addUnmatchedConceptCandidate(groups, node, aliasMap, nodeSources?.[index] ?? STRUCTURAL_GRAPH_FILE);
+    addUnmatchedConceptCandidate(groups, node, aliasMap, nodeSources?.[index] ?? PARSED_GRAPH_FILE);
   });
 
   const referenceCounts = conceptReferenceCounts(inputRelationships);
@@ -560,7 +560,7 @@ function mergeNode(existing: OntologyNode | undefined, incoming: OntologyNode): 
     ...merged,
     properties: {
       ...merged.properties,
-      // 'llm'은 이 Concept이 llm.jsonl에 한 번이라도 등장했음을 뜻한다.
+      // 'llm'은 이 Concept이 inferred.jsonl에 한 번이라도 등장했음을 뜻한다.
       source: existing.properties.source === "llm" || incoming.properties.source === "llm" ? "llm" : "structural",
       dictMatched: existing.properties.dictMatched === true || incoming.properties.dictMatched === true,
     },

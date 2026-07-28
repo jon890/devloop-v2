@@ -1,9 +1,7 @@
 import { Module } from "@nestjs/common";
-import { ExtractModule } from "./extract/extract.module";
-import { IngestModule } from "./ingest/ingest.module";
-import { LoadModule } from "./load/load.module";
+import { IngestModule } from "./fetch/ingest.module";
 
 @Module({
-  imports: [IngestModule, ExtractModule, LoadModule],
+  imports: [IngestModule],
 })
 export class AppModule {}

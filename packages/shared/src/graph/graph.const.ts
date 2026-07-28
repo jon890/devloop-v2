@@ -1,2 +1,2 @@
-export const LLM_GRAPH_FILE = "llm.jsonl";
-export const STRUCTURAL_GRAPH_FILE = "structural.jsonl";
+export const INFERRED_GRAPH_FILE = "inferred.jsonl";
+export const PARSED_GRAPH_FILE = "parsed.jsonl";

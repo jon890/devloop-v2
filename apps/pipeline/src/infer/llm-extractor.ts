@@ -1,11 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { CORE_CONCEPTS, ConceptDictionarySchema, LLM_GRAPH_FILE, type ConceptDictionary } from "@devloop/shared";
+import { CORE_CONCEPTS, ConceptDictionarySchema, INFERRED_GRAPH_FILE, type ConceptDictionary } from "@devloop/shared";
 import { LlmReasoningEffortSchema, type LlmCli, type LlmReasoningEffort } from "../llm";
 import { buildExtractionPrompt, buildJsonRepairPrompt, EXTRACTION_PROMPT_VERSION, type ExtractionPromptDocument } from "./extraction-prompt";
 import { LlmExtractionSchema, type LlmExtraction } from "./llm-extraction.schema";
 import { sanitizeLlmExtractions, type DroppedRelationshipsReport } from "./llm-relationship-sanitizer";
-import { firstString, readRawProject, textContent } from "./raw-reader";
+import { firstString, readRawProject, textContent } from "../raw-reader";
 
 const CacheEntrySchema = LlmExtractionSchema.transform((result) => result);
 
@@ -368,9 +368,9 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
     }),
   );
   const outputDir = path.join(options.dataRoot, "graph", options.project);
-  const outputPath = path.join(outputDir, LLM_GRAPH_FILE);
-  const failureReportPath = path.join(outputDir, "llm-failures.json");
-  const droppedRelationshipsReportPath = path.join(outputDir, "llm-dropped-relationships.json");
+  const outputPath = path.join(outputDir, INFERRED_GRAPH_FILE);
+  const failureReportPath = path.join(outputDir, "inference-failures.json");
+  const droppedRelationshipsReportPath = path.join(outputDir, "inference-dropped-relationships.json");
   const sanitized = await sanitizeLlmExtractions(
     options.dataRoot,
     options.project,

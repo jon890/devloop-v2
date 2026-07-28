@@ -3,10 +3,10 @@ import { NestFactory } from "@nestjs/core";
 import path from "node:path";
 import { AppModule } from "./app.module";
 import { parsePipelineOptions } from "./cli-options";
-import { IngestService } from "./ingest/ingest.service";
-import { seedConcepts } from "./extract/concept-seeder";
-import { extractLlm } from "./extract/llm-extractor";
-import { extractStructural } from "./extract/structural-extractor";
+import { IngestService } from "./fetch/ingest.service";
+import { seedConcepts } from "./concepts/concept-seeder";
+import { extractLlm } from "./infer/llm-extractor";
+import { extractStructural } from "./parse/structural-extractor";
 import { ClaudeCliAdapter, CodexCliAdapter, type LlmCli } from "./llm";
 
 function positiveInteger(value: string | undefined, fallback: number): number {
@@ -23,7 +23,7 @@ function llmAdapter(): LlmCli {
   throw new Error(`Unsupported LLM_PROVIDER=${provider}; expected codex or claude.`);
 }
 
-const KNOWN_STAGES = ["ingest", "concepts:seed", "extract:structural", "extract:llm", "extract", "all"];
+const KNOWN_STAGES = ["fetch-dooray", "seed-concepts", "parse-structure", "infer-knowledge", "all"];
 
 async function bootstrap(): Promise<void> {
   const options = parsePipelineOptions(process.argv.slice(2));
@@ -36,7 +36,7 @@ async function bootstrap(): Promise<void> {
     if (!KNOWN_STAGES.includes(stage)) {
       throw new Error(`Unknown pipeline stage: ${stage}`);
     }
-    if (stage === "ingest" || stage === "all") {
+    if (stage === "fetch-dooray" || stage === "all") {
       const result = await app.get(IngestService).ingest({
         project: options.project,
         limit: options.limit,
@@ -52,17 +52,17 @@ async function bootstrap(): Promise<void> {
         process.exitCode = 1;
         return;
       }
-      if (stage === "ingest") return;
+      if (stage === "fetch-dooray") return;
     }
-    if (stage === "concepts:seed" || stage === "extract" || stage === "all") {
+    if (stage === "seed-concepts" || stage === "all") {
       const result = await seedConcepts({ dataRoot, project: options.project });
       console.log(`Concept seed complete: project=${options.project} concepts=${result.concepts.length} output=${result.outputPath}`);
     }
-    if (stage === "extract:structural" || stage === "extract" || stage === "all") {
+    if (stage === "parse-structure" || stage === "all") {
       const result = await extractStructural({ dataRoot, project: options.project });
       console.log(`Structural extraction complete: nodes=${result.nodes} relationships=${result.relationships} output=${result.outputPath}`);
     }
-    if (stage === "extract:llm" || stage === "extract" || stage === "all") {
+    if (stage === "infer-knowledge" || stage === "all") {
       const model = process.env.LLM_MODEL;
       if (!model) throw new Error("LLM_MODEL is required for LLM extraction.");
       const result = await extractLlm({
