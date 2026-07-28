@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "pnpm --filter @devloop/shared build && tsc -b && vite build",
-    "dev": "vite"
+    "dev": "vite --force"
   },
   "dependencies": {
     "@devloop/shared": "workspace:*",
