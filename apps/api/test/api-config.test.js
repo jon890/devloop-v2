@@ -8,7 +8,6 @@ function validEnv(overrides = {}) {
   const env = {
     NEO4J_URI: 'bolt://localhost:7687',
     NEO4J_AUTH: 'neo4j/devloop-password',
-    LLM_PROVIDER: 'codex',
     QUERY_LLM_MODEL: 'gpt-5.6-terra',
     ...overrides,
   };
@@ -53,7 +52,7 @@ test('선택 값은 지정하면 반영되고 생략하면 기본값을 쓴다',
 });
 
 test('필수 값이 없으면 기동을 막는 예외가 난다', () => {
-  for (const key of ['NEO4J_URI', 'QUERY_LLM_MODEL', 'LLM_PROVIDER']) {
+  for (const key of ['NEO4J_URI', 'QUERY_LLM_MODEL']) {
     assert.throws(
       () => validateApiConfig(validEnv({ [key]: undefined })),
       (error) => error.message.includes('API 환경설정 검증 실패') && error.message.includes(key),
@@ -128,11 +127,25 @@ test('두 자격증명 경로가 함께 있으면 NEO4J_USER/NEO4J_PASSWORD 쌍�
 });
 
 test('열거형에 없는 값은 실패한다', () => {
-  assert.throws(() => validateApiConfig(validEnv({ LLM_PROVIDER: 'codexx' })), /LLM_PROVIDER/);
   assert.throws(
     () => validateApiConfig(validEnv({ LLM_REASONING_EFFORT: 'unsupported' })),
     /LLM_REASONING_EFFORT/,
   );
+});
+
+test('LLM_PROVIDER 는 생략하면 codex 이고, codex 와 claude 만 받는다', () => {
+  assert.equal(validateApiConfig(validEnv({ LLM_PROVIDER: undefined })).llm.provider, 'codex');
+  assert.equal(validateApiConfig(validEnv({ LLM_PROVIDER: '' })).llm.provider, 'codex');
+  assert.equal(validateApiConfig(validEnv({ LLM_PROVIDER: 'claude' })).llm.provider, 'claude');
+
+  // 예전에는 `!== "claude"` 분기라 오타가 조용히 codex 로 갔다. 이제는 기동이 멈춘다.
+  for (const value of ['codexx', 'Codex', 'gpt', 'claude-code']) {
+    assert.throws(
+      () => validateApiConfig(validEnv({ LLM_PROVIDER: value })),
+      /LLM_PROVIDER/,
+      `${value} 는 거부되어야 한다`,
+    );
+  }
 });
 
 test('PORT가 숫자가 아니거나 0 이하이면 실패한다', () => {
