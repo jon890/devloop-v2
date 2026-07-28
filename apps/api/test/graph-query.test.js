@@ -1,10 +1,11 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
 const {
-  GraphQueryService,
+  QueryService,
   rankAnchorCandidates,
   refineQueryEvidence,
-} = require('../dist/graph-query.service');
+} = require('../dist/query/query.service');
+const { GraphQueryService } = require('../dist/graph-query.service');
 
 function node(id, label, display = id) {
   return { id, label, key: id, display, properties: {} };
@@ -167,7 +168,7 @@ test('생성된 한영 표기 변형에 질문 원문을 중복 없이 추가하
       return { text: JSON.stringify({ terms }) };
     },
   };
-  const service = new GraphQueryService({}, llmCli);
+  const service = new QueryService({}, llmCli);
   service.fulltextSearch = async (term, limit) => {
     searchedTerms.push(term);
     searchLimits.push(limit);
@@ -208,7 +209,7 @@ test('생성된 한영 표기 변형에 질문 원문을 중복 없이 추가하
 test('LLM이 질문 원문 전체를 반환해도 검색어를 중복 추가하지 않는다', async () => {
   const question = 'Log & Crash 쓰는 법 어디 봐야 해?';
   const searchedTerms = [];
-  const service = new GraphQueryService({}, {
+  const service = new QueryService({}, {
     async complete() {
       return { text: JSON.stringify({ terms: ['Log & Crash', question] }) };
     },
@@ -237,7 +238,7 @@ test('근거 상한 밖의 Task도 답변에서 안정적인 Task 번호 형식�
     ...node('task-206', 'Task', '클라우드트레일 이벤트 제거'),
     key: '206',
   };
-  const service = new GraphQueryService({}, {});
+  const service = new QueryService({}, {});
   service.extractAnchorTerms = async () => ['CloudTrail'];
   service.fulltextSearch = async () => [];
   service.generateCypher = async () => 'MATCH (t:Task) RETURN t LIMIT 50';
@@ -261,7 +262,7 @@ test('그래프 근거에 없는 Task 번호는 답변에서 Task 인용으로 �
     ...node('task-206', 'Task', '클라우드트레일 이벤트 제거'),
     key: '206',
   };
-  const service = new GraphQueryService({}, {});
+  const service = new QueryService({}, {});
   service.extractAnchorTerms = async () => ['CloudTrail'];
   service.fulltextSearch = async () => [];
   service.generateCypher = async () => 'MATCH (t:Task) RETURN t LIMIT 50';
@@ -284,7 +285,7 @@ test('Task 인용 정규화는 URL, 소수, 한국어 접미사, 개행 prefix�
     ...node('task-206', 'Task', '클라우드트레일 이벤트 제거'),
     key: '206',
   };
-  const service = new GraphQueryService({}, {});
+  const service = new QueryService({}, {});
   service.extractAnchorTerms = async () => ['CloudTrail'];
   service.fulltextSearch = async () => [];
   service.generateCypher = async () => 'MATCH (t:Task) RETURN t LIMIT 50';
@@ -332,7 +333,7 @@ test('fulltext 검색은 인덱스별 후보를 전역 LIMIT 없이 RRF 단계�
       });
     },
   };
-  const service = new GraphQueryService(neo4jService, {});
+  const service = new QueryService(neo4jService, {});
 
   await service.fulltextSearch(
     "A-12 유형 태그가 '장애'인 Task 들을 제품(1:) Concept 별로 집계해 건수와 함께 반환해줘.",
@@ -355,15 +356,16 @@ test('fulltext 검색은 인덱스별 후보를 전역 LIMIT 없이 RRF 단계�
 });
 
 test('search는 26개 이상 unique fulltext 결과도 25개로 자른다', async () => {
-  const service = new GraphQueryService({}, {});
   let searchLimit;
-  service.fulltextSearch = async (_term, limit) => {
-    searchLimit = limit;
-    return Array.from({ length: 26 }, (_, index) => ({
-      node: node(`result-${index}`, index % 2 === 0 ? 'Task' : 'Concept'),
-      score: 100 - index,
-    }));
-  };
+  const service = new GraphQueryService({}, {
+    async fulltextSearch(_term, limit) {
+      searchLimit = limit;
+      return Array.from({ length: 26 }, (_, index) => ({
+        node: node(`result-${index}`, index % 2 === 0 ? 'Task' : 'Concept'),
+        score: 100 - index,
+      }));
+    },
+  });
 
   const results = await service.search('게이트웨이');
 
@@ -392,7 +394,7 @@ test('Task anchor 후보만 Decision 연결 수를 함께 조회한다', async (
       });
     },
   };
-  const service = new GraphQueryService(neo4jService, {});
+  const service = new QueryService(neo4jService, {});
 
   const counts = await service.countTaskDecisions([
     node('task-483', 'Task'),

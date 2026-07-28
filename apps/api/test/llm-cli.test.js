@@ -5,7 +5,7 @@ const path = require('node:path');
 const test = require('node:test');
 
 const { ClaudeCliAdapter, CodexCliAdapter } = require('../dist/llm-cli');
-const { GraphQueryService } = require('../dist/graph-query.service');
+const { QueryService } = require('../dist/query/query.service');
 
 test('API CLI 어댑터가 Codex effort를 전달하고 Claude에서는 무시한다', async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'devloop-api-cli-test-'));
@@ -92,7 +92,7 @@ test('Cypher 생성 프롬프트가 TAGGED 차원과 차원 조합 집계 패턴
       return { text: JSON.stringify({ cypher: 'MATCH (n) RETURN n LIMIT 1' }) };
     },
   };
-  const service = new GraphQueryService({}, llmCli);
+  const service = new QueryService({}, llmCli);
 
   await service.generateCypher('한 태그 차원으로 Task를 고르고 다른 태그 차원별로 집계', []);
 
@@ -119,7 +119,7 @@ test('anchor 용어 추출 프롬프트가 기술 용어의 한영 표기 변형
       return { text: JSON.stringify({ terms }) };
     },
   };
-  const service = new GraphQueryService({}, llmCli);
+  const service = new QueryService({}, llmCli);
 
   const koreanTerms = await service.extractAnchorTerms('게이트웨이 뺀 거 왜 그랬지?');
   const englishTerms = await service.extractAnchorTerms('ingress 제거 배경은?');
@@ -143,7 +143,7 @@ test('이유·결정 질문의 Cypher 생성 프롬프트가 다중 Task 후보�
       return { text: JSON.stringify({ cypher: 'MATCH (n) RETURN n LIMIT 1' }) };
     },
   };
-  const service = new GraphQueryService({}, llmCli);
+  const service = new QueryService({}, llmCli);
 
   await service.generateCypher('그 구성 요소를 뺀 배경은?', [
     {
@@ -210,7 +210,7 @@ test('답변 합성 프롬프트가 다중 후보 중 질문과 관련성 높은
       return { text: JSON.stringify({ answer: '관련 근거' }) };
     },
   };
-  const service = new GraphQueryService({}, llmCli);
+  const service = new QueryService({}, llmCli);
 
   await service.synthesizeAnswer(
     '그 구성 요소를 뺀 배경은?',
