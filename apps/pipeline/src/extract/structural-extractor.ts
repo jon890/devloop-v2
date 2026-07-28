@@ -3,7 +3,8 @@ import path from "node:path";
 import { STRUCTURAL_GRAPH_FILE } from "@devloop/shared";
 import type { ConceptKind, OntologyNode, OntologyRelationship, RawDoorayObject } from "@devloop/shared";
 import { GraphRecordSchema, nodeRef, type GraphRecord } from "./graph-record.schema";
-import { CODE_REFERENCE_PATTERN, TAG_DIMENSION_PATTERN, TASK_REFERENCE_PATTERN } from "./structural-extractor.const";
+import { CODE_REFERENCE_PATTERN, TAG_DIMENSION_PATTERN } from "./structural-extractor.const";
+import { findTaskReferences } from "./task-reference";
 import { asRecordArray, firstString, readRawProject, textContent, valueAt } from "./raw-reader";
 
 export interface StructuralExtractionOptions {
@@ -121,14 +122,15 @@ function addTextReferences(
   nodes: Map<string, OntologyNode>,
   relationships: Map<string, OntologyRelationship>,
 ): void {
-  for (const match of text.matchAll(TASK_REFERENCE_PATTERN)) {
-    if (sourceLabel !== "Task") continue;
-    addRelationship(relationships, {
-      type: "REFERENCES",
-      startKey: nodeRef("Task", sourceKey),
-      endKey: nodeRef("Task", match[2]),
-      properties: { project: match[1] },
-    });
+  if (sourceLabel === "Task") {
+    for (const reference of findTaskReferences(text, sourceKey)) {
+      addRelationship(relationships, {
+        type: "REFERENCES",
+        startKey: nodeRef("Task", sourceKey),
+        endKey: nodeRef("Task", reference.number),
+        properties: { project: reference.project },
+      });
+    }
   }
   for (const match of text.matchAll(CODE_REFERENCE_PATTERN)) {
     addNode(nodes, {

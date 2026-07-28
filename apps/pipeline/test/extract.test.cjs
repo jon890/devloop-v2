@@ -106,6 +106,9 @@ test('fixture 5건을 온톨로지 구조 노드와 관계로 추출한다', asy
   assert.ok(nodes.some((node) => node.label === 'Concept' && node.key === 'GatewayInterceptor:77' && node.properties.kind === 'code-ref'));
   assert.ok(relationships.some((relationship) => relationship.type === 'REFERENCES' && relationship.startKey === 'Task:102' && relationship.endKey === 'Task:101'));
   assert.equal(relationships.some((relationship) => relationship.endKey === 'Task:999999'), false);
+  const taskReferences = relationships.filter((relationship) => relationship.type === 'REFERENCES');
+  assert.equal(taskReferences.some((relationship) => relationship.startKey === relationship.endKey), false, '자기참조는 REFERENCES 로 만들지 않는다');
+  assert.equal(taskReferences.some((relationship) => relationship.properties.project === 'pull'), false, 'GitHub URL 조각은 REFERENCES 로 만들지 않는다');
   assert.ok(relationships.some((relationship) =>
     relationship.type === 'CHILD_OF' &&
     relationship.startKey === 'Wiki:202' &&
