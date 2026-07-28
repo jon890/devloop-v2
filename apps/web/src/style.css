@@ -211,6 +211,10 @@ h1 { margin: 3px 0 0; font-family: "Iowan Old Style", "Noto Serif KR", serif; fo
 .relationship-samples li { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
 .relationship-samples li b { color: #79a5b8; font-weight: 400; }
 .sample-empty { padding: 34px 8px; color: #6e8c99; text-align: center; font-size: 10px; line-height: 1.6; }
+.sample-pagination { display: flex; justify-content: flex-end; gap: 6px; padding-top: 12px; border-top: 1px solid #243d49; }
+.sample-pagination button { min-width: 46px; border: 1px solid #3d5d6b; padding: 6px 9px; color: #c5dce5; background: #173542; font-size: 8px; cursor: pointer; }
+.sample-pagination button:hover:not(:disabled) { border-color: #78a4b6; background: #214756; }
+.sample-pagination button:disabled { color: #526f7b; border-color: #294550; background: #142c37; cursor: default; }
 .schema-type-index { max-width: 1500px; display: grid; grid-template-columns: 1fr 1.6fr; gap: 18px; margin: 21px auto 0; }
 .schema-type-index > section { padding: 14px; border: 1px solid #becacc; background: rgba(245, 247, 246, .7); }
 .type-index-heading { display: flex; justify-content: space-between; margin-bottom: 10px; color: #65747b; font-size: 9px; }

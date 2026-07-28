@@ -1,8 +1,20 @@
 import { BadRequestException, Injectable } from "@nestjs/common";
-import type { GraphSearchResponse, GraphStatsResponse, NeighborsResponse } from "@devloop/shared";
-import { GraphSearchQuerySchema, NeighborsQuerySchema, NodeLabelSchema, RelationshipTypeSchema } from "@devloop/shared";
+import type { GraphSamplesResponse, GraphSearchResponse, GraphStatsResponse, NeighborsResponse } from "@devloop/shared";
+import {
+  GraphSamplesQuerySchema,
+  GraphSearchQuerySchema,
+  NeighborsQuerySchema,
+  NODE_KEY_PROPERTIES,
+  NodeLabelSchema,
+  RelationshipTypeSchema,
+} from "@devloop/shared";
+import { int } from "neo4j-driver";
 import { Neo4jService } from "./neo4j.service";
 import { QueryService, uniqueNodes } from "./query/query.service";
+
+const RELATIONSHIP_ENDPOINT_SORT = (alias: "start" | "end") =>
+  `coalesce(toString(${alias}.code), toString(${alias}.number), toString(${alias}.pageId), ` +
+  `toString(${alias}.memberId), toString(${alias}.commentId), toString(${alias}.name), toString(${alias}.id))`;
 
 @Injectable()
 export class GraphQueryService {
@@ -29,15 +41,34 @@ export class GraphQueryService {
     return uniqueNodes(results.map(({ node }) => node)).slice(0, 25);
   }
 
-  async samples(rawLabel = "", rawRelationship = ""): Promise<NeighborsResponse> {
+  async samples(rawLabel = "", rawRelationship = "", rawOffset = "0", rawLimit = "5"): Promise<GraphSamplesResponse> {
+    const parsedPagination = GraphSamplesQuerySchema.safeParse({
+      offset: rawOffset,
+      limit: rawLimit,
+    });
+    if (!parsedPagination.success) {
+      throw new BadRequestException("offset must be a non-negative safe integer and limit must be an integer between 1 and 100.");
+    }
+    const { offset, limit } = parsedPagination.data;
+
     if (rawLabel) {
       const parsedLabel = NodeLabelSchema.safeParse(rawLabel);
       if (!parsedLabel.success) {
         throw new BadRequestException("label must be a known ontology node label.");
       }
       return this.neo4jService.executeRead(async (session) => {
-        const result = await session.run(`MATCH (node:${parsedLabel.data}) RETURN node LIMIT 5`);
-        return this.neo4jService.evidenceFromResult(result);
+        const match = `MATCH (node:${parsedLabel.data})`;
+        const countResult = await session.run(`${match} RETURN count(*) AS total`);
+        const result = await session.run(
+          `${match} RETURN node ` + `ORDER BY node.${NODE_KEY_PROPERTIES[parsedLabel.data]}, elementId(node) ` + "SKIP $offset LIMIT $limit",
+          { offset: int(offset), limit: int(limit) },
+        );
+        return {
+          ...this.neo4jService.evidenceFromResult(result),
+          total: resultTotal(countResult),
+          offset,
+          limit,
+        };
       });
     }
 
@@ -47,10 +78,21 @@ export class GraphQueryService {
         throw new BadRequestException("relationship must be a known ontology relationship type.");
       }
       return this.neo4jService.executeRead(async (session) => {
+        const match = `MATCH (start)-[relationship:${parsedRelationship.data}]->(end)`;
+        const countResult = await session.run(`${match} RETURN count(*) AS total`);
         const result = await session.run(
-          `MATCH (start)-[relationship:${parsedRelationship.data}]->(end) ` + "RETURN start, relationship, end LIMIT 5",
+          `${match} RETURN start, relationship, end ` +
+            `ORDER BY ${RELATIONSHIP_ENDPOINT_SORT("start")}, elementId(start), ` +
+            `${RELATIONSHIP_ENDPOINT_SORT("end")}, elementId(end), elementId(relationship) ` +
+            "SKIP $offset LIMIT $limit",
+          { offset: int(offset), limit: int(limit) },
         );
-        return this.neo4jService.evidenceFromResult(result);
+        return {
+          ...this.neo4jService.evidenceFromResult(result),
+          total: resultTotal(countResult),
+          offset,
+          limit,
+        };
       });
     }
 
@@ -79,4 +121,8 @@ export class GraphQueryService {
 
 function toSafeNumber(value: { toNumber?: () => number } | number): number {
   return typeof value === "number" ? value : (value.toNumber?.() ?? Number(value));
+}
+
+function resultTotal(result: { records: { get(key: string): { toNumber?: () => number } | number }[] }): number {
+  return toSafeNumber(result.records[0]?.get("total") ?? 0);
 }
