@@ -17,23 +17,36 @@ apps/pipeline/    ingest/  extract/  load/  llm/
 ```
 
 노드 종류(Task/Wiki/Concept)별로 나누지 않은 이유 — `structural-extractor` 가 모든 노드를 한 번에 순회하고
-`load.ts` 도 전 노드를 한 트랜잭션에 MERGE 한다. 쪼개면 응집이 깨지고 호출이 얽힌다.
+적재기도 전 노드를 한 트랜잭션에 MERGE 한다. 쪼개면 응집이 깨지고 호출이 얽힌다.
 
 | 위치 | 역할 |
 | --- | --- |
 | `packages/shared` | 온톨로지 계약·API 타입·Concept 표준 사전 코어. 모든 앱이 의존한다 |
-| `apps/pipeline` | 수집 → 추출 → 적재 CLI (`ingest`·`extract`·`load` 스테이지) |
+| `apps/pipeline` | 수집 → 추출 → 적재 CLI. 단계 이름은 아래 표 참조 |
 | `apps/api` | 질의응답 REST (NestJS). 앵커 검색 → Cypher 생성 → 답변 합성 |
 | `apps/web` | React 와 Vite 기반 UI |
-| `docs/` | `PLAN.md`(계약·설계), `SPEC.md`(인수 기준), `EVAL-RUBRIC.md`(품질 판정 단일 소스) |
+| `docs/` | 관리 문서. 아래 표 참조 |
 | `eval/` | 질문 은행(gold), 정적 점검 Cypher, 측정 리포트 |
+
+관리 문서다. 각 문서가 무엇을 소유하는지 고정돼 있다.
+
+| 문서 | 소유 |
+| --- | --- |
+| `docs/prd.md` | 제품 목표·사용자 가치·범위와 제외 범위 |
+| `docs/flow.md` | 단계 흐름·상태 전이·실패와 부분 성공 |
+| `docs/code-architecture.md` | 모듈 책임·파일 배치·의존 방향 |
+| `docs/data-schema.md` | 노드·관계 계약, `jsonl` 형식, 삭제 규칙 |
+| `docs/adr/` | 코드로 자명하지 않은 장기 기술 결정 |
+| `docs/SPEC.md` | 확정 요구사항·인수 기준 |
+| `docs/PLAN.md` | 구현 계획·공유 계약 |
+| `docs/EVAL-RUBRIC.md` | 품질 판정 단일 소스 |
 
 주요 명령:
 
 ```bash
 pnpm -r build                          # 전체 빌드
 pnpm --filter pipeline test            # 파이프라인 테스트
-pnpm schema:apply                      # Neo4j 제약·인덱스 적용
+pnpm apply-schema                      # Neo4j 제약·인덱스 적용
 pnpm --filter pipeline sync-neo4j      # 적재
 pnpm api                               # API 기동 (:3000)
 pnpm web                               # UI 기동 (:5173)
@@ -98,9 +111,9 @@ fetch-dooray → seed-concepts → parse-structure → infer-knowledge → sync-
 
 ### 적재기는 MERGE 전용이라 재적재로 노드가 줄지 않는다
 
-`load.ts` 에 삭제 경로가 없다. 정규화를 고쳐 노드가 합쳐지게 만들어도, 그냥 재적재하면 **기존 파편 노드가 그대로 남는다.**
+`sync-neo4j` 에 삭제 경로가 없다. 정규화를 고쳐 노드가 합쳐지게 만들어도, 그냥 재적재하면 **기존 파편 노드가 그대로 남는다.**
 
-- 노드 병합 효과를 보려면 `MATCH (n) DETACH DELETE n` → `pnpm schema:apply` → 적재 순서로 초기화해야 한다
+- 노드 병합 효과를 보려면 `MATCH (n) DETACH DELETE n` → `pnpm apply-schema` → 적재 순서로 초기화해야 한다
 - 데이터는 `apps/pipeline/data/graph/tc-ocr/*.jsonl` 에 있으므로 초기화 후 재적재로 완전 복원된다
 - LLM 캐시(`data/cache/`)가 있어 추출 재실행은 불필요하다
 
@@ -214,7 +227,7 @@ gold 는 필수(`required`)와 보강(`supporting`)으로 나눠 적는다.
 
 ### 포맷터를 파일 전체에 돌리지 마라
 
-codex 가 `load.ts` 를 재포맷해 316줄 diff 가 되어 기능 변경 93줄이 묻혔다.
+codex 가 적재기를 재포맷해 316줄 diff 가 되어 기능 변경 93줄이 묻혔다.
 원복 후에야 검토가 가능해졌다. 손댄 줄만 바꾼다.
 
 prettier 를 도입하기로 했으므로, 포맷 통일은 **기능 변경과 분리된 독립 커밋**으로 만든다.

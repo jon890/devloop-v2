@@ -165,7 +165,7 @@ tc-ocr 전용 하드코딩을 금지해, 이후 다른 프로젝트로 색인→
 **WP0**: 위 공유 계약을 코드로 만든다.
 
 - 산출물: 모노레포 스캐폴드 전체, `packages/shared` 타입 완성, docker-compose.yml, `.env.example`, 루트 README(실행 방법), Neo4j constraint 생성 스크립트(`apps/pipeline/src/load/schema.cy`), 각 앱 빌드 통과하는 빈 껍데기.
-- 완료 판정: `pnpm install && pnpm -r build` 성공, `docker compose up -d` 후 Neo4j 접속, `pnpm --filter pipeline schema:apply` 로 constraint 생성 확인.
+- 완료 판정: `pnpm install && pnpm -r build` 성공, `docker compose up -d` 후 Neo4j 접속, `pnpm --filter pipeline apply-schema` 로 constraint 생성 확인.
 
 ## Phase 1 — 병렬 구현 (codex 워커 4, 상호 의존 없음)
 
