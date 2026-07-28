@@ -69,7 +69,7 @@ before(async () => {
   }
 
   const commandEnv = { ...process.env };
-  execFileSync('pnpm', ['--filter', 'pipeline', 'schema:apply'], {
+  execFileSync('pnpm', ['--filter', 'pipeline', 'apply-schema'], {
     cwd: repoRoot,
     env: commandEnv,
     encoding: 'utf8',
@@ -77,7 +77,7 @@ before(async () => {
   });
   loadOutput = execFileSync(
     'pnpm',
-    ['--filter', 'pipeline', 'load', '--project', 'e2e', '--data-dir', fixtureDir],
+    ['--filter', 'pipeline', 'sync-neo4j', '--project', 'e2e', '--data-dir', fixtureDir],
     {
       cwd: repoRoot,
       env: commandEnv,
@@ -87,7 +87,7 @@ before(async () => {
   );
   const secondLoadOutput = execFileSync(
     'pnpm',
-    ['--filter', 'pipeline', 'load', '--project', 'e2e', '--data-dir', fixtureDir],
+    ['--filter', 'pipeline', 'sync-neo4j', '--project', 'e2e', '--data-dir', fixtureDir],
     {
       cwd: repoRoot,
       env: commandEnv,
