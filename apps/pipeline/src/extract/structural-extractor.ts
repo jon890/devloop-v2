@@ -116,6 +116,7 @@ function parentTaskNumber(post: RawDoorayObject): string | undefined {
 }
 
 function addTextReferences(
+  project: string,
   text: string,
   sourceLabel: "Task" | "Wiki",
   sourceKey: string,
@@ -123,7 +124,7 @@ function addTextReferences(
   relationships: Map<string, OntologyRelationship>,
 ): void {
   if (sourceLabel === "Task") {
-    for (const reference of findTaskReferences(text, sourceKey)) {
+    for (const reference of findTaskReferences(text, sourceKey, project)) {
       addRelationship(relationships, {
         type: "REFERENCES",
         startKey: nodeRef("Task", sourceKey),
@@ -191,8 +192,8 @@ function addPostDocument(
   addAssignees(post, number, members, stores);
   addPostTags(post, number, tags, stores);
   addParentTask(post, number, stores);
-  addTextReferences(textContent(post), "Task", number, stores.nodes, stores.relationships);
-  addComments(document, number, members, stores);
+  addTextReferences(project, textContent(post), "Task", number, stores.nodes, stores.relationships);
+  addComments(project, document, number, members, stores);
 }
 
 function addTaskNode(post: RawDoorayObject, number: string, numericNumber: number, stores: StructuralGraphStores): void {
@@ -272,7 +273,13 @@ function addParentTask(post: RawDoorayObject, number: string, stores: Structural
   });
 }
 
-function addComments(document: RawProject["posts"][number], number: string, members: RawProject["members"], stores: StructuralGraphStores): void {
+function addComments(
+  project: string,
+  document: RawProject["posts"][number],
+  number: string,
+  members: RawProject["members"],
+  stores: StructuralGraphStores,
+): void {
   for (const [index, comment] of document.comments.entries()) {
     const commentId = firstString(comment, ["commentId", "id"]) ?? `${number}-${index + 1}`;
     const commentText = textContent(comment);
@@ -284,7 +291,7 @@ function addComments(document: RawProject["posts"][number], number: string, memb
       properties: {},
     });
     addCommenter(comment, commentId, members, stores);
-    addTextReferences(commentText, "Task", number, stores.nodes, stores.relationships);
+    addTextReferences(project, commentText, "Task", number, stores.nodes, stores.relationships);
   }
 }
 
@@ -330,7 +337,7 @@ function addWikiPage(project: string, wiki: RawProject["wikis"][number], stores:
     properties: {},
   });
   if (parentId) stores.wikiParents.push({ pageId, parentId });
-  addTextReferences(textContent(wiki), "Wiki", pageId, stores.nodes, stores.relationships);
+  addTextReferences(project, textContent(wiki), "Wiki", pageId, stores.nodes, stores.relationships);
 }
 
 function addWikiParentRelationships(stores: StructuralGraphStores): void {

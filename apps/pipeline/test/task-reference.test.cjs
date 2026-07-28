@@ -3,8 +3,8 @@ const test = require('node:test');
 
 const { findTaskReferences } = require('../dist/extract/task-reference');
 
-function refs(text, sourceKey = '999') {
-  return findTaskReferences(text, sourceKey).map((reference) => `${reference.project}/${reference.number}`);
+function refs(text, sourceKey = '999', project = 'tc-ocr') {
+  return findTaskReferences(text, sourceKey, project).map((reference) => `${reference.project}/${reference.number}`);
 }
 
 test('keeps a plain Dooray task reference', () => {
@@ -15,8 +15,15 @@ test('keeps a bare and a hash-prefixed reference in git commit text', () => {
   assert.deepEqual(refs('Merge pull request #42 from TOASTCloud/tc-ocr/100 #tc-ocr/104 multipart'), ['tc-ocr/100', 'tc-ocr/104']);
 });
 
-test('keeps a cross-project reference', () => {
-  assert.deepEqual(refs('* [CV-OCR/78 &#91;사업자 등록증 인식&#93; API 설계](dooray://1387/tasks/30)'), ['CV-OCR/78']);
+test('drops a cross-project reference: Task 키가 번호뿐이라 이 프로젝트의 같은 번호 업무로 이어진다', () => {
+  assert.deepEqual(refs('* [CV-OCR/78 &#91;사업자 등록증 인식&#93; API 설계](dooray://1387/tasks/30)'), []);
+  assert.deepEqual(refs('* [(선별)NHNCloud/195 &#91;릴리스플랜&#93; OCR'), []);
+  assert.deepEqual(refs('등록한 dooray-cli/issues/54, /56 모두'), []);
+});
+
+test('compares the project key case-insensitively', () => {
+  assert.deepEqual(refs('[TC-OCR/483 로그 정리](dooray://1387/tasks/42)', '999', 'tc-ocr'), ['TC-OCR/483']);
+  assert.deepEqual(refs('[tc-ocr/483 로그 정리](dooray://1387/tasks/42)', '999', 'TC-OCR'), ['tc-ocr/483']);
 });
 
 test('drops a self reference', () => {
@@ -66,6 +73,7 @@ test('keeps every reference in a mixed paragraph', () => {
     '* PR https://github.nhnent.com/toast-lab/repo/pull/52',
     '* 일정 7/14 ~ 7/24',
     '* [CV-OCR/121 General OCR](dooray://1387/tasks/43)',
+    '* [tc-ocr/491 부하 테스트](dooray://1387/tasks/44)',
   ].join('\n');
-  assert.deepEqual(refs(text), ['tc-ocr/483', 'CV-OCR/121']);
+  assert.deepEqual(refs(text), ['tc-ocr/483', 'tc-ocr/491']);
 });

@@ -109,6 +109,7 @@ test('fixture 5건을 온톨로지 구조 노드와 관계로 추출한다', asy
   const taskReferences = relationships.filter((relationship) => relationship.type === 'REFERENCES');
   assert.equal(taskReferences.some((relationship) => relationship.startKey === relationship.endKey), false, '자기참조는 REFERENCES 로 만들지 않는다');
   assert.equal(taskReferences.some((relationship) => relationship.properties.project === 'pull'), false, 'GitHub URL 조각은 REFERENCES 로 만들지 않는다');
+  assert.deepEqual(new Set(taskReferences.map((relationship) => relationship.properties.project)), new Set(['tc-ocr']), '추출 대상과 다른 프로젝트 참조는 REFERENCES 로 만들지 않는다');
   assert.ok(relationships.some((relationship) =>
     relationship.type === 'CHILD_OF' &&
     relationship.startKey === 'Wiki:202' &&
