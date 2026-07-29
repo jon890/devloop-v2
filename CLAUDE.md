@@ -113,7 +113,8 @@ fetch-dooray → seed-concepts → parse-structure → infer-knowledge → sync-
 
 `sync-neo4j` 에 삭제 경로가 없다. 정규화를 고쳐 노드가 합쳐지게 만들어도, 그냥 재적재하면 **기존 파편 노드가 그대로 남는다.**
 
-- 노드 병합 효과를 보려면 `MATCH (n) DETACH DELETE n` → `pnpm apply-schema` → 적재 순서로 초기화해야 한다
+- 노드 병합 효과를 보려면 `reset-neo4j --force` → `pnpm apply-schema` → 적재 순서로 초기화해야 한다.
+  `reset-neo4j` 는 `NEO4J_URI` 를 필수로 요구하고, 운영 포트(`7687`)는 `--allow-production` 도 있어야 한다
 - 데이터는 `apps/pipeline/data/graph/tc-ocr/*.jsonl` 에 있으므로 초기화 후 재적재로 완전 복원된다
 - LLM 캐시(`data/cache/`)가 있어 추출 재실행은 불필요하다
 
@@ -313,7 +314,7 @@ S2 판정식을 적재기 정규화 함수와 같게 만들면, 적재기가 보
 | API 환경설정 config 통합 | **머지 완료** (`4e79013`). 필수 값 부재를 기동 실패로 만들었다 |
 | 스키마 맵 표본 페이징 | **머지 완료** (`ef0c5a5`).<br>정렬은 키 속성 뒤 `elementId` 로 동순위를 깬다<br>limit 상한 100, offset 상한 `MAX_SAFE_INTEGER` |
 | 파이프라인 단계 이름·모듈 배치 | **머지 완료** (`ffefdae`). 1단계 |
-| 파이프라인 2단계 — `sync-neo4j` 분해 | **예정**. `resolve-graph` 신설, `migrate-neo4j`·`reset-neo4j` 분리 |
+| 파이프라인 2단계 — `sync-neo4j` 분해 | **완료**. `resolve-graph`·`reset-neo4j` 신설, `sync.ts` 875 → 303줄.<br>죽은 마이그레이션 2개는 분리가 아니라 삭제했다 — 적재기가 그 상태를 만들지 않는다 |
 | 사전 별칭 보강 (2층) | **5쌍 승인됨**. 등록은 `resolve-graph` dry-run 이 생긴 뒤에 한다 |
 | gold 3문항 (A-06·A-10·H-12) | **`supporting` 하향으로 결정.** 미실행 |
 | gold H-17 | **별칭·추출 프롬프트 둘 다로 결정.** 미실행. 프롬프트 변경은 LLM 537회 |
