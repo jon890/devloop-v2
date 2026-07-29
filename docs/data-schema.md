@@ -117,10 +117,11 @@ R4 에서 추가된 셋이 핵심이다. "이 결정을 왜 했나" 에 답하�
 
 ```jsonl
 {"label":"Wiki","key":"4377...","properties":{"pageId":"4377...","subject":"..."}}
-{"type":"DOCUMENTS","startKey":"Wiki:4377...","endKey":"Concept:ingress-nginx","properties":{}}
+{"type":"DOCUMENTS","startKey":"4377...","endKey":"ingress-nginx","properties":{"startLabel":"Wiki","endLabel":"Concept"}}
 ```
 
-관계의 `startKey`·`endKey` 는 `라벨:키` 형태다.
+관계의 `startKey`·`endKey` 는 라벨 없이 **키만** 담는다. 끝점 라벨은
+`properties.startLabel`·`properties.endLabel` 로 따로 들어간다.
 
 **소스 파일명이 적재 분기에 쓰인다.** 적재기는 Concept 이 어느 파일에서 왔는지로
 구조 유래와 LLM 유래를 가른다. 파일명이 계약이므로 `packages/shared/src/graph/graph.const.ts`
