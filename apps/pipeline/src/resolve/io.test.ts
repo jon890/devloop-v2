@@ -177,3 +177,91 @@ test("writeResolveReport 는 리포트 스키마에 맞는 JSON 파일을 쓴다
     await rm(dataDir, { recursive: true, force: true });
   }
 });
+
+// 회귀 테스트 — ResolveReportFileSchema 는 z.object 라 스키마에 없는 키를 조용히 버린다.
+// droppedRelationships 를 스키마에서 빼도 위 테스트(nodeCount·unknownConcepts 만 확인)는 계속
+// 통과하므로, 실제로 파일에 담기는지 이 필드를 직접 단언해 지켜야 한다.
+test("writeResolveReport 는 droppedRelationships 를 파일에 그대로 담는다", async () => {
+  const project = "sample";
+  const dataDir = await makeDataDir(project);
+  try {
+    const droppedRelationships: ResolveResult["droppedRelationships"] = {
+      count: 1,
+      documents: [
+        {
+          sourceDocId: "Task:483",
+          count: 1,
+          relationships: [
+            {
+              relationship: { type: "MENTIONS", startKey: "Task:483", endKey: "Concept:api", properties: {} },
+              reason: "unknown endpoint",
+            },
+          ],
+        },
+      ],
+    };
+    const result: ResolveResult = {
+      nodes: [],
+      relationships: [],
+      unknownConcepts: new Map(),
+      skippedRelationships: { count: 0, samples: [] },
+      droppedRelationships,
+      rewrittenRelationships: 0,
+    };
+    const reportPath = join(dataDir, "resolve-report.json");
+    await writeResolveReport(reportPath, result);
+
+    const report = JSON.parse(await readFile(reportPath, "utf8"));
+    assert.deepEqual(report.droppedRelationships, droppedRelationships);
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+// 회귀 테스트 — (type, startKey, endKey) 가 같고 properties 만 다른 관계 2건은 relationshipTieBreakKey
+// 없이는 순서가 정해지지 않는다(V8 안정 정렬로 우연히 입력 순서가 유지될 뿐). io.ts 위 주석 참조.
+test("writeResolved 는 (type, startKey, endKey) 가 같고 properties 만 다른 관계도 tie-break 로 결정적 순서를 낸다", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "pipeline-resolve-io-tiebreak-"));
+  try {
+    const nodes = [
+      { label: "Task", key: "1", properties: { number: 1 } },
+      { label: "Concept", key: "api", properties: { name: "api", kind: "tech" } },
+    ];
+    const relationships = [
+      { type: "TAGGED", startKey: "Task:1", endKey: "Concept:api", properties: { dimension: "secondary" } },
+      { type: "TAGGED", startKey: "Task:1", endKey: "Concept:api", properties: { dimension: "primary" } },
+    ];
+    const records = [...nodes, ...relationships];
+
+    const buildInput = (order: readonly number[]) => ({
+      parsed: order.map((index) => ({ value: records[index], sourceFile: "parsed.jsonl" })),
+      inferred: [],
+      dictionary: [{ canonical: "api", kind: "tech" as const, aliases: [] }],
+      endpointIndex: EMPTY_ENDPOINT_INDEX,
+      previousDropped: [],
+    });
+
+    const graph1 = resolveGraph(buildInput([0, 1, 2, 3]));
+    const graph2 = resolveGraph(buildInput([3, 2, 1, 0]));
+
+    const outPath1 = join(dataDir, "out1.jsonl");
+    const outPath2 = join(dataDir, "out2.jsonl");
+    await writeResolved(outPath1, graph1);
+    await writeResolved(outPath2, graph2);
+
+    const [content1, content2] = await Promise.all([readFile(outPath1, "utf8"), readFile(outPath2, "utf8")]);
+    assert.equal(content1, content2);
+
+    const relationshipLines = content1
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line))
+      .filter((line) => line.type === "TAGGED");
+    assert.deepEqual(
+      relationshipLines.map((line) => line.properties.dimension),
+      ["primary", "secondary"],
+    );
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});

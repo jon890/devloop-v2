@@ -37,9 +37,20 @@ export function assertNeo4jUriProvided(uri: string | undefined): asserts uri is 
  * 기본값 7687 로 본다 — `bolt://localhost` 처럼 포트를 생략한 URI 도 운영으로 간주해야 빠져나가지 않는다.
  * 7687 은 이 저장소의 로컬 Docker 컨테이너지만, `apply-schema`·`sync-neo4j` 가 그 포트를 기본값으로
  * 쓰는 유일한 "운영 그래프"이므로 파괴적 명령인 reset 은 별도 플래그로 명시적 동의를 받는다.
+ *
+ * 판정은 **포트만** 본다 — 호스트는 보지 않는다. 그래서 `bolt://prod-host:7690` 처럼 호스트가
+ * 명백히 운영이어도 포트가 7687 이 아니면 `--allow-production` 없이 통과한다. 의도한 설계다.
+ * 이 저장소의 "운영"이 곧 로컬 7687 컨테이너이기 때문이고, 원격 호스트까지 판정하려면 호스트
+ * 목록을 별도로 관리해야 해 지금 범위를 넘는다.
  */
 export function assertProductionAllowed(uri: string, allowProduction: boolean): void {
-  const port = new URL(uri).port || PRODUCTION_BOLT_PORT;
+  let parsed: URL;
+  try {
+    parsed = new URL(uri);
+  } catch {
+    throw new Error(`NEO4J_URI 형식이 올바르지 않습니다(스킴 누락 등): ${uri}. 예: bolt://localhost:7690`);
+  }
+  const port = parsed.port || PRODUCTION_BOLT_PORT;
   if (port === PRODUCTION_BOLT_PORT && !allowProduction) {
     throw new Error(`reset-neo4j 는 운영 포트(${PRODUCTION_BOLT_PORT})를 --allow-production 없이 대상으로 실행할 수 없습니다: ${uri}`);
   }

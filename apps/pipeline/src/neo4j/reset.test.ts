@@ -47,29 +47,33 @@ test("resetNeo4j 는 assertProductionAllowed 를 호출한다 — 운영 포트�
   );
 });
 
+// "가드 에러가 아니다"만으로는 가드를 지나 드라이버 단계까지 갔다는 증거가 안 된다 — 예를 들어
+// neo4jCredentials() 가 자격증명 부재로 던지는 에러도 세 가드 문구(운영 포트·NEO4J_URI·--force)를
+// 담지 않으므로 doesNotMatch 만으로는 그 실패까지 통과시킨다. DNS 해석 실패(ENOTFOUND) 또는
+// Neo4jError 를 직접 확인해야 "가드를 지나 드라이버가 실제로 연결을 시도했다"가 증명된다.
+function assertPassedGuards(error: Error): boolean {
+  assert.doesNotMatch(error.message, /운영 포트|NEO4J_URI|--force/);
+  const code = (error as NodeJS.ErrnoException).code;
+  const isDnsFailure = code === "ENOTFOUND" || /ENOTFOUND/.test(error.message);
+  const isNeo4jError = error.name === "Neo4jError" || error.constructor.name === "Neo4jError";
+  assert.ok(
+    isDnsFailure || isNeo4jError,
+    `가드를 지나 드라이버 단계까지 갔다는 증거(ENOTFOUND 또는 Neo4jError)가 없습니다: ${error.name}: ${error.message}`,
+  );
+  return true;
+}
+
 test("resetNeo4j 는 --allow-production 이 있으면 운영 포트 가드를 통과해 드라이버 단계까지 간다", async () => {
   // 가드를 통과하면 다음 실패는 가드 에러(운영 포트·NEO4J_URI·--force)가 아니라
   // DNS 해석 실패(ENOTFOUND) 여야 한다 — 즉 이 실패가 "가드를 지나갔다"는 증거다.
   await withEnv("NEO4J_URI", "bolt://invalid.invalid:7687", () =>
-    assert.rejects(
-      () => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: true }),
-      (error: Error) => {
-        assert.doesNotMatch(error.message, /운영 포트|NEO4J_URI|--force/);
-        return true;
-      },
-    ),
+    assert.rejects(() => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: true }), assertPassedGuards),
   );
 });
 
 test("resetNeo4j 는 운영 포트가 아니면 --allow-production 없이도 드라이버 단계까지 간다", async () => {
   await withEnv("NEO4J_URI", "bolt://invalid.invalid:7690", () =>
-    assert.rejects(
-      () => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: false }),
-      (error: Error) => {
-        assert.doesNotMatch(error.message, /운영 포트|NEO4J_URI|--force/);
-        return true;
-      },
-    ),
+    assert.rejects(() => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: false }), assertPassedGuards),
   );
 });
 

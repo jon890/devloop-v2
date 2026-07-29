@@ -9,7 +9,7 @@ import {
   type OntologyRelationship,
   type RelationshipType,
 } from "@devloop/shared";
-import { DEFAULT_PROJECT, readFlag } from "../cli-options";
+import { DEFAULT_PROJECT, readDataDirFlag, readFlag } from "../cli-options";
 import { readResolveInput } from "../resolve/io";
 import { normalizedKey } from "../resolve/node-merge";
 import { resolveGraph } from "../resolve/resolve";
@@ -43,7 +43,7 @@ type DatabaseKey = string | Integer;
 
 function parseArgs(args: readonly string[]): LoadOptions {
   const project = readFlag(args, "--project") ?? DEFAULT_PROJECT;
-  const dataDir = readFlag(args, "--data-dir") ?? process.env.PIPELINE_DATA_DIR ?? resolve(__dirname, "../../data");
+  const dataDir = readDataDirFlag(args) ?? resolve(__dirname, "../../data");
 
   return { project, dataDir: resolve(dataDir) };
 }

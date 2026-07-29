@@ -114,7 +114,7 @@ apps/pipeline/src/
     io.ts                    입력 읽기·resolved.jsonl 쓰기
   neo4j/
     sync.ts                  Neo4j 쓰기만 (875 → 303줄)
-    reset.ts                 그래프 초기화 (--force 필수)
+    reset.ts                 그래프 초기화 (--force 필수, NEO4J_URI 필수, 운영 포트는 --allow-production 도 필수)
 ```
 
 `resolve/` 를 `neo4j/` 밖에 두는 이유 — Neo4j 를 모르기 때문이다. 디렉터리 이름이 그 사실을 말해야 한다.
@@ -131,13 +131,14 @@ apps/pipeline/src/
 **더 쪼개지 않는다.** 정규화도 위의 "노드 종류별로 나누지 않은 이유" 와 같은 성질이다 —
 어떤 Concept 을 어느 대표로 합칠지는 다른 문서들이 그 이름을 몇 번 참조했는지에 달려 있다.
 
-함께 정리하는 것이다.
+함께 정리한 것이다.
 
-- **사전 로딩 중복 제거** — `io.ts` 의 `readResolveInput` 한 곳으로 모은다
-- **정리 함수 순수화** — 파일을 덮어쓰던 함수 아래에 순수 함수를 깔고 둘이 같은 로직을 쓰게 한다.
+- **사전 로딩 중복 제거** — 적재 쪽 구현을 `io.ts` 의 `readResolveInput` 한 곳으로 모았다
+- **정리 함수 순수화** — 파일을 덮어쓰던 함수 아래에 순수 함수를 깔고 둘이 같은 로직을 쓰게 했다.
   `sync-neo4j` 는 순수 함수만 쓰므로 적재가 `inferred.jsonl` 을 덮어쓰지 않는다
-- **죽은 마이그레이션 삭제** — 적재기가 만들지 않는 상태를 고치려던 코드다 (실측 근거는 ADR 0004)
-- **인자 파싱 공용화** — `readFlag` 를 `cli-options.ts` 로 올린다. 동작은 그대로 둔다
+- **죽은 마이그레이션 삭제** — 적재기가 만들지 않는 상태를 고치려던 코드였다 (실측 근거는 ADR 0004)
+- **인자 파싱 공용화** — `readFlag` 와 `readDataDirFlag` 를 `cli-options.ts` 로 올렸다.
+  `--data-dir` 우선순위를 한 곳에 두어 `resolve-graph` 와 `sync-neo4j` 가 같은 데이터를 본다
 
 ## apps/api
 

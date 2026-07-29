@@ -39,7 +39,8 @@ export function parsePipelineOptions(args: readonly string[]): PipelineOptions {
   };
 }
 
-// optionValue 와 readFlag 는 둘 다 "플래그 뒤 값 하나 읽기"를 하지만 값이 없을 때 동작이 다르다.
+// optionValue 와 readFlag 는 둘 다 "플래그 뒤 값 하나 읽기"를 하고, 다음 인자가 플래그면
+// 값이 없는 것으로 다루는 가드도 둘 다 갖는다. 차이는 값이 아예 없을 때의 동작이다.
 // optionValue 는 예외를 던진다 — parsePipelineOptions 는 --limit·--docs 처럼 값이 있어야만
 // 의미가 있는 옵션에 쓰므로, 값 없이 다음 플래그로 조용히 넘어가면 오입력을 놓친다.
 // readFlag 는 undefined 를 돌려준다 — sync-neo4j·resolve-graph 의 --project·--data-dir·--out 은
@@ -58,8 +59,26 @@ function optionValue(args: readonly string[], flag: string): string | undefined 
   return value;
 }
 
+// 다음 인자가 `-`로 시작하면(다른 플래그) 값이 아니라 값 없음으로 다룬다.
+// 이 가드가 없으면 `resolve-graph --out --project tc-ocr` 같은 입력에서
+// `--out` 의 값이 `"--project"` 라는 문자열로 잘못 채워진다.
 export function readFlag(args: readonly string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
   const value = index >= 0 ? args[index + 1] : undefined;
+  if (value?.startsWith("-")) {
+    return undefined;
+  }
   return value?.trim() || undefined;
+}
+
+/**
+ * `--data-dir` → `PIPELINE_DATA_DIR` → 미지정 순으로 데이터 디렉터리를 고른다.
+ * `sync-neo4j`(`neo4j/sync.ts`)와 `resolve-graph`(`resolve/cli.ts`)가 같은 우선순위를 써야 한다 —
+ * 어긋나면 `resolve-graph` 가 dry-run 으로 미리 보여준 입력과 `sync-neo4j` 가 실제로 적재하는
+ * 입력이 달라져, "적재 전에 무엇이 합쳐지는지 미리 본다"는 이 단계의 존재 이유가 깨진다.
+ * `resolve/` 가 `neo4j/` 를 몰라야 하므로(CLAUDE.md), 이 함수는 둘 다 이미 의존하는
+ * `cli-options.ts` 에 둔다 — 어느 한쪽에 두면 다른 쪽이 그쪽을 import 해야 한다.
+ */
+export function readDataDirFlag(args: readonly string[]): string | undefined {
+  return readFlag(args, "--data-dir") ?? process.env.PIPELINE_DATA_DIR;
 }

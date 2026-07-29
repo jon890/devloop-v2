@@ -1,7 +1,8 @@
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { RESOLVED_GRAPH_FILE } from "@devloop/shared";
-import { DEFAULT_PROJECT, readFlag } from "../cli-options";
+import { DEFAULT_PROJECT, readDataDirFlag, readFlag } from "../cli-options";
 import { readResolveInput, writeResolved, writeResolveReport } from "./io";
+import { compareCodePoints } from "./node-merge";
 import { resolveGraph, type ResolveInput } from "./resolve";
 
 interface ResolveCliOptions {
@@ -12,8 +13,14 @@ interface ResolveCliOptions {
 }
 
 /**
- * `--data-dir` 은 절대 경로만 받는다. 상대 경로는 pipeline 패키지(`__dirname`) 기준으로 풀리므로
- * 저장소 루트에서 실행하는 사용자가 기대하는 경로와 어긋난다 — CLAUDE.md 에 기록된 실제 함정이다.
+ * `--data-dir`·`PIPELINE_DATA_DIR` 은 절대 경로만 받는다(우선순위는 `readDataDirFlag` 참조).
+ * 상대 경로는 실행 시점의 cwd 기준으로 풀리므로, 저장소 루트가 아닌 곳에서 실행하거나
+ * `resolve-graph` 와 `sync-neo4j` 를 서로 다른 cwd 에서 실행하면 같은 상대 경로가 다른
+ * 디렉터리를 가리킬 수 있다 — CLAUDE.md 에 기록된 실제 함정이다.
+ *
+ * `sync-neo4j` 의 `PIPELINE_DATA_DIR` 는 상대 경로도 받아 cwd 기준으로 조용히 푼다(neo4j/sync.ts).
+ * 여기서는 그와 달리 환경변수도 절대 경로를 요구한다 — dry-run 비교가 이 단계의 존재 이유라,
+ * 실행할 때마다 cwd 가 달라져 같은 환경변수가 다른 디렉터리로 풀리면 비교 결과를 신뢰할 수 없다.
  * 조용히 다르게 해석하기보다 즉시 실패시켜 함정을 반복하지 않게 한다.
  */
 function resolveDataDir(dataDirFlag: string | undefined): string {
@@ -21,7 +28,7 @@ function resolveDataDir(dataDirFlag: string | undefined): string {
     return resolve(__dirname, "../../data");
   }
   if (!isAbsolute(dataDirFlag)) {
-    throw new Error(`--data-dir 은 절대 경로여야 합니다: ${dataDirFlag}`);
+    throw new Error(`--data-dir 또는 PIPELINE_DATA_DIR 은 절대 경로여야 합니다: ${dataDirFlag}`);
   }
   return resolve(dataDirFlag);
 }
@@ -50,7 +57,10 @@ function reportPathFor(outPath: string): string {
 
 export function parseResolveArgs(args: readonly string[]): ResolveCliOptions {
   const project = readFlag(args, "--project") ?? DEFAULT_PROJECT;
-  const dataDir = resolveDataDir(readFlag(args, "--data-dir"));
+  const dataDir = resolveDataDir(readDataDirFlag(args));
+  // `--out` 은 상대 경로를 허용한다 — `--data-dir` 과 달리 두 실행 간 비교 안정성이 걸려 있지 않다.
+  // dry-run 비교는 두 `--out` 산출물을 직접 `cmp` 하므로, 상대 경로가 매 실행 cwd 기준으로 풀려도
+  // 같은 cwd 에서 두 번 실행하는 한 결과가 어긋나지 않는다. 빠뜨린 것이 아니라 의도적인 비대칭이다.
   const outPath = resolve(readFlag(args, "--out") ?? resolve(dataDir, "graph", project, RESOLVED_GRAPH_FILE));
   const reportPath = reportPathFor(outPath);
 
@@ -89,7 +99,10 @@ export async function runResolveGraph(args: readonly string[]): Promise<void> {
         report: options.reportPath,
         nodes: result.nodes.length,
         relationships: result.relationships.length,
-        unknownConcepts: Object.fromEntries([...result.unknownConcepts.entries()].sort()),
+        // `.sort()` 기본 비교자는 쓰지 않는다 — 숫자처럼 보이는 키(예: "483")가 JS 정수 키 정렬
+        // 규칙에 걸려 순서가 뒤바뀐다(resolve.schema.ts 의 UnknownConceptEntrySchema 주석 참조).
+        // 파일(resolve-report.json)이 쓰는 것과 같은 compareCodePoints 로 맞춘다.
+        unknownConcepts: Object.fromEntries([...result.unknownConcepts.entries()].sort(([left], [right]) => compareCodePoints(left, right))),
         skippedRelationships: result.skippedRelationships,
         droppedRelationships: result.droppedRelationships,
         rewrittenRelationships: result.rewrittenRelationships,

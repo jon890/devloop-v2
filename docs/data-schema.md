@@ -178,8 +178,12 @@ Concept 이름 파편화가 관계형 질문의 연결을 끊는 **1번 위험**
 줄이려면 초기화가 필요하다.
 
 ```
-NEO4J_URI=bolt://<host>:<port> reset-neo4j --force  →  apply-schema  →  sync-neo4j
+(같은 NEO4J_URI로) reset-neo4j --force [--allow-production]  →  apply-schema  →  sync-neo4j
 ```
+
+세 명령 모두 같은 `NEO4J_URI`를 가리켜야 한다 — `apply-schema`·`sync-neo4j`는 인라인 지정이 없으면
+기본값 `bolt://localhost:7687`로 붙으므로, `reset-neo4j`에만 다른 URI를 인라인으로 주면
+비우려던 그래프와 실제로 적재되는 그래프가 어긋난다.
 
 `reset-neo4j` 는 `DETACH DELETE` 절차에 이름을 준 명령이다.
 

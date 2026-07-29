@@ -10,7 +10,53 @@ function buildInput(endpointIndex: EndpointIndex): ResolveInput {
 }
 
 test("--data-dir 는 절대 경로만 받는다 — 상대 경로는 거부한다", () => {
-  assert.throws(() => parseResolveArgs(["--data-dir", "relative/data"]), /--data-dir 은 절대 경로여야 합니다/);
+  assert.throws(() => parseResolveArgs(["--data-dir", "relative/data"]), /--data-dir 또는 PIPELINE_DATA_DIR 은 절대 경로여야 합니다/);
+});
+
+// 회귀 테스트 — resolve-graph 가 PIPELINE_DATA_DIR 를 무시하면 sync-neo4j(같은 환경변수를 읽는다,
+// neo4j/sync.ts)와 서로 다른 데이터를 본다. dry-run 비교가 실제 적재 대상과 어긋나는 문제였다.
+test("--data-dir 가 없으면 PIPELINE_DATA_DIR 를 쓴다 — sync-neo4j 와 같은 우선순위다", () => {
+  const original = process.env.PIPELINE_DATA_DIR;
+  process.env.PIPELINE_DATA_DIR = "/tmp/devloop-data-from-env";
+  try {
+    const options = parseResolveArgs([]);
+    assert.equal(options.dataDir, resolve("/tmp/devloop-data-from-env"));
+  } finally {
+    if (original === undefined) {
+      delete process.env.PIPELINE_DATA_DIR;
+    } else {
+      process.env.PIPELINE_DATA_DIR = original;
+    }
+  }
+});
+
+test("--data-dir 가 있으면 PIPELINE_DATA_DIR 보다 우선한다", () => {
+  const original = process.env.PIPELINE_DATA_DIR;
+  process.env.PIPELINE_DATA_DIR = "/tmp/devloop-data-from-env";
+  try {
+    const options = parseResolveArgs(["--data-dir", "/tmp/devloop-data-from-flag"]);
+    assert.equal(options.dataDir, resolve("/tmp/devloop-data-from-flag"));
+  } finally {
+    if (original === undefined) {
+      delete process.env.PIPELINE_DATA_DIR;
+    } else {
+      process.env.PIPELINE_DATA_DIR = original;
+    }
+  }
+});
+
+test("PIPELINE_DATA_DIR 가 상대 경로면 --data-dir 와 같은 이유로 거부한다", () => {
+  const original = process.env.PIPELINE_DATA_DIR;
+  process.env.PIPELINE_DATA_DIR = "relative/data";
+  try {
+    assert.throws(() => parseResolveArgs([]), /--data-dir 또는 PIPELINE_DATA_DIR 은 절대 경로여야 합니다/);
+  } finally {
+    if (original === undefined) {
+      delete process.env.PIPELINE_DATA_DIR;
+    } else {
+      process.env.PIPELINE_DATA_DIR = original;
+    }
+  }
 });
 
 test("--project·--out 을 지정하지 않으면 기본값을 쓴다", () => {
