@@ -315,20 +315,30 @@ S2 판정식을 적재기 정규화 함수와 같게 만들면, 적재기가 보
 | 스키마 맵 표본 페이징 | **머지 완료** (`ef0c5a5`).<br>정렬은 키 속성 뒤 `elementId` 로 동순위를 깬다<br>limit 상한 100, offset 상한 `MAX_SAFE_INTEGER` |
 | 파이프라인 단계 이름·모듈 배치 | **머지 완료** (`ffefdae`). 1단계 |
 | 파이프라인 2단계 — `sync-neo4j` 분해 | **완료**. `resolve-graph`·`reset-neo4j` 신설, `sync.ts` 875 → 303줄.<br>죽은 마이그레이션 2개는 분리가 아니라 삭제했다 — 적재기가 그 상태를 만들지 않는다 |
-| 사전 별칭 보강 (2층) | **5쌍 승인됨**. 등록은 `resolve-graph` dry-run 이 생긴 뒤에 한다 |
+| 사전 별칭 보강 (2층) | **5쌍 승인됨. 등록 대기.** 기다리던 `resolve-graph` dry-run 이 생겨 전제는 충족됐다 |
 | gold 3문항 (A-06·A-10·H-12) | **`supporting` 하향으로 결정.** 미실행 |
 | gold H-17 | **별칭·추출 프롬프트 둘 다로 결정.** 미실행. 프롬프트 변경은 LLM 537회 |
 | A-14 인수 기준 | **문구 변경으로 결정.** "FAIL 전환 0개" → "원인이 가짜 엣지 제거임을 증명". 미실행 |
 | GitHub Enterprise 통합 | **보류**. Phase 1(staging·초기화)만 남았다 |
 
-### 별칭 등록은 `resolve-graph` dry-run 이 생긴 뒤에 한다
+### 별칭 등록 전제가 충족됐다 — 등록만 남았다
 
-승인된 5쌍은 `eval/reports/2026-07-28-concept-alias-candidates.md` 에 있다.
-지금 등록하면 효과를 미리 볼 수 없고 틀리면 그래프를 다시 비워야 한다 —
-정규화가 `sync-neo4j` 안에 묶여 있어 적재 없이 확인할 방법이 없기 때문이다.
+승인된 5쌍은 `eval/reports/2026-07-28-concept-alias-candidates.md` 에 있다. 아직 등록하지 않았다.
 
-2단계에서 `resolve-graph` 가 순수 함수로 분리되면 `graph/resolved.jsonl` 을 diff 해서
-무엇이 합쳐지는지 먼저 볼 수 있다. 그때 등록하는 것이 안전하다.
+등록을 미뤄 온 이유는 효과를 미리 볼 수 없었기 때문이다. 정규화가 `sync-neo4j` 안에 묶여 있어
+적재 없이 확인할 방법이 없었고, 틀리면 그래프를 다시 비워야 했다.
+
+**2단계가 끝나 그 제약이 사라졌다.** 이제 사전을 고치기 전후로 `resolve-graph` 를 돌려
+`resolved.jsonl` 을 `cmp` 하면 무엇이 합쳐지는지 적재 없이 볼 수 있다.
+
+```bash
+# cwd: 저장소 루트
+D=$(pwd)/apps/pipeline/data
+pnpm --filter pipeline resolve-graph --project tc-ocr --data-dir "$D" --out /tmp/before.jsonl
+# 사전 수정
+pnpm --filter pipeline resolve-graph --project tc-ocr --data-dir "$D" --out /tmp/after.jsonl
+cmp /tmp/before.jsonl /tmp/after.jsonl
+```
 
 **`gateway api`(쿠버네티스 표준 Gateway API)와 `nat gateway` 는 병합 대상이 아니다.**
 `api gateway` 와 토큰 집합이 같지만 다른 개체다. 토큰 일치만으로 자동 병합하면 안 되는 실측 사례다.
