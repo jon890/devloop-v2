@@ -138,3 +138,30 @@ test("maskNeo4jUri 는 userinfo 만 가리고 host·port 는 남긴다", () => {
 test("maskNeo4jUri 는 userinfo 가 없으면 그대로 둔다", () => {
   assert.equal(maskNeo4jUri("bolt://localhost:7687"), "bolt://localhost:7687");
 });
+
+test("maskNeo4jUri 는 파싱 불가능한 문자열도 던지지 않고 userinfo 만 제거한다", () => {
+  assert.doesNotThrow(() => maskNeo4jUri("//user:secret@localhost"));
+  assert.equal(maskNeo4jUri("//user:secret@localhost"), "//localhost");
+});
+
+test("운영 포트 거부 오류 메시지는 자격증명을 가리고 host·port 는 남긴다", () => {
+  assert.throws(
+    () => assertProductionAllowed("bolt://user:secret@localhost:7687", false),
+    (error: Error) => {
+      assert.doesNotMatch(error.message, /secret/);
+      assert.match(error.message, /localhost:7687/);
+      return true;
+    },
+  );
+});
+
+test("형식이 올바르지 않은 URI 오류는 Invalid URL 로 덮이지 않고 안내 문구를 유지한다", () => {
+  assert.throws(() => assertProductionAllowed("localhost", false), /형식이 올바르지 않습니다/);
+  assert.throws(
+    () => assertProductionAllowed("localhost", false),
+    (error: Error) => {
+      assert.doesNotMatch(error.message, /^Invalid URL/);
+      return true;
+    },
+  );
+});

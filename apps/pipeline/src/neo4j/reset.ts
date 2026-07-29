@@ -9,15 +9,25 @@ export const PRODUCTION_BOLT_PORT = "7687";
  * URI 의 userinfo(`user:pass@`)만 가리고 로그에 남긴다. host·port 는 그대로 둔다 —
  * 어느 인스턴스를 대상으로 전체 삭제를 실행했는지 확인하는 것이 이 파괴적 명령의
  * 핵심 안전 장치라, host·port 까지 가리면 대상 확인이 불가능해진다.
+ *
+ * 파싱 실패 시에도 던지지 않는다. 이 함수는 오류 메시지 조립 경로(`assertProductionAllowed`
+ * 의 `new URL` 실패 catch 블록)에서도 쓰이므로, 여기서 던지면 원래 오류(형식이 올바르지
+ * 않다는 안내)를 `Invalid URL` 로 덮어써 버린다. `new URL` 이 실패하는 문자열은 구조가
+ * 불명확해 host·port 를 안전하게 분리할 수 없으므로, 문자열 수준에서 `//` 뒤 `@` 앞
+ * 구간(userinfo)만 제거하는 것으로 충분하다.
  */
 export function maskNeo4jUri(uri: string): string {
-  const parsed = new URL(uri);
-  if (!parsed.username && !parsed.password) {
-    return uri;
+  try {
+    const parsed = new URL(uri);
+    if (!parsed.username && !parsed.password) {
+      return uri;
+    }
+    parsed.username = "";
+    parsed.password = "";
+    return parsed.toString();
+  } catch {
+    return uri.replace(/\/\/[^/@]*@/, "//");
   }
-  parsed.username = "";
-  parsed.password = "";
-  return parsed.toString();
 }
 
 interface ResetOptions {
@@ -63,11 +73,11 @@ export function assertProductionAllowed(uri: string, allowProduction: boolean): 
   try {
     parsed = new URL(uri);
   } catch {
-    throw new Error(`NEO4J_URI 형식이 올바르지 않습니다(스킴 누락 등): ${uri}. 예: bolt://localhost:7690`);
+    throw new Error(`NEO4J_URI 형식이 올바르지 않습니다(스킴 누락 등): ${maskNeo4jUri(uri)}. 예: bolt://localhost:7690`);
   }
   const port = parsed.port || PRODUCTION_BOLT_PORT;
   if (port === PRODUCTION_BOLT_PORT && !allowProduction) {
-    throw new Error(`reset-neo4j 는 운영 포트(${PRODUCTION_BOLT_PORT})를 --allow-production 없이 대상으로 실행할 수 없습니다: ${uri}`);
+    throw new Error(`reset-neo4j 는 운영 포트(${PRODUCTION_BOLT_PORT})를 --allow-production 없이 대상으로 실행할 수 없습니다: ${maskNeo4jUri(uri)}`);
   }
 }
 
