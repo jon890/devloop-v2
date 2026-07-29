@@ -9,7 +9,7 @@ import {
   type OntologyRelationship,
   type RelationshipType,
 } from "@devloop/shared";
-import { readFlag } from "../cli-options";
+import { DEFAULT_PROJECT, readFlag } from "../cli-options";
 import { readResolveInput } from "../resolve/io";
 import { normalizedKey } from "../resolve/node-merge";
 import { resolveGraph } from "../resolve/resolve";
@@ -42,7 +42,7 @@ interface RelationshipMergeScope {
 type DatabaseKey = string | Integer;
 
 function parseArgs(args: readonly string[]): LoadOptions {
-  const project = readFlag(args, "--project") ?? "tc-ocr";
+  const project = readFlag(args, "--project") ?? DEFAULT_PROJECT;
   const dataDir = readFlag(args, "--data-dir") ?? process.env.PIPELINE_DATA_DIR ?? resolve(__dirname, "../../data");
 
   return { project, dataDir: resolve(dataDir) };

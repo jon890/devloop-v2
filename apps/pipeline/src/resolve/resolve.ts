@@ -8,13 +8,7 @@ import {
   type OntologyNode,
   type OntologyRelationship,
 } from "@devloop/shared";
-import {
-  buildEndpointIndex,
-  parseLlmGraphRecord,
-  sanitizeLlmRecords,
-  type DroppedRelationship,
-  type EndpointIndex,
-} from "../infer/llm-relationship-sanitizer";
+import { parseLlmGraphRecord, sanitizeLlmRecords, type DroppedRelationship, type EndpointIndex } from "../infer/llm-relationship-sanitizer";
 import { buildConceptAliasMap } from "./concept-alias";
 import { addDictionaryEndpointAliases, addEndpointAlias, resolveEndpoint } from "./endpoint";
 import { buildUnmatchedConceptRepresentatives, mergeNode, normalizeNode, type NodeRef } from "./node-merge";

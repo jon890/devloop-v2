@@ -1,6 +1,13 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
-import { CORE_CONCEPTS, ConceptDictionarySchema, INFERRED_GRAPH_FILE, PARSED_GRAPH_FILE, type ConceptDictionary } from "@devloop/shared";
+import {
+  CORE_CONCEPTS,
+  ConceptDictionarySchema,
+  INFERRED_GRAPH_FILE,
+  PARSED_GRAPH_FILE,
+  type ConceptDictionary,
+  type OntologyRelationship,
+} from "@devloop/shared";
 import { buildEndpointIndex, readDroppedRelationships } from "../infer/llm-relationship-sanitizer";
 import { compareCodePoints } from "./node-merge";
 import type { ResolveInput } from "./resolve";
@@ -9,8 +16,8 @@ import type { GraphRecord } from "../parse/graph-record";
 
 /**
  * `graph/<project>/` 의 파일명을 명시해 읽는다 — 디렉터리를 훑지 않는다.
- * 훑으면 같은 디렉터리에 `resolved.jsonl` 이 생겼을 때 그 파일까지 입력으로 딸려 들어온다
- * (이 phase 의 "작업 순서" 섹션이 막으려는 실패다).
+ * 훑으면 같은 디렉터리에 생긴 `resolved.jsonl` 까지 입력으로 딸려 들어가,
+ * `conceptSource`(`parsed.jsonl`·`inferred.jsonl` 만 허용)가 이를 알 수 없는 파일로 보고 예외를 던진다.
  */
 async function readJsonlFile(filePath: string): Promise<SourcedRecord[]> {
   const content = await readFile(filePath, "utf8");
@@ -85,13 +92,34 @@ export async function readResolveInput(dataDir: string, project: string): Promis
 }
 
 /**
- * 노드는 라벨 → 키, 관계는 유형 → 시작키 → 끝키 순으로 정렬해 바이트 동등을 보장한다.
+ * `type·startKey·endKey` 만으로는 전순서가 안 나온다 — 식별 속성(예: `ASSIGNED_TO.role`,
+ * `TAGGED.dimension`)으로만 갈리는 관계는 세 키가 모두 같아 남은 순서가 정해지지 않는다.
+ * 지금은 V8 의 안정 정렬 덕에 입력 순서가 우연히 유지될 뿐이라, 입력 순서가 바뀌면
+ * (예: 파일 병합 순서 변경) 바이트 동등이 조용히 깨질 수 있다.
+ *
+ * 어떤 속성이 식별에 쓰이는지는 `resolve/` 가 알 필요 없다 — 그건 Neo4j 적재기(`neo4j/sync.const.ts`
+ * 의 `RELATIONSHIP_IDENTITY_PROPERTIES`)의 쓰기 관심사다. `resolve/` 는 결정성만 보장하면 되므로,
+ * 정렬된 properties 전체를 tie-break 키로 쓴다 — 어떤 속성이 갈랐든 전순서가 선다.
+ */
+function relationshipTieBreakKey(relationship: OntologyRelationship): string {
+  const sortedEntries = Object.keys(relationship.properties)
+    .sort(compareCodePoints)
+    .map((key) => [key, relationship.properties[key]]);
+  return JSON.stringify(sortedEntries);
+}
+
+/**
+ * 노드는 라벨 → 키, 관계는 유형 → 시작키 → 끝키 → tie-break 순으로 정렬해 바이트 동등을 보장한다.
  * `resolveGraph` 는 순수 함수로 남기고(Map 순회 순서에 좌우됨), 결정적 순서는 파일로 쓸 때만 강제한다.
  */
 function sortedGraphRecords(result: ResolveResult): GraphRecord[] {
   const nodes = [...result.nodes].sort((a, b) => compareCodePoints(a.label, b.label) || compareCodePoints(a.key, b.key));
   const relationships = [...result.relationships].sort(
-    (a, b) => compareCodePoints(a.type, b.type) || compareCodePoints(a.startKey, b.startKey) || compareCodePoints(a.endKey, b.endKey),
+    (a, b) =>
+      compareCodePoints(a.type, b.type) ||
+      compareCodePoints(a.startKey, b.startKey) ||
+      compareCodePoints(a.endKey, b.endKey) ||
+      compareCodePoints(relationshipTieBreakKey(a), relationshipTieBreakKey(b)),
   );
   return [...nodes, ...relationships];
 }
@@ -112,6 +140,7 @@ export async function writeResolveReport(outPath: string, result: ResolveResult)
     relationshipCount: result.relationships.length,
     unknownConcepts: [...result.unknownConcepts.entries()].sort(([left], [right]) => compareCodePoints(left, right)),
     skippedRelationships: result.skippedRelationships,
+    droppedRelationships: result.droppedRelationships,
     rewrittenRelationships: result.rewrittenRelationships,
   });
   await mkdir(dirname(outPath), { recursive: true });

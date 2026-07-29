@@ -1,4 +1,4 @@
-import { dirname, isAbsolute, resolve } from "node:path";
+import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { RESOLVED_GRAPH_FILE } from "@devloop/shared";
 import { DEFAULT_PROJECT, readFlag } from "../cli-options";
 import { readResolveInput, writeResolved, writeResolveReport } from "./io";
@@ -26,11 +26,33 @@ function resolveDataDir(dataDirFlag: string | undefined): string {
   return resolve(dataDirFlag);
 }
 
+const DEFAULT_REPORT_FILE = "resolve-report.json";
+
+/**
+ * 리포트 경로를 `--out` 의 basename 에서 따 온다. dry-run 비교(ADR 이 예시로 든 흐름)가
+ * `--out /tmp/before.jsonl` → `--out /tmp/after.jsonl` 처럼 같은 디렉터리에 서로 다른 이름으로
+ * 두 번 실행하는 것이 전제인데, 리포트 이름을 고정하면 두 번째 실행이 첫 번째 리포트를 덮어써
+ * before 값을 잃는다.
+ *
+ * 기본 산출물 이름(`resolved.jsonl`)만은 예외로 기존 이름 `resolve-report.json` 을 유지한다 —
+ * `resolved.resolve-report.json` 으로 바꾸면 기본 실행(`--out` 생략)에서 익숙한 파일명이 바뀌어
+ * 기존 스크립트·문서의 경로 참조가 깨진다.
+ */
+function reportPathFor(outPath: string): string {
+  const dir = dirname(outPath);
+  const base = basename(outPath);
+  if (base === RESOLVED_GRAPH_FILE) {
+    return resolve(dir, DEFAULT_REPORT_FILE);
+  }
+  const stem = base.endsWith(".jsonl") ? base.slice(0, -".jsonl".length) : base.replace(/\.[^./]+$/, "");
+  return resolve(dir, `${stem}.resolve-report.json`);
+}
+
 export function parseResolveArgs(args: readonly string[]): ResolveCliOptions {
   const project = readFlag(args, "--project") ?? DEFAULT_PROJECT;
   const dataDir = resolveDataDir(readFlag(args, "--data-dir"));
   const outPath = resolve(readFlag(args, "--out") ?? resolve(dataDir, "graph", project, RESOLVED_GRAPH_FILE));
-  const reportPath = resolve(dirname(outPath), "resolve-report.json");
+  const reportPath = reportPathFor(outPath);
 
   return { project, dataDir, outPath, reportPath };
 }
