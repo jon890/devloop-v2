@@ -113,7 +113,7 @@ apps/pipeline/src/
     node-merge.ts            노드 병합·미매칭 Concept 대표 선정
     io.ts                    입력 읽기·resolved.jsonl 쓰기
   neo4j/
-    sync.ts                  Neo4j 쓰기만 (약 200줄로 줄어든다)
+    sync.ts                  Neo4j 쓰기만 (875 → 303줄)
     reset.ts                 그래프 초기화 (--force 필수)
 ```
 
