@@ -23,8 +23,18 @@ flowchart TD
     INFERRED --> SYNC
     DICT --> SYNC
 
+    PARSED --> RG["resolve-graph<br/>(조사 전용)"]
+    INFERRED --> RG
+    DICT --> RG
+    RG --> RJ["graph/&lt;project&gt;/resolved.jsonl<br/>resolve-report.json"]
+
     SYNC -->|MERGE| NEO[("Neo4j")]
+    RESET["reset-neo4j --force"] -.->|DETACH DELETE| NEO
 ```
+
+`resolve-graph` 는 체인 위가 아니라 **옆에** 붙는다.
+`sync-neo4j` 는 `resolved.jsonl` 을 읽지 않고 같은 순수 함수를 직접 부른다 — 그래서 stale 이 없다.
+근거는 `docs/adr/0004-resolve-as-inspection-stage.md` 에 있다.
 
 ## 단계별 계약
 
@@ -40,8 +50,22 @@ flowchart TD
 
 | 명령 | 성격 |
 | --- | --- |
+| `resolve-graph` | 정규화 결과를 파일로 내놓는다 (읽기 전용, 조사용) |
 | `apply-schema` | Neo4j 제약·인덱스 적용 |
+| `reset-neo4j` | 그래프 전체 삭제. `--force` 필수 |
 | `audit-concepts` | Concept 정규화 감사 (읽기 전용) |
+
+### 두 호출 경로가 같은 순수 함수를 공유한다
+
+```
+resolve-graph:  읽기 → 정리 → 정규화 → 파일 쓰기
+sync-neo4j:     읽기 → 정리 → 정규화 → Neo4j 쓰기
+```
+
+앞 세 단계가 같은 함수다. 갈리는 것은 마지막 출력뿐이다.
+
+**같은 입력이면 `resolved.jsonl` 이 바이트 동등해야 한다.** 그게 별칭 변경 전후 비교의 전제다.
+출력 순서를 고정한다 — 노드는 `라벨 → 키`, 관계는 `유형 → 시작키 → 끝키` 다.
 
 ## 단계 경계를 가른 기준 — 재실행 비용
 

@@ -97,7 +97,21 @@ R4 에서 추가된 셋이 핵심이다. "이 결정을 왜 했나" 에 답하�
 | `graph/<project>/inferred.jsonl` | `infer-knowledge` | `Concept`·`Decision` 과 의미 관계 |
 | `graph/<project>/inference-dropped-relationships.json` | `infer-knowledge` | 스키마에 없어 버린 관계 |
 | `graph/<project>/inference-failures.json` | `infer-knowledge` | 추출 실패 문서 |
+| `graph/<project>/resolved.jsonl` | `resolve-graph` | 정규화된 노드·관계. **조사 전용** |
+| `graph/<project>/resolve-report.json` | `resolve-graph` | 미매칭 Concept·건너뛴 관계·버린 관계·재작성 수 |
 | `concepts/<project>.json` | `seed-concepts` | Concept 사전 |
+
+`resolved.jsonl` 은 **파이프라인 입력이 아니다.** `sync-neo4j` 는 이 파일을 읽지 않고
+`parsed`·`inferred`·사전을 직접 읽어 매번 새로 정규화한다. 근거는
+`docs/adr/0004-resolve-as-inspection-stage.md` 에 있다.
+
+형식은 `parsed`·`inferred` 와 같다. 같은 스키마를 재사용하고, 사람이 나란히 놓고 비교할 수 있다.
+
+**출력 순서가 고정돼 있다** — 노드는 `라벨 → 키`, 관계는 `유형 → 시작키 → 끝키` 다.
+같은 입력이면 바이트 동등해야 한다. 그게 별칭 변경 전후를 `cmp` 로 비교하는 전제다.
+
+리포트는 `jsonl` 에 섞지 않고 별도 파일로 뺀다. 첫 줄에 메타데이터를 넣으면
+읽는 쪽이 모두 그 줄을 건너뛰어야 하고, 그 규칙을 잊으면 조용히 깨진다.
 
 형식은 이렇다.
 
@@ -164,8 +178,15 @@ Concept 이름 파편화가 관계형 질문의 연결을 끊는 **1번 위험**
 줄이려면 초기화가 필요하다.
 
 ```
-MATCH (n) DETACH DELETE n  →  apply-schema  →  sync-neo4j
+reset-neo4j --force  →  apply-schema  →  sync-neo4j
 ```
+
+`reset-neo4j` 는 `DETACH DELETE` 절차에 이름을 준 명령이다.
+
+- `--force` 없이는 실행하지 않는다
+- 대상 URI 와 현재 노드 수를 먼저 출력한다
+- **삭제 범위는 전체다.** 프로젝트 단위 삭제는 만들지 않는다 —
+  `Task.number` 가 프로젝트를 구분하지 않아 부분 삭제가 안전하지 않다 (위 "key 설계의 함정" 참조)
 
 `DETACH DELETE` 는 제약·인덱스를 지우지 않는다. 다만 재적재 절차에 `apply-schema` 를 넣어 둔다.
 

@@ -97,7 +97,47 @@ flowchart LR
 정규화가 적재에 묶여 있어 **별칭을 바꿨을 때 효과를 적재 없이 볼 수 없다.**
 적재기가 MERGE 전용이라 틀리면 그래프를 초기화해야 한다.
 
-분해 방향은 `docs/adr/0002-resolve-graph-as-pure-stage.md` 에 있다.
+### 해소 방향 — `resolve/` 신설
+
+정규화를 순수 함수로 떼어 `resolve/` 에 두고, 그 결과를 파일로 내놓는 `resolve-graph` 명령을 만든다.
+`sync-neo4j` 는 그 파일을 읽지 않고 같은 순수 함수를 직접 부른다. 결정과 근거는
+`docs/adr/0004-resolve-as-inspection-stage.md` 에 있다.
+
+```
+apps/pipeline/src/
+  resolve/                   Neo4j 를 모른다. 파일과 순수 함수만 다룬다
+    resolve.ts               단계 진입점과 resolveGraph
+    resolve.schema.ts        ResolveResult zod 계약
+    concept-alias.ts         사전 → 별칭 맵
+    endpoint.ts              엔드포인트 색인·해석
+    node-merge.ts            노드 병합·미매칭 Concept 대표 선정
+    io.ts                    입력 읽기·resolved.jsonl 쓰기
+  neo4j/
+    sync.ts                  Neo4j 쓰기만 (약 200줄로 줄어든다)
+    reset.ts                 그래프 초기화 (--force 필수)
+```
+
+`resolve/` 를 `neo4j/` 밖에 두는 이유 — Neo4j 를 모르기 때문이다. 디렉터리 이름이 그 사실을 말해야 한다.
+
+정규화를 4개 파일로 가른 기준은 **전역 시야가 필요한 단위**다.
+
+| 파일 | 전역 시야 |
+| --- | --- |
+| `concept-alias.ts` | 사전 전체 |
+| `endpoint.ts` | 전체 노드 — 색인을 만들어야 관계 양끝을 해석한다 |
+| `node-merge.ts` | 전체 노드·관계 — 참조 수를 세어 대표를 고른다 |
+| `resolve.ts` | 위 셋을 순서대로 흘린다 |
+
+**더 쪼개지 않는다.** 정규화도 위의 "노드 종류별로 나누지 않은 이유" 와 같은 성질이다 —
+어떤 Concept 을 어느 대표로 합칠지는 다른 문서들이 그 이름을 몇 번 참조했는지에 달려 있다.
+
+함께 정리하는 것이다.
+
+- **사전 로딩 중복 제거** — `io.ts` 의 `readResolveInput` 한 곳으로 모은다
+- **정리 함수 순수화** — 파일을 덮어쓰던 함수 아래에 순수 함수를 깔고 둘이 같은 로직을 쓰게 한다.
+  `sync-neo4j` 는 순수 함수만 쓰므로 적재가 `inferred.jsonl` 을 덮어쓰지 않는다
+- **죽은 마이그레이션 삭제** — 적재기가 만들지 않는 상태를 고치려던 코드다 (실측 근거는 ADR 0004)
+- **인자 파싱 공용화** — `readFlag` 를 `cli-options.ts` 로 올린다. 동작은 그대로 둔다
 
 ## apps/api
 
