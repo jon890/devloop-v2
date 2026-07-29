@@ -1,5 +1,6 @@
 import neo4j, { type Driver } from "neo4j-driver";
-import { CONCEPT_KEY_MERGE_DENYLIST, normalizeConceptKey } from "../neo4j/sync";
+import { normalizeConceptKey } from "../resolve/concept-alias";
+import { CONCEPT_KEY_MERGE_DENYLIST } from "../resolve/concept-alias.const";
 import { neo4jCredentials } from "../neo4j/neo4j-config";
 
 interface ConceptSummary {

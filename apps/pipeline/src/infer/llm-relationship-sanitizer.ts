@@ -114,7 +114,7 @@ function reportDroppedRelationships(dropped: readonly DroppedRelationship[]): Dr
   };
 }
 
-async function readDroppedRelationships(reportPath: string): Promise<DroppedRelationship[]> {
+export async function readDroppedRelationships(reportPath: string): Promise<DroppedRelationship[]> {
   try {
     const value = JSON.parse(await readFile(reportPath, "utf8")) as {
       droppedRelationships?: { documents?: Array<{ relationships?: unknown[] }> };
@@ -201,7 +201,7 @@ export async function sanitizeLlmExtractions(
   };
 }
 
-function parseLlmGraphRecord(value: unknown): LlmGraphRecord {
+export function parseLlmGraphRecord(value: unknown): LlmGraphRecord {
   const node = LlmNodeSchema.safeParse(value);
   if (node.success) return node.data;
   return LlmRelationshipSchema.parse(value);

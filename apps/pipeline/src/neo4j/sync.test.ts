@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildConceptAliasMap, normalizeConceptKey, normalizeGraph } from "./sync";
+import { buildConceptAliasMap, normalizeConceptKey } from "../resolve/concept-alias";
+import { normalizeGraph } from "../resolve/resolve";
 
 test("Concept 강화 키는 대소문자·공백·구두점 차이를 제거한다", () => {
   assert.equal(normalizeConceptKey("OCR.API"), "ocrapi");
