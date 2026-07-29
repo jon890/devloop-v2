@@ -194,16 +194,6 @@ import 줄과 `export` 키워드 추가는 허용된다. **그 외 차이가 있
 
 `sync-neo4j` 를 돌려 노드·관계 통계가 이전과 같은지 확인한다.
 
-```bash
-# cwd: 저장소 루트
-# 반드시 대상 포트를 명시한다
-NEO4J_URI=bolt://localhost:7688 pnpm --filter pipeline sync-neo4j --project <프로젝트코드> --data-dir <절대경로>
-```
-
-- **`NEO4J_URI` 를 지정하지 않으면 `.env` 기본값인 운영 그래프(7687)에 적재된다.**
-  실제로 이 실수로 운영 그래프가 오염된 사례가 있다
-- 테스트 인스턴스가 없으면 이 검증은 `PHASE_BLOCKED` 로 남기고 통계 비교를 조정자에게 넘겨라
-
 **대상은 `bolt://localhost:7690` 이다.** 조정자가 일회용 컨테이너를 띄워 뒀다
 (`devloop-plan001-neo4j`, `neo4j:5-community`, tmpfs, 인증 `neo4j/devloop-test-password`).
 
@@ -213,31 +203,69 @@ NEO4J_URI=bolt://localhost:7688 pnpm --filter pipeline sync-neo4j --project <프
 ```bash
 # cwd: 저장소 루트
 export NEO4J_URI=bolt://localhost:7690
-export NEO4J_AUTH=neo4j/devloop-test-password
+export NEO4J_USER=neo4j
+export NEO4J_PASSWORD=devloop-test-password
 D=$(pwd)/apps/pipeline/data
 ```
+
+**`NEO4J_AUTH` 가 아니라 `NEO4J_USER`·`NEO4J_PASSWORD` 를 쓴다.**
+`neo4jCredentials()`(`neo4j-config.ts`)가 그 둘이 있으면 먼저 쓰고 `NEO4J_AUTH` 는 무시한다.
+셸에 이전 값이 남아 있으면 `NEO4J_AUTH` 만 설정해서는 조용히 다른 자격증명으로 붙는다.
+
+**컨테이너를 다시 띄웠으면 `pnpm apply-schema` 를 반드시 다시 돌려라.**
+tmpfs 라 재기동 시 데이터뿐 아니라 제약·인덱스도 사라진다.
+제약 없이 적재하면 MERGE 의 유일성 보장이 달라져 통계가 미묘하게 어긋난다.
 
 절차는 이렇다. 빈 그래프에 **옛 코드와 새 코드로 각각 적재해 통계를 비교**한다.
 운영 그래프의 현재 상태는 필요 없다 — 같은 입력에 같은 결과가 나오는지가 검증 대상이다.
 
 **기준값은 코드를 고치기 전에 먼저 뽑아라.** 이 phase 의 첫 작업이다.
 
+기준값은 `/tmp` 가 아니라 **저장소 안**에 둔다. phase 04 가 같은 파일을 재사용하고,
+컨테이너가 죽어도 남으며, `git status` 에 보인다.
+
 ```bash
 # cwd: 저장소 루트 — 아직 아무것도 고치지 않은 상태에서
+B=tasks/plan001-resolve-graph-stage/baseline-load-stats
+
+# 적재기는 MERGE 전용이다. 그래프가 비어 있지 않으면 기준값이 부풀려진다
+docker exec devloop-plan001-neo4j cypher-shell -u neo4j -p devloop-test-password \
+  'MATCH (n) RETURN count(n) AS nodes'   # 0 이어야 한다. 아니면 먼저 비운다
+
 pnpm apply-schema
-pnpm --filter pipeline sync-neo4j --project tc-ocr --data-dir "$D" | tee /tmp/sync-before.txt
+pnpm --filter pipeline sync-neo4j --project tc-ocr --data-dir "$D" | tee "$B.summary.txt"
 ```
 
-그다음 구현하고, 끝난 뒤 비교한다.
+**개수만 비교하면 놓치는 실패가 있다.** 라벨별·유형별 개수가 같아도 Concept 이 다른 대표로
+병합되거나 관계 끝점이 다시 이어질 수 있다. 이번 plan 이 옮기는 것이 정확히 그 두 로직이라
+가장 그럴듯한 실패 방식이 개수 비교를 통과한다. 키 집합도 함께 뜬다.
+
+```bash
+docker exec devloop-plan001-neo4j cypher-shell -u neo4j -p devloop-test-password --format plain \
+  'MATCH (n) RETURN labels(n)[0] AS label, count(*) AS c,
+     collect(DISTINCT coalesce(toString(n.number), n.key, n.pageId, n.name)) AS keys
+   ORDER BY label' | sort > "$B.nodes.txt"
+docker exec devloop-plan001-neo4j cypher-shell -u neo4j -p devloop-test-password --format plain \
+  'MATCH (a)-[r]->(b) RETURN type(r) AS t, count(*) AS c,
+     collect(DISTINCT [labels(a)[0], labels(b)[0]]) AS shape
+   ORDER BY t' | sort > "$B.rels.txt"
+```
+
+그다음 구현하고, 끝난 뒤 같은 세 파일을 다시 떠서 비교한다.
 
 ```bash
 # cwd: 저장소 루트 — 구현 완료 후
-pnpm --filter pipeline reset-neo4j --force 2>/dev/null || \
-  docker exec devloop-plan001-neo4j cypher-shell -u neo4j -p devloop-test-password 'MATCH (n) DETACH DELETE n'
+docker exec devloop-plan001-neo4j cypher-shell -u neo4j -p devloop-test-password 'MATCH (n) DETACH DELETE n'
 pnpm apply-schema
-pnpm --filter pipeline sync-neo4j --project tc-ocr --data-dir "$D" | tee /tmp/sync-after.txt
-diff /tmp/sync-before.txt /tmp/sync-after.txt && echo "적재 출력 동등"
+pnpm --filter pipeline sync-neo4j --project tc-ocr --data-dir "$D" | tee /tmp/after.summary.txt
+# 위 두 Cypher 를 다시 실행해 /tmp/after.nodes.txt · /tmp/after.rels.txt 로 저장
+diff "$B.summary.txt" /tmp/after.summary.txt
+diff "$B.nodes.txt" /tmp/after.nodes.txt
+diff "$B.rels.txt" /tmp/after.rels.txt
 ```
+
+속성 값까지 전부 비교하지는 마라. 무겁고, `resolved.jsonl` 바이트 동등(Phase 03)이
+다른 각도에서 잡아 준다.
 
 **`git stash` 로 이전 코드를 되살려 뽑지 마라.** 그 시점에는 `resolve/` 아래 추적되지 않는
 새 파일이 있고, `git stash` 는 `-u` 없이 untracked 를 담지 않는다.

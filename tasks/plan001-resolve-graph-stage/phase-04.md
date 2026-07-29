@@ -168,11 +168,17 @@ pnpm format:check
 ```bash
 # cwd: 저장소 루트
 export NEO4J_URI=bolt://localhost:7690
-export NEO4J_AUTH=neo4j/devloop-test-password
+export NEO4J_USER=neo4j
+export NEO4J_PASSWORD=devloop-test-password
 pnpm --filter pipeline reset-neo4j --force
 ```
 
-`NEO4J_URI` 를 지정하지 않으면 `.env` 기본값인 **운영 그래프(7687)** 로 간다.
+`NEO4J_AUTH` 대신 `NEO4J_USER`·`NEO4J_PASSWORD` 를 쓰는 이유는 Phase 02 와 같다 —
+`neo4jCredentials()` 가 그 둘을 먼저 보고 `NEO4J_AUTH` 를 무시한다.
+
+`NEO4J_URI` 를 지정하지 않으면 **운영 그래프(7687)** 로 간다.
+`.env` 때문이 아니라 코드 기본값(`sync.ts` 의 `process.env.NEO4J_URI ?? "bolt://localhost:7687"`)
+때문이다 — 파이프라인은 `.env` 를 읽지 않는다.
 실제로 이 실수로 운영 그래프가 오염된 사례가 있다 — fixture 검증 중 기존 업무 노드가
 같은 `number` 키로 병합됐다.
 
@@ -180,8 +186,21 @@ pnpm --filter pipeline reset-neo4j --force
 - **운영 그래프에 쓰지 마라** — 1번 항목의 읽기 전용 확인만 예외다
 - 7690 이 안 떠 있으면 직접 띄우지 말고 조정자에게 알려라
 
-위 1~5번 절차의 "현재 통계" 는 운영 그래프 값이 아니라 **7690 에 이전 코드로 적재한 값**이다.
-Phase 02 가 같은 방식으로 뽑아 둔 통계가 있으면 그것을 기준값으로 재사용하라.
+위 1~5번 절차의 "현재 통계" 는 운영 그래프 값이 아니라
+**Phase 02 가 plan 착수 전 코드로 7690 에 적재해 뽑아 둔 값**이다.
+
+`tasks/plan001-resolve-graph-stage/baseline-load-stats.{summary,nodes,rels}.txt` 세 파일을
+그대로 재사용한다. plan 전체의 동등성을 보려면 기준값이 착수 전 값이어야 한다 —
+Phase 03 종료 시점 값이 아니다.
+
+컨테이너가 재기동됐으면 적재 전에 순서를 지켜라.
+
+1. `pnpm apply-schema` 를 다시 돌린다 (tmpfs 라 제약·인덱스가 사라졌다)
+2. `MATCH (n) RETURN count(n)` 이 0 인지 확인한다 (MERGE 전용이라 잔여 데이터가 통계를 부풀린다)
+3. 적재한다
+
+기준값 파일이 없어졌으면 plan 착수 커밋(`e708f47` 이전 구현 커밋 없음)을 체크아웃해 다시 뽑는다.
+"기준값이 없으니 검증 불가" 로 가지 마라.
 
 ---
 
@@ -224,26 +243,24 @@ Phase 02 가 같은 방식으로 뽑아 둔 통계가 있으면 그것을 기준
 - 네 phase 가 모두 `completed` 이면 최상위 `status` 도 `completed` 로 바꾼다
 - 어느 phase 든 `PHASE_BLOCKED` 로 끝났으면 **`completed` 로 바꾸지 말고** 그 사유를 보고한다
 
-**예외 하나** — 테스트 Neo4j 부재로 인한 적재 동등성 `PHASE_BLOCKED` (Phase 02·04) 는
-착수 전에 확인된 환경 제약이고 사용자가 이 조건대로 진행하기로 승인했다.
-이것만으로는 `completed` 를 막지 않는다.
+**적재 동등성 미검증을 사유로 한 예외는 없다.** 7690 인스턴스가 있으므로 검증할 수 있다.
 
-**예외는 대체 검증을 전부 통과했을 때만 성립한다.** 대체 검증이 실패했거나 못 돌았으면
-그냥 미완료다. 인스턴스가 없다는 사실이 나머지 검증까지 면제해 주지 않는다.
+7690 이 죽어 검증을 못 하는 상황은 예외 사유가 아니라 **조정자가 컨테이너를 다시 띄워 풀 일**이다.
+기준값도 잃지 않는다 — `baseline-load-stats.*` 는 컨테이너 밖 파일이고,
+설령 지워져도 plan 착수 커밋을 체크아웃해 다시 적재하면 같은 값이 나온다. 잃는 것은 시간뿐이다.
 
-건너뛴 검증은 `index.json` 에 **두 곳**에 남긴다. phase 항목에만 두면
-최상위 `status` 만 읽는 사람에게 안 보인다 — 이 저장소는 부분 재측정을 전체로 단정한 사고를 겪었다.
+그래도 무언가를 건너뛴 채 끝내야 하면 `index.json` 에 **두 곳**에 남긴다.
+phase 항목에만 두면 최상위 `status` 만 읽는 사람에게 안 보인다 —
+이 저장소는 부분 재측정을 전체로 단정한 사고를 겪었다.
 
 ```json
 {
   "status": "completed",
-  "blocked_checks": ["Phase 02·04: 테스트 Neo4j 부재로 적재 동등성 미검증"],
+  "blocked_checks": ["Phase 04: <무엇을 왜 못 봤는지>"],
   "phases": [
-    { "number": 4, "status": "completed", "blocked_checks": ["테스트 Neo4j 부재로 적재 동등성 미검증"] }
+    { "number": 4, "status": "completed", "blocked_checks": ["<같은 내용>"] }
   ]
 }
 ```
 
 건너뛴 검증이 없으면 `blocked_checks` 필드 자체를 넣지 마라. 빈 배열도 두지 않는다.
-
-다른 사유의 `PHASE_BLOCKED` 는 예외가 아니다 — `completed` 로 바꾸지 마라.

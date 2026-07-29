@@ -97,8 +97,8 @@ dist/cli-options.test.js dist/fetch/*.test.js dist/neo4j/*.test.js test/*.test.c
 | 파일 | 변경 |
 | --- | --- |
 | `apps/pipeline/src/infer/llm-relationship-sanitizer.ts` | 수정 — 순수 함수 추출, 파일 함수는 그 위에 얹는다 |
-| `apps/pipeline/test/*.test.cjs` 또는 신규 테스트 파일 | 추가 |
-| `apps/pipeline/package.json` | 새 테스트 파일을 추가했다면 test glob 갱신 |
+| `apps/pipeline/src/infer/llm-relationship-sanitizer.test.ts` | 신규 |
+| `apps/pipeline/package.json` | 수정 — test glob 에 `dist/infer/*.test.js` 추가 (선택이 아니라 필수) |
 
 ---
 

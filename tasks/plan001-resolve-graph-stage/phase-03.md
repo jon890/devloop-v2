@@ -96,7 +96,7 @@ export async function writeResolveReport(outPath: string, result: ResolveResult)
 - `sync-neo4j` 경로의 기존 동작은 **바꾸지 마라.** 이번 plan 은 적재 동작 불변이 전제다
 - 4번의 표준출력 요약에 색인 크기(Task·Wiki 끝점 수)를 넣어 빈 색인이 눈에 띄게 한다
 
-**`readdir` 로 디렉터리를 훑지 마라.** 위 0번의 이유다. 파일명을 명시해 읽는다.
+**`readdir` 로 디렉터리를 훑지 마라.** 위 작업 순서 섹션의 이유다. 파일명을 명시해 읽는다.
 
 읽기 함수를 옮겨 온다 — `sync.ts` 의 `readJsonlRecords`(197행)와 `loadConceptDictionary`(98행)다.
 `readJsonlRecords` 는 옮기면서 **디렉터리 훑기를 명시 경로 읽기로 바꾼다.**
@@ -141,6 +141,7 @@ export async function writeResolveReport(outPath: string, result: ResolveResult)
 | --- | --- |
 | `apps/pipeline/src/resolve/cli.ts` | 신규 — CLI 진입점 |
 | `apps/pipeline/src/cli-options.ts` | `readFlag` 를 `sync.ts` 에서 이곳으로 올려 공용화한다 |
+| `apps/pipeline/package.json` | `"resolve-graph": "pnpm build && node dist/resolve/cli.js"` 추가 |
 
 `cli-options.ts` 에는 이미 비슷한 `optionValue` 가 있다. **동작이 다르니 합치기 전에 확인하라.**
 
@@ -154,7 +155,6 @@ export async function writeResolveReport(outPath: string, result: ResolveResult)
 - 하나로 합친다 (호출처의 기대 동작이 바뀌지 않는지 확인해야 한다)
 - 둘 다 남기되 이름으로 차이를 드러낸다 (예: `requiredOption`·`optionalOption`)
 - 둘 다 남기고 각 함수에 왜 둘인지 주석을 남긴다
-| `apps/pipeline/package.json` | `"resolve-graph": "pnpm build && node dist/resolve/cli.js"` 추가 |
 
 인자는 이렇다.
 
@@ -174,7 +174,7 @@ export async function writeResolveReport(outPath: string, result: ResolveResult)
 `sync-neo4j` 와 같은 형태의 JSON 요약을 낸다 — 노드·관계 수, 미매칭 Concept, 건너뛴 관계, 버린 관계.
 Neo4j 통계는 없다.
 
-**색인 크기를 함께 낸다** (Task 끝점 수·Wiki 끝점 수). 위 1번의 이유다 —
+**색인 크기를 함께 낸다** (Task 끝점 수·Wiki 끝점 수). 위 작업 항목 1번의 이유다 —
 색인이 비면 관계가 전부 사라지는데 다른 숫자만 봐서는 그 사실이 드러나지 않는다.
 
 ---
@@ -216,8 +216,8 @@ pnpm --filter pipeline resolve-graph --project tc-ocr --data-dir "$D" --out /tmp
 cmp /tmp/r1.jsonl /tmp/r2.jsonl && echo "바이트 동등"
 ```
 
-`--out` 을 `/tmp` 로 준다. 기본 경로(`graph/tc-ocr/resolved.jsonl`)에 쓰면 위 0번의 함정 대상이 된다.
-기본 경로 출력은 0번의 명시 경로 읽기를 끝낸 뒤 **한 번만** 확인한다.
+`--out` 을 `/tmp` 로 준다. 기본 경로(`graph/tc-ocr/resolved.jsonl`)에 쓰면 위 작업 순서 섹션이 경고한 함정 대상이 된다.
+기본 경로 출력은 작업 순서 섹션이 요구한 명시 경로 읽기를 끝낸 뒤 **한 번만** 확인한다.
 
 ```bash
 # cwd: 저장소 루트
@@ -241,7 +241,7 @@ ls apps/pipeline/data/graph/tc-ocr/
 - `parsed.jsonl` 없음 → 실패
 - `inferred.jsonl` 없음 → 경고 후 진행, 구조 노드만 담긴 결과
 - `data/raw/<project>/` 없음 → 실패 (색인이 비면 관계가 전부 사라지므로)
-- `resolved.jsonl` 이 같은 디렉터리에 있어도 입력으로 딸려 들어오지 않는다 (위 0번의 회귀 테스트)
+- `resolved.jsonl` 이 같은 디렉터리에 있어도 입력으로 딸려 들어오지 않는다 (위 작업 순서 섹션의 회귀 테스트)
 
 ---
 
