@@ -29,7 +29,7 @@ flowchart TD
     RG --> RJ["graph/&lt;project&gt;/resolved.jsonl<br/>resolve-report.json"]
 
     SYNC -->|MERGE| NEO[("Neo4j")]
-    RESET["reset-neo4j --force"] -.->|DETACH DELETE| NEO
+    RESET["reset-neo4j --force<br/>(NEO4J_URI 필수)"] -.->|DETACH DELETE| NEO
 ```
 
 `resolve-graph` 는 체인 위가 아니라 **옆에** 붙는다.
@@ -52,7 +52,7 @@ flowchart TD
 | --- | --- |
 | `resolve-graph` | 정규화 결과를 파일로 내놓는다 (읽기 전용, 조사용) |
 | `apply-schema` | Neo4j 제약·인덱스 적용 |
-| `reset-neo4j` | 그래프 전체 삭제. `--force` 필수 |
+| `reset-neo4j` | 그래프 전체 삭제. `NEO4J_URI`·`--force` 필수, 운영 포트(`7687`)는 `--allow-production` 도 필요 |
 | `audit-concepts` | Concept 정규화 감사 (읽기 전용) |
 
 ### 두 호출 경로가 같은 순수 함수를 공유한다
@@ -131,7 +131,7 @@ LLM 추출은 비결정적이라 일부 실패가 정상 범위다.
 | 상황 | 방법 |
 | --- | --- |
 | 파일 산출물을 다시 만들고 싶다 | 해당 단계만 다시 돌린다. 앞 단계 산출물은 그대로 쓴다 |
-| 그래프 노드를 줄이고 싶다 | `reset-neo4j --force` → `apply-schema` → `sync-neo4j`. **초기화 없이는 줄지 않는다** |
+| 그래프 노드를 줄이고 싶다 | `NEO4J_URI=... reset-neo4j --force` → `apply-schema` → `sync-neo4j`. **초기화 없이는 줄지 않는다** |
 | 추출 결과를 갱신하고 싶다 | 프롬프트를 고치면 `promptVersion` 을 올려야 캐시가 무효화된다 |
 
 ## 상태가 아닌 것

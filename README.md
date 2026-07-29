@@ -51,12 +51,13 @@ API e2e는 `pnpm --filter api test:e2e`로 실행하며, 테스트 전용 Neo4j 
 정규화를 고쳐 노드가 합쳐지게 만들었어도, 그래프를 비우고 다시 적재해야 병합 효과가 보인다.
 
 ```bash
-pnpm --filter pipeline reset-neo4j --force
+NEO4J_URI=bolt://localhost:7690 pnpm --filter pipeline reset-neo4j --force
 pnpm apply-schema
 pnpm --filter pipeline sync-neo4j
 ```
 
-`reset-neo4j`는 `--force` 없이 실행을 거부하고, 대상 포트가 운영(`7687`)이면 즉시 중단한다.
+`reset-neo4j`는 `NEO4J_URI`가 없으면 실행하지 않는다 — 삭제 대상을 항상 명시하게 만든다.
+`--force` 없이도 실행을 거부하고, 대상 포트가 운영(`7687`)이면 `--allow-production`을 함께 줘야 한다.
 산출물 `jsonl`이 `data/graph/`에 남아 있으므로 초기화 후 재적재로 항상 복원된다.
 
 ## 모델 구성

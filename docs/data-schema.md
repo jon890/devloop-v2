@@ -178,15 +178,26 @@ Concept 이름 파편화가 관계형 질문의 연결을 끊는 **1번 위험**
 줄이려면 초기화가 필요하다.
 
 ```
-reset-neo4j --force  →  apply-schema  →  sync-neo4j
+NEO4J_URI=bolt://<host>:<port> reset-neo4j --force  →  apply-schema  →  sync-neo4j
 ```
 
 `reset-neo4j` 는 `DETACH DELETE` 절차에 이름을 준 명령이다.
 
+- `NEO4J_URI` 가 없으면 실행하지 않는다 — 삭제 대상을 항상 명시적으로 지정하게 만든다.
+  이 명령만 다른 이유는 아래 참조
 - `--force` 없이는 실행하지 않는다
+- 대상 포트가 운영(`7687`)이면 `--allow-production` 도 함께 줘야 한다
 - 대상 URI 와 현재 노드 수를 먼저 출력한다
 - **삭제 범위는 전체다.** 프로젝트 단위 삭제는 만들지 않는다 —
   `Task.number` 가 프로젝트를 구분하지 않아 부분 삭제가 안전하지 않다 (위 "key 설계의 함정" 참조)
+
+**`reset-neo4j` 만 `NEO4J_URI` 를 필수로 요구하는 이유** — 위 "key 설계의 함정"이 기록한 대로,
+`Task.number` 가 프로젝트를 구분하지 않아 잘못된 그래프에 delete 를 실행하면 되돌릴 수 없다.
+`apply-schema`·`sync-neo4j` 는 잘못 실행돼도 MERGE 이거나 제약 추가라 최악의 경우도 원복 가능하지만,
+`reset-neo4j` 는 `DETACH DELETE` 라 대상을 잘못 짚으면 그래프가 통째로 사라진다. 그래서 이 명령만
+기본값(`bolt://localhost:7687`)을 두지 않고 대상을 항상 명시하게 만든다 — CLAUDE.md 가 기록한
+"환경변수 부재가 조용히 다른 모델로 돌게 만들었다" 사고와 같은 종류의 우연한 기본값 의존을
+파괴적 명령에서는 허용하지 않는다.
 
 `DETACH DELETE` 는 제약·인덱스를 지우지 않는다. 다만 재적재 절차에 `apply-schema` 를 넣어 둔다.
 
