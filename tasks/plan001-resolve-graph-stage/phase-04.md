@@ -162,18 +162,26 @@ pnpm format:check
 
 **대상 인스턴스를 반드시 명시하라.**
 
+**대상은 `bolt://localhost:7690` 이다.** 조정자가 일회용 컨테이너를 띄워 뒀다
+(`devloop-plan001-neo4j`, tmpfs, 인증 `neo4j/devloop-test-password`).
+
 ```bash
 # cwd: 저장소 루트
-NEO4J_URI=bolt://localhost:7688 pnpm --filter pipeline reset-neo4j --force
+export NEO4J_URI=bolt://localhost:7690
+export NEO4J_AUTH=neo4j/devloop-test-password
+pnpm --filter pipeline reset-neo4j --force
 ```
 
 `NEO4J_URI` 를 지정하지 않으면 `.env` 기본값인 **운영 그래프(7687)** 로 간다.
 실제로 이 실수로 운영 그래프가 오염된 사례가 있다 — fixture 검증 중 기존 업무 노드가
 같은 `number` 키로 병합됐다.
 
-**이 환경에는 테스트 인스턴스가 없다.** 7688 은 다른 프로젝트 컨테이너가 점유 중이다.
-따라서 이 검증은 실행하지 말고 `PHASE_BLOCKED: 테스트 Neo4j 부재로 적재 동등성 검증 불가` 로 남긴다.
-**운영 그래프에서 검증하지 마라** — 1번 항목의 읽기 전용 확인만 예외다.
+- 7688 은 다른 프로젝트가 점유 중이고 7687 은 운영이다. **둘 다 쓰지 마라**
+- **운영 그래프에 쓰지 마라** — 1번 항목의 읽기 전용 확인만 예외다
+- 7690 이 안 떠 있으면 직접 띄우지 말고 조정자에게 알려라
+
+위 1~5번 절차의 "현재 통계" 는 운영 그래프 값이 아니라 **7690 에 이전 코드로 적재한 값**이다.
+Phase 02 가 같은 방식으로 뽑아 둔 통계가 있으면 그것을 기준값으로 재사용하라.
 
 ---
 
@@ -195,9 +203,10 @@ NEO4J_URI=bolt://localhost:7688 pnpm --filter pipeline reset-neo4j --force
 
 ## Blocked 조건
 
-- 테스트용 Neo4j 인스턴스가 없어 적재 동등성을 확인할 수 없으면
+- 테스트용 Neo4j 인스턴스(7690)가 없어 적재 동등성을 확인할 수 없으면
   `PHASE_BLOCKED: 테스트 Neo4j 부재로 적재 동등성 검증 불가` 를 출력하고,
-  **가드 테스트와 단위 테스트까지는 완료한 상태로** 종료한다
+  **가드 테스트와 단위 테스트까지는 완료한 상태로** 종료한다.
+  7688·7687 로 대체하지 마라
 - 1번의 실측이 문서와 다르면(문자열 `Task.number` 나 `unknown` dimension 존재)
   `PHASE_BLOCKED: 마이그레이션이 아직 필요한 데이터 발견` 을 출력하고 삭제하지 않는다
 - 1번의 읽기 전용 확인 자체를 할 수 없으면(7687 접속 불가 등)

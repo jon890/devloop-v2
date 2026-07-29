@@ -197,14 +197,35 @@ NEO4J_URI=bolt://localhost:7688 pnpm --filter pipeline sync-neo4j --project <프
   실제로 이 실수로 운영 그래프가 오염된 사례가 있다
 - 테스트 인스턴스가 없으면 이 검증은 `PHASE_BLOCKED` 로 남기고 통계 비교를 조정자에게 넘겨라
 
-**이 환경에는 테스트 인스턴스가 없다.** 7688 은 다른 프로젝트 컨테이너가 점유 중이고 7687 은 운영이다.
-따라서 이 검증은 실행하지 말고 `PHASE_BLOCKED` 로 남긴다. **7687 에 적재하지 마라.**
+**대상은 `bolt://localhost:7690` 이다.** 조정자가 일회용 컨테이너를 띄워 뒀다
+(`devloop-plan001-neo4j`, `neo4j:5-community`, tmpfs, 인증 `neo4j/devloop-test-password`).
 
-대신 아래 두 가지로 대체한다. 둘 다 Neo4j 없이 된다.
+- 7688 은 다른 프로젝트가 점유 중이고 7687 은 운영이다. **둘 다 쓰지 마라**
+- 7690 이 안 떠 있으면 직접 띄우지 말고 조정자에게 알려라
 
-- `resolveGraph` 를 실데이터(`tc-ocr`)로 1회 호출해 노드 수·관계 수·미매칭 Concept 수를
-  변경 전 `prepareLoadGraph` 결과와 비교한다. 변경 전 값은 `git stash` 로 이전 코드에서 한 번 뽑는다
-- `droppedRelationships.count` 도 함께 비교한다 — 위 3번 항목(누적 리포트)이 지켜졌는지 드러난다
+```bash
+# cwd: 저장소 루트
+export NEO4J_URI=bolt://localhost:7690
+export NEO4J_AUTH=neo4j/devloop-test-password
+D=$(pwd)/apps/pipeline/data
+```
+
+절차는 이렇다. 빈 그래프에 **옛 코드와 새 코드로 각각 적재해 통계를 비교**한다.
+운영 그래프의 현재 상태는 필요 없다 — 같은 입력에 같은 결과가 나오는지가 검증 대상이다.
+
+1. `git stash` 로 변경을 치워 이전 코드 상태로 만든다
+2. `pnpm apply-schema` 후 `pnpm --filter pipeline sync-neo4j --project tc-ocr --data-dir "$D"` — stdout 요약을 저장한다
+3. `MATCH (n) DETACH DELETE n` 으로 비운다
+4. `git stash pop` 으로 변경을 되살리고 2번을 다시 실행한다
+5. 두 stdout 요약을 `diff` 한다
+
+`--data-dir` 은 반드시 절대 경로다. 상대 경로는 pipeline 패키지 기준으로 풀려 파일을 못 찾는다.
+
+비교 대상에 `droppedRelationships.count` 를 반드시 포함하라 — 위 4번 항목(누적 리포트)이
+지켜졌는지가 이 숫자에 드러난다.
+
+2번의 `git stash` 가 위험하면 대신 `git worktree` 로 이전 커밋 사본을 만들어 돌려도 된다.
+어느 쪽을 썼는지 보고에 적어라.
 
 ---
 
@@ -225,6 +246,7 @@ NEO4J_URI=bolt://localhost:7688 pnpm --filter pipeline sync-neo4j --project <프
 
 ## Blocked 조건
 
-- 테스트용 Neo4j 인스턴스가 없어 적재 동등성을 확인할 수 없으면
+- 테스트용 Neo4j 인스턴스(7690)가 없어 적재 동등성을 확인할 수 없으면
   `PHASE_BLOCKED: 테스트 Neo4j 부재로 적재 동등성 검증 불가` 를 출력하고,
-  **함수 본문 동등성과 단위 테스트까지는 완료한 상태로** 종료한다
+  **함수 본문 동등성과 단위 테스트까지는 완료한 상태로** 종료한다.
+  7688·7687 로 대체하지 마라
