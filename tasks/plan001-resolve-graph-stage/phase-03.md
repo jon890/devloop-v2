@@ -25,7 +25,27 @@ cmp /tmp/before.jsonl /tmp/after.jsonl
 
 ---
 
-## 작업 항목 (4)
+## 작업 항목 (5)
+
+### 0. 작업 순서를 지켜라 — 뒤집으면 워크트리가 깨진 채 남는다
+
+`sync.ts` 의 `readJsonlRecords` 는 `graph/<project>/` 의 **`*.jsonl` 을 전부 읽고**,
+`conceptSource` 는 `parsed.jsonl`·`inferred.jsonl` 이외의 파일명을 만나면 예외를 던진다.
+
+즉 `resolved.jsonl` 을 기본 경로에 쓰는 순간 그다음 `sync-neo4j` 가 죽는다.
+CLAUDE.md 에 적힌 e2e fixture 사고와 **같은 실패 방식**이다.
+
+그래서 순서를 못박는다.
+
+1. 먼저 `io.ts` 의 `readResolveInput` 을 **파일명을 명시해 읽는 방식**으로 만들고
+   `sync.ts` 가 그것을 쓰게 바꾼다 (`readJsonlRecords` 의 디렉터리 훑기를 대체한다)
+2. 그 뒤에야 `resolve-graph` 가 `resolved.jsonl` 을 쓰게 한다
+
+1번을 건너뛰고 2번을 먼저 하면 그 시점부터 적재가 깨진다.
+
+**회귀 테스트를 반드시 남겨라.** `graph/<project>/` 에 `resolved.jsonl` 이 있는 상태에서도
+입력 읽기가 `parsed.jsonl`·`inferred.jsonl` 만 집어 오는지 단언한다.
+이게 없으면 같은 사고가 조용히 재발한다.
 
 ### 1. `apps/pipeline/src/resolve/io.ts` — 읽기·쓰기 계층
 
@@ -35,15 +55,23 @@ export async function writeResolved(outPath: string, result: ResolveResult): Pro
 export async function writeResolveReport(outPath: string, result: ResolveResult): Promise<void>;
 ```
 
-`readResolveInput` 은 세 입력을 읽는다.
+`readResolveInput` 은 다섯 입력을 읽는다. `ResolveInput` 의 필드와 일대일로 대응한다.
 
 | 입력 | 경로 | 없을 때 |
 | --- | --- | --- |
 | `parsed.jsonl` | `<dataDir>/graph/<project>/` | **즉시 실패.** 필수 입력이다 |
 | `inferred.jsonl` | 같은 위치 | **경고하고 빈 배열로 진행.** 구조만으로도 그래프가 성립한다 |
 | Concept 사전 | `<dataDir>/concepts/<project>.json` | 코어 사전만으로 진행 (기존 동작) |
+| raw 문서 (`endpointIndex` 재료) | `<dataDir>/raw/<project>/` | `buildEndpointIndex` 의 기존 동작을 따른다 |
+| `inference-dropped-relationships.json` | `<dataDir>/graph/<project>/` | 빈 배열 (`readDroppedRelationships` 의 기존 동작) |
+
+뒤 두 입력은 Phase 02 에서 `sync.ts` 가 직접 챙기던 것이다. 이제 `readResolveInput` 한 곳으로 모은다.
+
+**`readdir` 로 디렉터리를 훑지 마라.** 위 0번의 이유다. 파일명을 명시해 읽는다.
 
 읽기 함수를 옮겨 온다 — `sync.ts` 의 `readJsonlRecords`(197행)와 `loadConceptDictionary`(98행)다.
+`readJsonlRecords` 는 옮기면서 **디렉터리 훑기를 명시 경로 읽기로 바꾼다.**
+`SourcedRecord.sourceFile` 값은 그대로 유지해야 한다 — `conceptSource` 가 그 값으로 출처를 가른다.
 **이 이동이 사전 로딩 중복을 없앤다.** 현재 `infer` 와 `sync` 가 각자 구현하고 있다.
 `infer` 쪽(`llm-extractor.ts:108` `readProjectConcepts`)도 이 함수를 쓰게 바꿀 수 있는지 확인하고
 결과를 보고하라. 시그니처가 어긋나 위험하면 바꾸지 말고 근거를 적어라.
@@ -69,11 +97,22 @@ export async function writeResolveReport(outPath: string, result: ResolveResult)
 
 ### 3. `resolve-graph` 단계 등록
 
+**독립 진입점으로 만든다. `main.ts` 스테이지 분기에는 넣지 마라.**
+
+계획 초안은 `main.ts` 분기와 독립 스크립트를 둘 다 요구했는데 두 가지 이유로 독립 스크립트만 남긴다.
+
+- 선례가 그렇다 — `sync-neo4j`·`apply-schema`·`audit-concepts` 는 전부 독립 진입점이고
+  `main.ts` 의 `KNOWN_STAGES` 에 없다. `resolve-graph` 만 다르게 둘 이유가 없다
+- `main.ts` 경로는 `NestFactory.createApplicationContext(AppModule)` 을 띄운다.
+  파일만 읽고 정규화하는 명령에 Nest 부팅을 붙이게 된다
+
+`KNOWN_STAGES` 는 `cli-options.ts` 가 아니라 `main.ts:26` 에 있다. **이 phase 에서 건드리지 않는다.**
+
 | 파일 | 변경 |
 | --- | --- |
-| `apps/pipeline/src/main.ts` | 스테이지 분기에 `resolve-graph` 추가 |
-| `apps/pipeline/src/cli-options.ts` | `KNOWN_STAGES` 에 추가. `readFlag` 를 `sync.ts` 에서 이곳으로 올려 공용화한다 |
-| `apps/pipeline/package.json` | `"resolve-graph": "pnpm build && node dist/resolve/resolve.js"` 형태로 추가 |
+| `apps/pipeline/src/resolve/cli.ts` | 신규 — CLI 진입점 |
+| `apps/pipeline/src/cli-options.ts` | `readFlag` 를 `sync.ts` 에서 이곳으로 올려 공용화한다 |
+| `apps/pipeline/package.json` | `"resolve-graph": "pnpm build && node dist/resolve/cli.js"` 추가 |
 
 인자는 이렇다.
 
@@ -100,11 +139,10 @@ Neo4j 통계는 없다.
 | 파일 | 변경 |
 | --- | --- |
 | `apps/pipeline/src/resolve/io.ts` | 신규 |
-| `apps/pipeline/src/resolve/resolve.ts` | 수정 — CLI 진입점 추가 |
-| `apps/pipeline/src/main.ts` | 수정 — 스테이지 분기 |
-| `apps/pipeline/src/cli-options.ts` | 수정 — 스테이지 목록, `readFlag` 공용화 |
+| `apps/pipeline/src/resolve/cli.ts` | 신규 — CLI 진입점. `resolve.ts` 는 순수하게 남긴다 |
+| `apps/pipeline/src/cli-options.ts` | 수정 — `readFlag` 공용화 |
 | `apps/pipeline/src/neo4j/sync.ts` | 수정 — 읽기를 `io.ts` 로 넘기고 자체 `readFlag` 제거 |
-| `apps/pipeline/package.json` | 수정 — 스크립트 추가 |
+| `apps/pipeline/package.json` | 수정 — 스크립트 추가, test glob 에 `dist/resolve/*.test.js` 확인 |
 | `packages/shared/src/graph/graph.const.ts` | 수정 — `RESOLVED_GRAPH_FILE` 상수 추가 |
 | 테스트 | 추가 — 아래 검증 참조 |
 
@@ -121,14 +159,26 @@ pnpm format:check
 ```
 
 `pnpm --filter api test` 는 쓰지 마라 — exit 0 으로 조용히 통과한다. 테스트 **개수**를 확인하라.
+`format:check` 가 걸려도 포맷터를 파일 전체에 돌리지 마라. 손댄 줄만 고친다.
 
 ### 재현성 (이 phase 의 핵심 통과 조건)
 
 ```bash
 # cwd: 저장소 루트
-pnpm --filter pipeline resolve-graph --project <코드> --data-dir <절대경로> --out /tmp/r1.jsonl
-pnpm --filter pipeline resolve-graph --project <코드> --data-dir <절대경로> --out /tmp/r2.jsonl
+D=$(pwd)/apps/pipeline/data
+pnpm --filter pipeline resolve-graph --project tc-ocr --data-dir "$D" --out /tmp/r1.jsonl
+pnpm --filter pipeline resolve-graph --project tc-ocr --data-dir "$D" --out /tmp/r2.jsonl
 cmp /tmp/r1.jsonl /tmp/r2.jsonl && echo "바이트 동등"
+```
+
+`--out` 을 `/tmp` 로 준다. 기본 경로(`graph/tc-ocr/resolved.jsonl`)에 쓰면 위 0번의 함정 대상이 된다.
+기본 경로 출력은 0번의 명시 경로 읽기를 끝낸 뒤 **한 번만** 확인한다.
+
+```bash
+# cwd: 저장소 루트
+pnpm --filter pipeline resolve-graph --project tc-ocr --data-dir "$D"
+ls apps/pipeline/data/graph/tc-ocr/
+# resolved.jsonl 이 생긴 상태에서 입력 읽기가 여전히 parsed·inferred 만 잡는지 확인
 ```
 
 **차이가 나오면 이 단계의 존재 이유가 없다.** 정렬이 결정적이지 않은 지점을 찾아 고쳐라.
@@ -145,6 +195,7 @@ cmp /tmp/r1.jsonl /tmp/r2.jsonl && echo "바이트 동등"
 
 - `parsed.jsonl` 없음 → 실패
 - `inferred.jsonl` 없음 → 경고 후 진행, 구조 노드만 담긴 결과
+- `resolved.jsonl` 이 같은 디렉터리에 있어도 입력으로 딸려 들어오지 않는다 (위 0번의 회귀 테스트)
 
 ---
 
@@ -169,3 +220,5 @@ cmp /tmp/r1.jsonl /tmp/r2.jsonl && echo "바이트 동등"
 - 로컬 그래프 산출물이 없어 재현성을 확인할 수 없으면
   `PHASE_BLOCKED: 로컬 그래프 산출물 부재로 재현성 검증 불가` 를 출력하고 종료한다.
   `apps/pipeline/data/` 는 gitignore 대상이라 워크트리에 복제되지 않는다
+
+  **이 작업 디렉터리에는 데이터가 이미 있다** (`tc-ocr`). 이 조건은 걸리지 않는다.

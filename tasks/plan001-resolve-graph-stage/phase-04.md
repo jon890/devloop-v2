@@ -10,7 +10,11 @@
 `sync-neo4j` 에 남은 비적재 관심사를 걷어내 **Neo4j 쓰기 전용**으로 만든다.
 그리고 지금까지 손으로 하던 초기화 절차에 이름을 준다.
 
-`sync.ts` 는 시작 시점 875줄이었고 이 phase 이후 약 200줄이 목표다.
+`sync.ts` 는 시작 시점 875줄이었고 이 phase 이후 **330~360줄**이 목표다.
+
+계획 초안은 200줄이라고 적었는데 도달 불가다. 쓰기 경로(`sync.ts` 595~875)만 281줄이고
+여기에 import·타입·`loadGraph`·`writeGraphToNeo4j` 가 더해진다.
+줄 수를 맞추려 쓰기 로직을 억지로 쪼개지 마라 — 목표는 관심사 분리이지 줄 수가 아니다.
 
 **범위 외**
 
@@ -34,12 +38,21 @@
 둘 다 옛 코드로 적재된 그래프를 고치려던 것이고 현재 적재기는 그 상태를 만들지 않는다.
 **함수와 호출을 모두 삭제한다.**
 
-삭제 전에 위 실측을 **직접 재확인하라.** 대상 인스턴스에서 확인하고 출력을 보고에 남긴다.
+삭제 전에 위 실측을 **직접 재확인하라.** 출력을 보고에 남긴다.
 
 ```cypher
 MATCH (t:Task) RETURN valueType(t.number) AS type, count(*) AS c
 MATCH ()-[r:TAGGED]->() RETURN r.dimension AS dim, count(*) AS c
 ```
+
+**확인 대상은 운영 그래프(`bolt://localhost:7687`)다. 사용자가 이 건에 한해 승인했다.**
+테스트 인스턴스가 없어 다른 곳에서는 확인할 수 없고, 빈 그래프에서 세어도 의미가 없기 때문이다.
+
+지켜야 할 조건이다.
+
+- **읽기 전용 Cypher 두 개만 실행한다.** 위 두 문장 외에는 아무것도 보내지 마라
+- `CREATE`·`MERGE`·`SET`·`DELETE`·`DETACH`·`apply-schema`·`sync-neo4j` 는 **어떤 형태로도 금지**한다
+- 실행한 쿼리문과 원본 출력을 보고에 그대로 남긴다
 
 실측이 다르면(문자열 `number` 나 `unknown` dimension 이 있으면) **삭제하지 말고 보고하라.**
 
@@ -61,7 +74,12 @@ pnpm --filter pipeline reset-neo4j --force [--project <code>]
 `Task.number` 가 key 라서 프로젝트가 달라도 같은 번호는 같은 노드다. 부분 삭제가 안전하지 않다.
 `--project` 인자는 출력 표기용으로만 받는다.
 
-포트 가드는 기존 구현을 참고하라 — `apps/api/test/run-e2e.js` 에 같은 형태의 가드가 있다.
+포트 가드는 기존 구현을 참고하라 — `apps/api/test/helpers/e2e-env.js` 의
+`assertTestDatabaseUri` 와 `PRODUCTION_BOLT_PORT` 다 (`run-e2e.js` 에는 가드가 없다).
+
+그 구현의 핵심은 `new URL(uri).port || PRODUCTION_BOLT_PORT` 다.
+**포트를 생략한 URI(`bolt://localhost`)도 7687 로 간주해 거부한다.**
+포트 문자열만 비교하면 이 경우가 빠져나간다.
 
 ### 3. `sync.ts` 를 쓰기 전용으로 정리한다
 
@@ -82,8 +100,11 @@ pnpm --filter pipeline reset-neo4j --force [--project <code>]
 | 파일 | 변경 |
 | --- | --- |
 | `apps/pipeline/package.json` | `reset-neo4j` 스크립트 추가 |
-| `apps/pipeline/src/cli-options.ts` | 스테이지 목록에 추가 |
 | `README.md` | 초기화 절차를 `reset-neo4j --force` 로 갱신 |
+
+`reset-neo4j` 도 `sync-neo4j`·`resolve-graph` 와 같이 **독립 진입점**이다
+(`node dist/neo4j/reset.js`). `main.ts` 의 `KNOWN_STAGES` 는 건드리지 않는다 —
+그 상수는 `cli-options.ts` 가 아니라 `main.ts:26` 에 있고, 독립 진입점은 거기 등록되지 않는다.
 
 `docs/` 는 이미 갱신돼 있다 (`docs/adr/0004-resolve-as-inspection-stage.md`,
 `docs/flow.md`, `docs/data-schema.md`). **다시 쓰지 마라.**
@@ -115,6 +136,7 @@ pnpm format:check
 ```
 
 `pnpm --filter api test` 는 쓰지 마라 — exit 0 으로 조용히 통과한다. 테스트 **개수**를 확인하라.
+`format:check` 가 걸려도 포맷터를 파일 전체에 돌리지 마라. 손댄 줄만 고친다.
 
 ### 가드 테스트와 변이 검증 (필수)
 
@@ -149,8 +171,9 @@ NEO4J_URI=bolt://localhost:7688 pnpm --filter pipeline reset-neo4j --force
 실제로 이 실수로 운영 그래프가 오염된 사례가 있다 — fixture 검증 중 기존 업무 노드가
 같은 `number` 키로 병합됐다.
 
-테스트 인스턴스가 없으면 `PHASE_BLOCKED` 로 남기고 조정자에게 넘겨라.
-**운영 그래프에서 검증하지 마라.**
+**이 환경에는 테스트 인스턴스가 없다.** 7688 은 다른 프로젝트 컨테이너가 점유 중이다.
+따라서 이 검증은 실행하지 말고 `PHASE_BLOCKED: 테스트 Neo4j 부재로 적재 동등성 검증 불가` 로 남긴다.
+**운영 그래프에서 검증하지 마라** — 1번 항목의 읽기 전용 확인만 예외다.
 
 ---
 
@@ -177,6 +200,10 @@ NEO4J_URI=bolt://localhost:7688 pnpm --filter pipeline reset-neo4j --force
   **가드 테스트와 단위 테스트까지는 완료한 상태로** 종료한다
 - 1번의 실측이 문서와 다르면(문자열 `Task.number` 나 `unknown` dimension 존재)
   `PHASE_BLOCKED: 마이그레이션이 아직 필요한 데이터 발견` 을 출력하고 삭제하지 않는다
+- 1번의 읽기 전용 확인 자체를 할 수 없으면(7687 접속 불가 등)
+  `PHASE_BLOCKED: 마이그레이션 실측 확인 불가` 를 출력하고 **삭제하지 않는다.**
+  확인 없이 지우지도, 다른 인스턴스로 대체하지도 마라 — 빈 그래프에서 센 값은 근거가 아니다.
+  이때 나머지 작업(2·3·4번)은 그대로 완료한다
 
 ---
 
@@ -187,3 +214,14 @@ NEO4J_URI=bolt://localhost:7688 pnpm --filter pipeline reset-neo4j --force
 - `tasks/plan001-resolve-graph-stage/index.json` 에서 이 phase 의 `status` 를 `completed` 로 바꾼다
 - 네 phase 가 모두 `completed` 이면 최상위 `status` 도 `completed` 로 바꾼다
 - 어느 phase 든 `PHASE_BLOCKED` 로 끝났으면 **`completed` 로 바꾸지 말고** 그 사유를 보고한다
+
+**예외 하나** — 테스트 Neo4j 부재로 인한 적재 동등성 `PHASE_BLOCKED` (Phase 02·04) 는
+착수 전에 확인된 환경 제약이고 사용자가 이 조건대로 진행하기로 승인했다.
+이것만으로는 `completed` 를 막지 않는다. 대신 `index.json` 의 해당 phase 항목에
+`blocked_checks` 필드로 건너뛴 검증을 남긴다.
+
+```json
+{ "number": 4, "status": "completed", "blocked_checks": ["테스트 Neo4j 부재로 적재 동등성 미검증"] }
+```
+
+다른 사유의 `PHASE_BLOCKED` 는 예외가 아니다 — `completed` 로 바꾸지 마라.

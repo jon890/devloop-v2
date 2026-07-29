@@ -34,7 +34,25 @@
 | `normalizeText`·`normalizeConceptKey`·`conceptLookupKeys`·`buildConceptAliasMap`·`conceptDictionaryConflict`·`conceptEntry`·`conceptSource` | `sync.ts` 111~196 | `resolve/concept-alias.ts` |
 | `addEndpointAlias`·`resolveEndpoint`·`addDictionaryEndpointAliases` | `sync.ts` 314~330, 570~594 | `resolve/endpoint.ts` |
 | `buildUnmatchedConceptRepresentatives`·`addUnmatchedConceptCandidate`·`selectUnmatchedRepresentatives`·`conceptReferenceCounts`·`compareCodePoints`·`normalizeNode`·`normalizeNonConceptNode`·`normalizeUnmatchedConceptNode`·`normalizedKey`·`databaseKey`·`mergeNode` | `sync.ts` 384~569 | `resolve/node-merge.ts` |
-| `normalizeGraph`·`validateNormalizationSources`·`normalizeNodes`·`normalizeRelationships`·`normalizeRelationship`·`recordSkippedRelationship` | `sync.ts` 255~383 | `resolve/resolve.ts` |
+| `normalizeGraph`·`validateNormalizationSources`·`normalizeNodes`·`normalizeRelationships`·`normalizeRelationship`·`recordSkippedRelationship`·`parseGraphRecords` | `sync.ts` 255~383, 223~254 | `resolve/resolve.ts` |
+
+`addDictionaryEndpointAliases` 는 314~330 이라 `resolve.ts` 행의 줄 범위와 겹쳐 보이지만
+`endpoint.ts` 로 간다. **함수명이 기준이고 줄 범위는 참고값이다.**
+
+`parseGraphRecords` 를 함께 옮긴다. zod 로 노드와 관계를 가르는 순수 파싱이라 정규화 입력 만들기의 일부다.
+남겨 두면 Phase 04 에서 쓰기 전용 `sync.ts` 에 홀로 남는다.
+
+**타입도 함께 옮긴다.** 함수만 옮기면 컴파일이 깨진다.
+
+| 타입 | 현재 줄 | 이동처 |
+| --- | --- | --- |
+| `NormalizedGraph` | 41 | `resolve.schema.ts` — `ResolveResult` 로 흡수 |
+| `SkippedRelationshipSample`·`SkippedRelationshipsReport` | 30, 36 | `resolve.schema.ts` |
+| `SourcedRecord` | 53 | `resolve.schema.ts` |
+| `NodeRef` | 58 | `resolve/node-merge.ts` — `endpoint.ts` 도 쓰므로 여기서 내보낸다 |
+| `ConceptSource` | 81 | `resolve/concept-alias.ts` |
+| `DatabaseKey` | 80 | `neo4j/sync.ts` 잔류 — `databaseKey` 와 함께 |
+| `PreparedLoadGraph` | 48 | **삭제.** `ResolveResult` 가 대체하므로 존재 이유가 없다 |
 
 **주의** — `databaseKey` 는 `neo4j.int()` 를 쓴다. Neo4j 드라이버 의존이 남으면
 `resolve/` 가 "Neo4j 를 모른다" 는 원칙이 깨진다. 두 갈래 중 하나를 골라 근거를 보고하라.
@@ -74,27 +92,44 @@ export interface ResolveInput {
   parsed: SourcedRecord[];
   inferred: SourcedRecord[];
   dictionary: ConceptDictionary;
+  endpointIndex: EndpointIndex;
+  previousDropped: readonly DroppedRelationship[];
 }
 
 export function resolveGraph(input: ResolveInput): ResolveResult;
 ```
 
+뒤 두 필드가 왜 필요한지가 이 phase 의 핵심이다.
+
+- **`endpointIndex`** — `sanitizeLlmRecords` 가 판정에 쓴다. 이 색인은 `data/raw/` 를 읽어야 만들어지므로
+  `resolveGraph` 안에서 만들 수 없다. 만들면 순수 함수가 아니게 된다. 호출자가 만들어 넘긴다
+- **`previousDropped`** — 현재 `sync-neo4j` 의 stdout `droppedRelationships` 는
+  `inference-dropped-relationships.json` 의 누적분과 이번 실행분을 `mergeDroppedRelationships` 로 합친 값이다.
+  이 인자가 없으면 이번 실행분만 남아 **적재 출력이 달라진다.** 동작 불변 리팩토링이 깨진다
+
 내부 순서는 이렇다.
 
-1. `sanitizeLlmRecords` 로 `inferred` 를 정리한다 (Phase 01 의 순수 함수)
+1. `sanitizeLlmRecords(inferred, previousDropped, endpointIndex)` 로 `inferred` 를 정리한다 (Phase 01 의 순수 함수)
 2. 사전으로 별칭 맵을 만든다
 3. `parsed` 와 정리된 `inferred` 를 합쳐 기존 `normalizeGraph` 로직을 흘린다
 
-`SourcedRecord` 는 `sync.ts` 에 있는 타입이다. `resolve/` 로 옮기거나 공용 위치를 정하고 근거를 적어라.
+`resolveGraph` 안에서 **파일을 읽지도 쓰지도 마라.** 순수성이 Phase 03 의 전제다.
 
 ### 4. `sync.ts` 가 새 함수를 쓰게 고친다
 
-`prepareLoadGraph` 를 `resolveGraph` 호출로 바꾼다.
+`prepareLoadGraph` 를 `resolveGraph` 호출로 바꾸고 `PreparedLoadGraph` 타입을 지운다.
 **읽기(`readJsonlRecords`·`loadConceptDictionary`)는 이번에 옮기지 않는다** — Phase 03 에서 `io.ts` 로 간다.
 지금은 `sync.ts` 가 읽어서 `resolveGraph` 에 넘기는 형태로 둔다.
 
 `sanitizeLlmGraphFile` **호출을 제거한다.** 적재가 더 이상 파일을 덮어쓰지 않는다.
 정리는 `resolveGraph` 안에서 메모리로 이루어진다.
+
+호출을 제거하면 `sync.ts` 가 세 가지를 직접 챙겨야 한다. 빠뜨리면 적재 출력이 달라진다.
+
+1. `buildEndpointIndex(dataDir, project)` 로 색인을 만들어 넘긴다
+2. `inference-dropped-relationships.json` 을 읽어 `previousDropped` 로 넘긴다
+   (`readDroppedRelationships` 를 `export` 한다)
+3. **리포트 파일을 다시 쓰지 않는다.** 적재는 읽기만 한다
 
 ---
 
@@ -108,8 +143,14 @@ export function resolveGraph(input: ResolveInput): ResolveResult;
 | `apps/pipeline/src/resolve/endpoint.ts` | 신규 |
 | `apps/pipeline/src/resolve/node-merge.ts` | 신규 |
 | `apps/pipeline/src/neo4j/sync.ts` | 수정 — 정규화 제거, `resolveGraph` 호출 |
+| `apps/pipeline/src/infer/llm-relationship-sanitizer.ts` | 수정 — `buildEndpointIndex`·`EndpointIndex`·`readDroppedRelationships` 를 `export` |
 | `apps/pipeline/src/neo4j/sync.test.ts` | 수정 — 이동한 함수 import 경로 |
 | `apps/pipeline/test/sync.test.cjs` | 수정 — 같은 이유 |
+| `apps/pipeline/package.json` | 수정 — test glob 에 `dist/resolve/*.test.js` 추가 |
+
+**glob 을 빠뜨리면 `resolve/` 로 옮긴 테스트가 조용히 사라진다.** 현재 값에 `dist/resolve/` 가 없다.
+`sync.test.ts` 의 정규화 테스트를 `resolve/` 로 옮기면 glob 갱신 없이는 실행 대상에서 빠지고,
+테스트 개수만 줄어든 채 전부 통과로 보인다.
 
 ---
 
@@ -125,6 +166,10 @@ pnpm format:check
 
 `pnpm --filter api test` 는 쓰지 마라 — exit 0 으로 조용히 통과한다.
 테스트 **개수**를 확인하라. 줄었으면 이동한 테스트가 실행되지 않는 것이다.
+기준값은 api 51, pipeline 은 Phase 01 이 늘린 값이다.
+
+`format:check` 가 걸려도 **포맷터를 파일 전체에 돌리지 마라.** 손댄 줄만 고친다.
+이 phase 는 이동이 많아 재포맷 유혹이 크다. 재포맷 diff 에 실제 변경이 묻힌 사고가 이미 있었다.
 
 ### 함수 본문 동등성 (필수)
 
@@ -151,6 +196,15 @@ NEO4J_URI=bolt://localhost:7688 pnpm --filter pipeline sync-neo4j --project <프
 - **`NEO4J_URI` 를 지정하지 않으면 `.env` 기본값인 운영 그래프(7687)에 적재된다.**
   실제로 이 실수로 운영 그래프가 오염된 사례가 있다
 - 테스트 인스턴스가 없으면 이 검증은 `PHASE_BLOCKED` 로 남기고 통계 비교를 조정자에게 넘겨라
+
+**이 환경에는 테스트 인스턴스가 없다.** 7688 은 다른 프로젝트 컨테이너가 점유 중이고 7687 은 운영이다.
+따라서 이 검증은 실행하지 말고 `PHASE_BLOCKED` 로 남긴다. **7687 에 적재하지 마라.**
+
+대신 아래 두 가지로 대체한다. 둘 다 Neo4j 없이 된다.
+
+- `resolveGraph` 를 실데이터(`tc-ocr`)로 1회 호출해 노드 수·관계 수·미매칭 Concept 수를
+  변경 전 `prepareLoadGraph` 결과와 비교한다. 변경 전 값은 `git stash` 로 이전 코드에서 한 번 뽑는다
+- `droppedRelationships.count` 도 함께 비교한다 — 위 3번 항목(누적 리포트)이 지켜졌는지 드러난다
 
 ---
 
