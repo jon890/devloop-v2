@@ -33,7 +33,7 @@
 | --- | --- | --- |
 | `normalizeText`·`normalizeConceptKey`·`conceptLookupKeys`·`buildConceptAliasMap`·`conceptDictionaryConflict`·`conceptEntry`·`conceptSource` | `sync.ts` 111~196 | `resolve/concept-alias.ts` |
 | `addEndpointAlias`·`resolveEndpoint`·`addDictionaryEndpointAliases` | `sync.ts` 314~330, 570~594 | `resolve/endpoint.ts` |
-| `buildUnmatchedConceptRepresentatives`·`addUnmatchedConceptCandidate`·`selectUnmatchedRepresentatives`·`conceptReferenceCounts`·`compareCodePoints`·`normalizeNode`·`normalizeNonConceptNode`·`normalizeUnmatchedConceptNode`·`normalizedKey`·`databaseKey`·`mergeNode` | `sync.ts` 384~569 | `resolve/node-merge.ts` |
+| `buildUnmatchedConceptRepresentatives`·`addUnmatchedConceptCandidate`·`selectUnmatchedRepresentatives`·`conceptReferenceCounts`·`compareCodePoints`·`normalizeNode`·`normalizeNonConceptNode`·`normalizeUnmatchedConceptNode`·`normalizedKey`·`mergeNode` | `sync.ts` 384~569 | `resolve/node-merge.ts` |
 | `normalizeGraph`·`validateNormalizationSources`·`normalizeNodes`·`normalizeRelationships`·`normalizeRelationship`·`recordSkippedRelationship`·`parseGraphRecords` | `sync.ts` 255~383, 223~254 | `resolve/resolve.ts` |
 
 `addDictionaryEndpointAliases` 는 314~330 이라 `resolve.ts` 행의 줄 범위와 겹쳐 보이지만
@@ -54,13 +54,20 @@
 | `DatabaseKey` | 80 | `neo4j/sync.ts` 잔류 — `databaseKey` 와 함께 |
 | `PreparedLoadGraph` | 48 | **삭제.** `ResolveResult` 가 대체하므로 존재 이유가 없다 |
 
-**주의** — `databaseKey` 는 `neo4j.int()` 를 쓴다. Neo4j 드라이버 의존이 남으면
-`resolve/` 가 "Neo4j 를 모른다" 는 원칙이 깨진다. 두 갈래 중 하나를 골라 근거를 보고하라.
+**`databaseKey` 는 옮기지 않는다. `neo4j/sync.ts` 에 남긴다.** 위 표에서 빠져 있는 것이 의도다.
 
-- `databaseKey` 만 `neo4j/` 에 남기고 `resolve/` 는 `normalizedKey`(순수)까지만 담당한다
-- `resolve/` 가 드라이버를 알되 그 사실을 파일 주석에 남긴다
+`databaseKey` 는 `neo4j.int()` 를 쓴다. 옮기면 `resolve/node-merge.ts` 가 `neo4j-driver` 를
+import 하게 되고 **"`resolve/` 는 Neo4j 를 모른다" 는 이 plan 의 핵심 원칙이 첫 커밋부터 깨진다.**
+적재 키 변환은 쓰기 관심사다.
 
-**첫 번째를 권한다** — 적재 키 변환은 쓰기 관심사다.
+`resolve/` 는 `normalizedKey`(순수)까지만 담당한다. 선택지가 아니라 확정 사항이다.
+
+완료 조건으로 기계 검증을 붙인다. 출력이 비어야 한다.
+
+```bash
+# cwd: 저장소 루트
+grep -rn "neo4j-driver\|from \"neo4j\"" apps/pipeline/src/resolve/
+```
 
 ### 2. `apps/pipeline/src/resolve/resolve.schema.ts` — 결과 계약
 
@@ -213,19 +220,36 @@ D=$(pwd)/apps/pipeline/data
 절차는 이렇다. 빈 그래프에 **옛 코드와 새 코드로 각각 적재해 통계를 비교**한다.
 운영 그래프의 현재 상태는 필요 없다 — 같은 입력에 같은 결과가 나오는지가 검증 대상이다.
 
-1. `git stash` 로 변경을 치워 이전 코드 상태로 만든다
-2. `pnpm apply-schema` 후 `pnpm --filter pipeline sync-neo4j --project tc-ocr --data-dir "$D"` — stdout 요약을 저장한다
-3. `MATCH (n) DETACH DELETE n` 으로 비운다
-4. `git stash pop` 으로 변경을 되살리고 2번을 다시 실행한다
-5. 두 stdout 요약을 `diff` 한다
+**기준값은 코드를 고치기 전에 먼저 뽑아라.** 이 phase 의 첫 작업이다.
+
+```bash
+# cwd: 저장소 루트 — 아직 아무것도 고치지 않은 상태에서
+pnpm apply-schema
+pnpm --filter pipeline sync-neo4j --project tc-ocr --data-dir "$D" | tee /tmp/sync-before.txt
+```
+
+그다음 구현하고, 끝난 뒤 비교한다.
+
+```bash
+# cwd: 저장소 루트 — 구현 완료 후
+pnpm --filter pipeline reset-neo4j --force 2>/dev/null || \
+  docker exec devloop-plan001-neo4j cypher-shell -u neo4j -p devloop-test-password 'MATCH (n) DETACH DELETE n'
+pnpm apply-schema
+pnpm --filter pipeline sync-neo4j --project tc-ocr --data-dir "$D" | tee /tmp/sync-after.txt
+diff /tmp/sync-before.txt /tmp/sync-after.txt && echo "적재 출력 동등"
+```
+
+**`git stash` 로 이전 코드를 되살려 뽑지 마라.** 그 시점에는 `resolve/` 아래 추적되지 않는
+새 파일이 있고, `git stash` 는 `-u` 없이 untracked 를 담지 않는다.
+`sync.ts` 만 되돌아가고 `resolve/` 는 남아 빌드가 어중간한 상태가 된다.
 
 `--data-dir` 은 반드시 절대 경로다. 상대 경로는 pipeline 패키지 기준으로 풀려 파일을 못 찾는다.
 
 비교 대상에 `droppedRelationships.count` 를 반드시 포함하라 — 위 4번 항목(누적 리포트)이
 지켜졌는지가 이 숫자에 드러난다.
 
-2번의 `git stash` 가 위험하면 대신 `git worktree` 로 이전 커밋 사본을 만들어 돌려도 된다.
-어느 쪽을 썼는지 보고에 적어라.
+기준값을 못 뽑은 채 구현부터 시작했으면 `git worktree add` 로 이 phase 착수 커밋의 사본을 만들어
+거기서 뽑아라. 어느 방법을 썼는지 보고에 적는다.
 
 ---
 

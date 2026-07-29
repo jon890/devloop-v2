@@ -25,9 +25,11 @@ cmp /tmp/before.jsonl /tmp/after.jsonl
 
 ---
 
-## 작업 항목 (5)
+## 작업 순서 (작업 항목보다 먼저 읽어라)
 
-### 0. 작업 순서를 지켜라 — 뒤집으면 워크트리가 깨진 채 남는다
+아래는 작업이 아니라 **순서 제약**이다. 실제 코드 변경은 전부 작업 항목 1번에 있다.
+
+### 뒤집으면 워크트리가 깨진 채 남는다
 
 `sync.ts` 의 `readJsonlRecords` 는 `graph/<project>/` 의 **`*.jsonl` 을 전부 읽고**,
 `conceptSource` 는 `parsed.jsonl`·`inferred.jsonl` 이외의 파일명을 만나면 예외를 던진다.
@@ -47,6 +49,21 @@ CLAUDE.md 에 적힌 e2e fixture 사고와 **같은 실패 방식**이다.
 입력 읽기가 `parsed.jsonl`·`inferred.jsonl` 만 집어 오는지 단언한다.
 이게 없으면 같은 사고가 조용히 재발한다.
 
+순서 제약은 사람이 지키는 규율이라 그것만으로는 약하다. 기계 검증을 하나 붙인다.
+완료 조건이며 **출력이 비어야 한다.**
+
+```bash
+# cwd: 저장소 루트
+grep -n "readdir" apps/pipeline/src/resolve/io.ts apps/pipeline/src/neo4j/sync.ts
+```
+
+회귀 테스트가 "`resolved.jsonl` 이 안 딸려 온다" 를 보장한다면,
+이 grep 은 "애초에 디렉터리를 훑지 않는다" 를 보장한다.
+
+---
+
+## 작업 항목 (4)
+
 ### 1. `apps/pipeline/src/resolve/io.ts` — 읽기·쓰기 계층
 
 ```ts
@@ -62,10 +79,22 @@ export async function writeResolveReport(outPath: string, result: ResolveResult)
 | `parsed.jsonl` | `<dataDir>/graph/<project>/` | **즉시 실패.** 필수 입력이다 |
 | `inferred.jsonl` | 같은 위치 | **경고하고 빈 배열로 진행.** 구조만으로도 그래프가 성립한다 |
 | Concept 사전 | `<dataDir>/concepts/<project>.json` | 코어 사전만으로 진행 (기존 동작) |
-| raw 문서 (`endpointIndex` 재료) | `<dataDir>/raw/<project>/` | `buildEndpointIndex` 의 기존 동작을 따른다 |
+| raw 문서 (`endpointIndex` 재료) | `<dataDir>/raw/<project>/` | **즉시 실패.** 아래 이유 참조 |
 | `inference-dropped-relationships.json` | `<dataDir>/graph/<project>/` | 빈 배열 (`readDroppedRelationships` 의 기존 동작) |
 
 뒤 두 입력은 Phase 02 에서 `sync.ts` 가 직접 챙기던 것이다. 이제 `readResolveInput` 한 곳으로 모은다.
+
+**raw 부재를 경고로 넘기지 마라 — 조용히 빈 결과가 나온다.**
+
+`readPostSummaries` 는 `posts.json` 이 없으면 빈 배열을 돌려주고 `buildEndpointIndex` 는 그대로 진행한다.
+색인이 비면 `normalizeEndpoint` 가 Task·Wiki 끝점을 **전부 drop** 한다.
+그러면 관계가 통째로 빠진 `resolved.jsonl` 이 정상 산출물처럼 나오고,
+사전 변경 전후를 `cmp` 하면 **둘 다 똑같이 비어 "차이 없음" 이라는 틀린 결론**이 나온다.
+이 단계의 존재 이유가 정확히 그 비교이므로 그냥 두면 안 된다.
+
+- `resolve-graph` 경로에서는 raw 부재와 **빈 색인**을 실패로 다룬다
+- `sync-neo4j` 경로의 기존 동작은 **바꾸지 마라.** 이번 plan 은 적재 동작 불변이 전제다
+- 4번의 표준출력 요약에 색인 크기(Task·Wiki 끝점 수)를 넣어 빈 색인이 눈에 띄게 한다
 
 **`readdir` 로 디렉터리를 훑지 마라.** 위 0번의 이유다. 파일명을 명시해 읽는다.
 
@@ -112,6 +141,19 @@ export async function writeResolveReport(outPath: string, result: ResolveResult)
 | --- | --- |
 | `apps/pipeline/src/resolve/cli.ts` | 신규 — CLI 진입점 |
 | `apps/pipeline/src/cli-options.ts` | `readFlag` 를 `sync.ts` 에서 이곳으로 올려 공용화한다 |
+
+`cli-options.ts` 에는 이미 비슷한 `optionValue` 가 있다. **동작이 다르니 합치기 전에 확인하라.**
+
+| 함수 | 값이 없을 때 |
+| --- | --- |
+| `optionValue` (`cli-options.ts`) | 예외를 던진다 |
+| `readFlag` (`sync.ts`) | `undefined` 를 돌려준다 |
+
+둘을 그대로 나란히 두면 다음 사람이 아무거나 고른다. 셋 중 하나를 골라 근거를 보고하라.
+
+- 하나로 합친다 (호출처의 기대 동작이 바뀌지 않는지 확인해야 한다)
+- 둘 다 남기되 이름으로 차이를 드러낸다 (예: `requiredOption`·`optionalOption`)
+- 둘 다 남기고 각 함수에 왜 둘인지 주석을 남긴다
 | `apps/pipeline/package.json` | `"resolve-graph": "pnpm build && node dist/resolve/cli.js"` 추가 |
 
 인자는 이렇다.
@@ -131,6 +173,9 @@ export async function writeResolveReport(outPath: string, result: ResolveResult)
 
 `sync-neo4j` 와 같은 형태의 JSON 요약을 낸다 — 노드·관계 수, 미매칭 Concept, 건너뛴 관계, 버린 관계.
 Neo4j 통계는 없다.
+
+**색인 크기를 함께 낸다** (Task 끝점 수·Wiki 끝점 수). 위 1번의 이유다 —
+색인이 비면 관계가 전부 사라지는데 다른 숫자만 봐서는 그 사실이 드러나지 않는다.
 
 ---
 
@@ -195,6 +240,7 @@ ls apps/pipeline/data/graph/tc-ocr/
 
 - `parsed.jsonl` 없음 → 실패
 - `inferred.jsonl` 없음 → 경고 후 진행, 구조 노드만 담긴 결과
+- `data/raw/<project>/` 없음 → 실패 (색인이 비면 관계가 전부 사라지므로)
 - `resolved.jsonl` 이 같은 디렉터리에 있어도 입력으로 딸려 들어오지 않는다 (위 0번의 회귀 테스트)
 
 ---

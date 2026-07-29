@@ -118,7 +118,6 @@ pnpm --filter pipeline reset-neo4j --force [--project <code>]
 | --- | --- |
 | `apps/pipeline/src/neo4j/reset.ts` | 신규 |
 | `apps/pipeline/src/neo4j/sync.ts` | 수정 — 마이그레이션 삭제, 잔재 정리 |
-| `apps/pipeline/src/cli-options.ts` | 수정 — 스테이지 목록 |
 | `apps/pipeline/package.json` | 수정 — 스크립트 |
 | `README.md` | 수정 — 초기화 절차 |
 | 테스트 | 추가 — 아래 검증 참조 |
@@ -149,7 +148,8 @@ pnpm format:check
 
 ### 적재 결과 동등성 (이 plan 전체의 통과 조건)
 
-`sync.ts` 를 875줄에서 약 200줄로 줄였으므로 결과가 같은지 증명해야 한다.
+`sync.ts` 에서 정규화·읽기·마이그레이션을 걷어냈으므로 적재 결과가 같은지 증명해야 한다.
+**줄 수는 통과 조건이 아니다** — 위 목표의 330~360줄은 방향을 가리키는 값이다.
 
 ```bash
 # cwd: 저장소 루트
@@ -226,11 +226,24 @@ Phase 02 가 같은 방식으로 뽑아 둔 통계가 있으면 그것을 기준
 
 **예외 하나** — 테스트 Neo4j 부재로 인한 적재 동등성 `PHASE_BLOCKED` (Phase 02·04) 는
 착수 전에 확인된 환경 제약이고 사용자가 이 조건대로 진행하기로 승인했다.
-이것만으로는 `completed` 를 막지 않는다. 대신 `index.json` 의 해당 phase 항목에
-`blocked_checks` 필드로 건너뛴 검증을 남긴다.
+이것만으로는 `completed` 를 막지 않는다.
+
+**예외는 대체 검증을 전부 통과했을 때만 성립한다.** 대체 검증이 실패했거나 못 돌았으면
+그냥 미완료다. 인스턴스가 없다는 사실이 나머지 검증까지 면제해 주지 않는다.
+
+건너뛴 검증은 `index.json` 에 **두 곳**에 남긴다. phase 항목에만 두면
+최상위 `status` 만 읽는 사람에게 안 보인다 — 이 저장소는 부분 재측정을 전체로 단정한 사고를 겪었다.
 
 ```json
-{ "number": 4, "status": "completed", "blocked_checks": ["테스트 Neo4j 부재로 적재 동등성 미검증"] }
+{
+  "status": "completed",
+  "blocked_checks": ["Phase 02·04: 테스트 Neo4j 부재로 적재 동등성 미검증"],
+  "phases": [
+    { "number": 4, "status": "completed", "blocked_checks": ["테스트 Neo4j 부재로 적재 동등성 미검증"] }
+  ]
+}
 ```
+
+건너뛴 검증이 없으면 `blocked_checks` 필드 자체를 넣지 마라. 빈 배열도 두지 않는다.
 
 다른 사유의 `PHASE_BLOCKED` 는 예외가 아니다 — `completed` 로 바꾸지 마라.

@@ -67,7 +67,7 @@ export function sanitizeLlmRecords(
 즉 파일 함수는 **읽기 → 순수 함수 → 쓰기** 세 단계를 잇는 껍데기가 된다.
 `infer-knowledge` 단계의 동작은 그대로 유지된다.
 
-### 3. `apps/pipeline/test/` — 순수 함수 테스트 추가
+### 3. `apps/pipeline/src/infer/llm-relationship-sanitizer.test.ts` — 순수 함수 테스트 추가
 
 기존 테스트가 파일 함수를 검증한다면 그대로 두고, 순수 함수용 테스트를 더한다.
 최소 다음을 덮어라.
@@ -84,7 +84,10 @@ export function sanitizeLlmRecords(
 dist/cli-options.test.js dist/fetch/*.test.js dist/neo4j/*.test.js test/*.test.cjs
 ```
 
-`src/infer/` 에 테스트를 두면 glob 을 갱신해야 실행된다. 통과 표시가 아니라 **개수**를 확인하라.
+**테스트는 소스 옆(`src/infer/`)에 두고 glob 에 `dist/infer/*.test.js` 를 추가한다.**
+`src/neo4j/sync.test.ts` 가 이미 그 방식이라 관례에 맞고, Phase 02·03 의 `resolve/` 도 같은 방식으로 간다.
+
+통과 표시가 아니라 **개수**를 확인하라.
 개수가 안 늘면 테스트가 실패한 것이 아니라 **아예 안 돈 것**이다.
 
 ---
