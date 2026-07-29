@@ -5,6 +5,21 @@ import { neo4jCredentials } from "./neo4j-config";
 /** 운영 개발 DB 포트. `test/helpers/e2e-env.js` 의 `PRODUCTION_BOLT_PORT` 와 같은 값이다. */
 export const PRODUCTION_BOLT_PORT = "7687";
 
+/**
+ * URI 의 userinfo(`user:pass@`)만 가리고 로그에 남긴다. host·port 는 그대로 둔다 —
+ * 어느 인스턴스를 대상으로 전체 삭제를 실행했는지 확인하는 것이 이 파괴적 명령의
+ * 핵심 안전 장치라, host·port 까지 가리면 대상 확인이 불가능해진다.
+ */
+export function maskNeo4jUri(uri: string): string {
+  const parsed = new URL(uri);
+  if (!parsed.username && !parsed.password) {
+    return uri;
+  }
+  parsed.username = "";
+  parsed.password = "";
+  return parsed.toString();
+}
+
 interface ResetOptions {
   /** 출력 표기용으로만 쓴다 — 삭제 범위는 항상 전체다 (Task.number 가 프로젝트를 구분하지 않는다). */
   project: string;
@@ -86,9 +101,10 @@ export async function resetNeo4j(options: ResetOptions): Promise<void> {
   const { user, password } = neo4jCredentials();
   const driver: Driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
 
+  const loggedUri = maskNeo4jUri(uri);
   try {
     const before = await countGraph(driver);
-    console.log(JSON.stringify({ uri, scope: "ALL_PROJECTS", requestedBy: options.project, before }, null, 2));
+    console.log(JSON.stringify({ uri: loggedUri, scope: "ALL_PROJECTS", requestedBy: options.project, before }, null, 2));
 
     const session = driver.session({ database: "neo4j" });
     try {
@@ -98,7 +114,7 @@ export async function resetNeo4j(options: ResetOptions): Promise<void> {
     }
 
     const after = await countGraph(driver);
-    console.log(JSON.stringify({ uri, scope: "ALL_PROJECTS", requestedBy: options.project, after }, null, 2));
+    console.log(JSON.stringify({ uri: loggedUri, scope: "ALL_PROJECTS", requestedBy: options.project, after }, null, 2));
     if (after.nodes !== 0) {
       throw new Error(`삭제 후에도 노드 ${after.nodes}개가 남아 있습니다.`);
     }

@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertForce, assertNeo4jUriProvided, assertProductionAllowed, parseResetArgs, PRODUCTION_BOLT_PORT, resetNeo4j } from "./reset";
+import {
+  assertForce,
+  assertNeo4jUriProvided,
+  assertProductionAllowed,
+  maskNeo4jUri,
+  parseResetArgs,
+  PRODUCTION_BOLT_PORT,
+  resetNeo4j,
+} from "./reset";
 
 /**
  * `resetNeo4j` 가 세 가드(`assertForce`·`assertNeo4jUriProvided`·`assertProductionAllowed`)를
@@ -121,4 +129,12 @@ test("테스트 포트(7690)는 --allow-production 없이도 통과한다", () =
 
 test("PRODUCTION_BOLT_PORT 상수는 7687 이다", () => {
   assert.equal(PRODUCTION_BOLT_PORT, "7687");
+});
+
+test("maskNeo4jUri 는 userinfo 만 가리고 host·port 는 남긴다", () => {
+  assert.equal(maskNeo4jUri("bolt://user:pass@localhost:7687"), "bolt://localhost:7687");
+});
+
+test("maskNeo4jUri 는 userinfo 가 없으면 그대로 둔다", () => {
+  assert.equal(maskNeo4jUri("bolt://localhost:7687"), "bolt://localhost:7687");
 });
