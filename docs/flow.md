@@ -29,7 +29,7 @@ flowchart TD
     RG --> RJ["graph/&lt;project&gt;/resolved.jsonl<br/>resolve-report.json"]
 
     SYNC -->|MERGE| NEO[("Neo4j")]
-    RESET["reset-neo4j --force"] -.->|DETACH DELETE| NEO
+    RESET["reset-neo4j --force<br/>(NEO4J_URI 필수)"] -.->|DETACH DELETE| NEO
 ```
 
 `resolve-graph` 는 체인 위가 아니라 **옆에** 붙는다.
@@ -52,7 +52,7 @@ flowchart TD
 | --- | --- |
 | `resolve-graph` | 정규화 결과를 파일로 내놓는다 (읽기 전용, 조사용) |
 | `apply-schema` | Neo4j 제약·인덱스 적용 |
-| `reset-neo4j` | 그래프 전체 삭제. `--force` 필수 |
+| `reset-neo4j` | 그래프 전체 삭제. `NEO4J_URI`·`--force` 필수, 운영 포트(`7687`)는 `--allow-production` 도 필요 |
 | `audit-concepts` | Concept 정규화 감사 (읽기 전용) |
 
 ### 두 호출 경로가 같은 순수 함수를 공유한다
@@ -65,7 +65,8 @@ sync-neo4j:     읽기 → 정리 → 정규화 → Neo4j 쓰기
 앞 세 단계가 같은 함수다. 갈리는 것은 마지막 출력뿐이다.
 
 **같은 입력이면 `resolved.jsonl` 이 바이트 동등해야 한다.** 그게 별칭 변경 전후 비교의 전제다.
-출력 순서를 고정한다 — 노드는 `라벨 → 키`, 관계는 `유형 → 시작키 → 끝키` 다.
+출력 순서를 고정한다 — 노드는 `라벨 → 키 → tie-break`, 관계는 `유형 → 시작키 → 끝키 → tie-break` 다.
+tie-break 는 파일에 실제로 쓰는 직렬화 바이트(`JSON.stringify` 결과) 자체다.
 
 ## 단계 경계를 가른 기준 — 재실행 비용
 
@@ -131,7 +132,7 @@ LLM 추출은 비결정적이라 일부 실패가 정상 범위다.
 | 상황 | 방법 |
 | --- | --- |
 | 파일 산출물을 다시 만들고 싶다 | 해당 단계만 다시 돌린다. 앞 단계 산출물은 그대로 쓴다 |
-| 그래프 노드를 줄이고 싶다 | `MATCH (n) DETACH DELETE n` → `apply-schema` → 적재. **초기화 없이는 줄지 않는다** |
+| 그래프 노드를 줄이고 싶다 | 같은 `NEO4J_URI`로 `reset-neo4j --force` → `apply-schema` → `sync-neo4j`. **세 명령 모두 같은 URI 를 가리켜야 한다** — 뒤 두 명령은 인라인 지정이 없으면 기본값 `7687`로 붙는다. **초기화 없이는 줄지 않는다** |
 | 추출 결과를 갱신하고 싶다 | 프롬프트를 고치면 `promptVersion` 을 올려야 캐시가 무효화된다 |
 
 ## 상태가 아닌 것

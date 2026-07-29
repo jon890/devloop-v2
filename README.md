@@ -45,6 +45,25 @@ pnpm web
 API e2e는 `pnpm --filter api test:e2e`로 실행하며, 테스트 전용 Neo4j `bolt://localhost:7688`을 자동으로 기동하고 종료한다.
 이 테스트는 운영 개발 DB 포트 `7687`을 거부한다.
 
+## 그래프 초기화
+
+적재기(`sync-neo4j`)는 MERGE 전용이라 노드가 자동으로 줄지 않는다.
+정규화를 고쳐 노드가 합쳐지게 만들었어도, 그래프를 비우고 다시 적재해야 병합 효과가 보인다.
+
+`NEO4J_URI`는 인라인으로 주면 첫 줄에만 걸린다. `apply-schema`·`sync-neo4j`는 기본값
+`bolt://localhost:7687`로 붙으므로, 세 명령 모두에 같은 URI가 걸리도록 `export`로 셸에 남겨야 한다.
+
+```bash
+export NEO4J_URI=bolt://localhost:7690
+pnpm --filter pipeline reset-neo4j --force
+pnpm apply-schema
+pnpm --filter pipeline sync-neo4j
+```
+
+`reset-neo4j`는 `NEO4J_URI`가 없으면 실행하지 않는다 — 삭제 대상을 항상 명시하게 만든다.
+`--force` 없이도 실행을 거부하고, 대상 포트가 운영(`7687`)이면 `--allow-production`을 함께 줘야 한다.
+산출물 `jsonl`이 `data/graph/`에 남아 있으므로 초기화 후 재적재로 항상 복원된다.
+
 ## 모델 구성
 
 - `LLM_MODEL=gpt-5.5`: 파이프라인 추출 모델. API는 이 값을 읽지 않는다

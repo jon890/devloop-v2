@@ -107,7 +107,9 @@ R4 에서 추가된 셋이 핵심이다. "이 결정을 왜 했나" 에 답하�
 
 형식은 `parsed`·`inferred` 와 같다. 같은 스키마를 재사용하고, 사람이 나란히 놓고 비교할 수 있다.
 
-**출력 순서가 고정돼 있다** — 노드는 `라벨 → 키`, 관계는 `유형 → 시작키 → 끝키` 다.
+**출력 순서가 고정돼 있다** — 노드는 `라벨 → 키 → tie-break`, 관계는 `유형 → 시작키 → 끝키 → tie-break` 다.
+tie-break 는 그 레코드를 파일에 쓸 때 실제로 쓰는 `JSON.stringify` 직렬화 결과 자체다 — 앞선 키가
+모두 같은 동순위 레코드(예: 식별 속성만 다른 관계)도 이 값으로 전순서가 선다.
 같은 입력이면 바이트 동등해야 한다. 그게 별칭 변경 전후를 `cmp` 로 비교하는 전제다.
 
 리포트는 `jsonl` 에 섞지 않고 별도 파일로 뺀다. 첫 줄에 메타데이터를 넣으면
@@ -117,10 +119,11 @@ R4 에서 추가된 셋이 핵심이다. "이 결정을 왜 했나" 에 답하�
 
 ```jsonl
 {"label":"Wiki","key":"4377...","properties":{"pageId":"4377...","subject":"..."}}
-{"type":"DOCUMENTS","startKey":"Wiki:4377...","endKey":"Concept:ingress-nginx","properties":{}}
+{"type":"DOCUMENTS","startKey":"4377...","endKey":"ingress-nginx","properties":{"startLabel":"Wiki","endLabel":"Concept"}}
 ```
 
-관계의 `startKey`·`endKey` 는 `라벨:키` 형태다.
+관계의 `startKey`·`endKey` 는 라벨 없이 **키만** 담는다. 끝점 라벨은
+`properties.startLabel`·`properties.endLabel` 로 따로 들어간다.
 
 **소스 파일명이 적재 분기에 쓰인다.** 적재기는 Concept 이 어느 파일에서 왔는지로
 구조 유래와 LLM 유래를 가른다. 파일명이 계약이므로 `packages/shared/src/graph/graph.const.ts`
@@ -178,15 +181,30 @@ Concept 이름 파편화가 관계형 질문의 연결을 끊는 **1번 위험**
 줄이려면 초기화가 필요하다.
 
 ```
-reset-neo4j --force  →  apply-schema  →  sync-neo4j
+(같은 NEO4J_URI로) reset-neo4j --force [--allow-production]  →  apply-schema  →  sync-neo4j
 ```
+
+세 명령 모두 같은 `NEO4J_URI`를 가리켜야 한다 — `apply-schema`·`sync-neo4j`는 인라인 지정이 없으면
+기본값 `bolt://localhost:7687`로 붙으므로, `reset-neo4j`에만 다른 URI를 인라인으로 주면
+비우려던 그래프와 실제로 적재되는 그래프가 어긋난다.
 
 `reset-neo4j` 는 `DETACH DELETE` 절차에 이름을 준 명령이다.
 
+- `NEO4J_URI` 가 없으면 실행하지 않는다 — 삭제 대상을 항상 명시적으로 지정하게 만든다.
+  이 명령만 다른 이유는 아래 참조
 - `--force` 없이는 실행하지 않는다
+- 대상 포트가 운영(`7687`)이면 `--allow-production` 도 함께 줘야 한다
 - 대상 URI 와 현재 노드 수를 먼저 출력한다
 - **삭제 범위는 전체다.** 프로젝트 단위 삭제는 만들지 않는다 —
   `Task.number` 가 프로젝트를 구분하지 않아 부분 삭제가 안전하지 않다 (위 "key 설계의 함정" 참조)
+
+**`reset-neo4j` 만 `NEO4J_URI` 를 필수로 요구하는 이유** — 위 "key 설계의 함정"이 기록한 대로,
+`Task.number` 가 프로젝트를 구분하지 않아 잘못된 그래프에 delete 를 실행하면 되돌릴 수 없다.
+`apply-schema`·`sync-neo4j` 는 잘못 실행돼도 MERGE 이거나 제약 추가라 최악의 경우도 원복 가능하지만,
+`reset-neo4j` 는 `DETACH DELETE` 라 대상을 잘못 짚으면 그래프가 통째로 사라진다. 그래서 이 명령만
+기본값(`bolt://localhost:7687`)을 두지 않고 대상을 항상 명시하게 만든다 — CLAUDE.md 가 기록한
+"환경변수 부재가 조용히 다른 모델로 돌게 만들었다" 사고와 같은 종류의 우연한 기본값 의존을
+파괴적 명령에서는 허용하지 않는다.
 
 `DETACH DELETE` 는 제약·인덱스를 지우지 않는다. 다만 재적재 절차에 `apply-schema` 를 넣어 둔다.
 
