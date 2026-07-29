@@ -11,15 +11,20 @@ import {
 } from "@devloop/shared";
 import { DEFAULT_PROJECT, readDataDirFlag, readFlag } from "../cli-options";
 import { readResolveInput } from "../resolve/io";
-import { compareCodePoints, normalizedKey } from "../resolve/node-merge";
+import { normalizedKey } from "../resolve/node-merge";
 import { resolveGraph } from "../resolve/resolve";
 import type { ResolveResult } from "../resolve/resolve.schema";
 import { RELATIONSHIP_IDENTITY_PROPERTIES } from "./sync.const";
 import { neo4jCredentials } from "./neo4j-config";
 
-interface LoadOptions {
+export interface LoadOptions {
   project: string;
   dataDir: string;
+}
+
+export interface LoadStats {
+  nodes: Record<string, number>;
+  relationships: Record<string, number>;
 }
 
 interface RelationshipRow {
@@ -219,10 +224,7 @@ function stripResolverProperties(properties: Record<string, unknown>): Record<st
   return rest;
 }
 
-async function collectStats(session: Session): Promise<{
-  nodes: Record<string, number>;
-  relationships: Record<string, number>;
-}> {
+async function collectStats(session: Session): Promise<LoadStats> {
   const nodeResult = await session.run(`
       MATCH (n)
       UNWIND labels(n) AS label
@@ -241,28 +243,30 @@ async function collectStats(session: Session): Promise<{
   };
 }
 
+/**
+ * `sync-neo4j` 표준출력 요약을 조립한다. Neo4j 접속 없이 테스트하기 위해 `loadGraph` 에서
+ * 떼어낸 순수 함수다 — `sync.test.ts` 가 이 함수만 호출해 출력 스키마(`unknownConcepts` 가
+ * 객체 형태인지 등)를 DB 없이 고정한다.
+ */
+export function buildLoadSummary(options: LoadOptions, resolved: ResolveResult, stats: LoadStats): unknown {
+  return {
+    project: options.project,
+    dataDir: options.dataDir,
+    loaded: {
+      nodes: resolved.nodes.length,
+      relationships: resolved.relationships.length,
+    },
+    stats,
+    unknownConcepts: Object.fromEntries([...resolved.unknownConcepts.entries()].sort()),
+    droppedRelationships: resolved.droppedRelationships,
+    skippedRelationships: resolved.skippedRelationships,
+  };
+}
+
 async function loadGraph(options: LoadOptions): Promise<void> {
   const resolved = await prepareLoadGraph(options);
   await writeGraphToNeo4j(options, resolved, (stats) => {
-    console.log(
-      JSON.stringify(
-        {
-          project: options.project,
-          dataDir: options.dataDir,
-          loaded: {
-            nodes: resolved.nodes.length,
-            relationships: resolved.relationships.length,
-          },
-          stats,
-          // resolve-graph 와 같은 형태로 낸다 — 튜플 배열이라야 숫자처럼 보이는 키의 순서가 지켜진다.
-          unknownConcepts: [...resolved.unknownConcepts.entries()].sort(([left], [right]) => compareCodePoints(left, right)),
-          droppedRelationships: resolved.droppedRelationships,
-          skippedRelationships: resolved.skippedRelationships,
-        },
-        null,
-        2,
-      ),
-    );
+    console.log(JSON.stringify(buildLoadSummary(options, resolved, stats), null, 2));
   });
 }
 

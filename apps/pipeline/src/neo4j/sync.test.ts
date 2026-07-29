@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildConceptAliasMap, normalizeConceptKey } from "../resolve/concept-alias";
 import { normalizeGraph } from "../resolve/resolve";
+import type { ResolveResult } from "../resolve/resolve.schema";
+import { buildLoadSummary } from "./sync";
 
 test("Concept 강화 키는 대소문자·공백·구두점 차이를 제거한다", () => {
   assert.equal(normalizeConceptKey("OCR.API"), "ocrapi");
@@ -75,6 +77,37 @@ test("해결되지 않은 강화 키의 사전 canonical 충돌은 조치를 안
       ]),
     /Merge the entries in the concept dictionary or add a canonical override/,
   );
+});
+
+// 회귀 테스트 — `sync-neo4j` 표준출력의 `unknownConcepts` 는 기준 커밋(plan001-resolve-graph-stage)과
+// 같이 객체 형태여야 한다. `resolve-report.json`(resolve-graph 산출물)은 튜플 배열을 쓰지만, 이 둘은
+// 서로 다른 계약이다 — sync-neo4j 표준출력 스키마를 이번 리팩토링에서 조용히 바꾸면 안 된다.
+// Neo4j 접속 없이 판정하기 위해 `buildLoadSummary` 를 직접 호출한다.
+test("buildLoadSummary 는 unknownConcepts 를 정렬된 객체로 낸다 (튜플 배열이 아니다)", () => {
+  const resolved: ResolveResult = {
+    nodes: [
+      { label: "Task", key: "1", properties: { number: 1 } },
+      { label: "Task", key: "2", properties: { number: 2 } },
+    ],
+    relationships: [],
+    unknownConcepts: new Map([
+      ["b", 1],
+      ["a", 2],
+    ]),
+    skippedRelationships: { count: 0, samples: [] },
+    droppedRelationships: { count: 0, documents: [] },
+    rewrittenRelationships: 0,
+  };
+  const stats = { nodes: { Task: 2 }, relationships: {} };
+
+  const summary = buildLoadSummary({ project: "sample", dataDir: "/data" }, resolved, stats) as {
+    unknownConcepts: unknown;
+    loaded: { nodes: number; relationships: number };
+  };
+
+  assert.deepEqual(summary.unknownConcepts, { a: 2, b: 1 });
+  assert.equal(Array.isArray(summary.unknownConcepts), false);
+  assert.deepEqual(summary.loaded, { nodes: 2, relationships: 0 });
 });
 
 test("부당 병합 denylist는 API 경로와 일반 이름을 분리한다", () => {
