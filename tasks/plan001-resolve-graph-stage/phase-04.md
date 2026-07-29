@@ -162,7 +162,7 @@ pnpm format:check
 
 **대상 인스턴스를 반드시 명시하라.**
 
-**대상은 `bolt://localhost:7690` 이다.** 조정자가 일회용 컨테이너를 띄워 뒀다
+**대상은 `bolt://localhost:7690` 이다.** 이 plan 작업 중 띄운 일회용 컨테이너다
 (`devloop-plan001-neo4j`, tmpfs, 인증 `neo4j/devloop-test-password`).
 
 ```bash
@@ -184,7 +184,7 @@ pnpm --filter pipeline reset-neo4j --force
 
 - 7688 은 다른 프로젝트가 점유 중이고 7687 은 운영이다. **둘 다 쓰지 마라**
 - **운영 그래프에 쓰지 마라** — 1번 항목의 읽기 전용 확인만 예외다
-- 7690 이 안 떠 있으면 직접 띄우지 말고 조정자에게 알려라
+- 7690 이 안 떠 있으면 같은 설정으로 다시 띄운다 (docker run -d --rm --name devloop-plan001-neo4j -p 7690:7687 --tmpfs /data --tmpfs /logs -e NEO4J_AUTH=neo4j/devloop-test-password neo4j:5-community)
 
 위 1~5번 절차의 "현재 통계" 는 운영 그래프 값이 아니라
 **Phase 02 가 plan 착수 전 코드로 7690 에 적재해 뽑아 둔 값**이다.

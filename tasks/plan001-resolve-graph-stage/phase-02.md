@@ -194,11 +194,11 @@ import 줄과 `export` 키워드 추가는 허용된다. **그 외 차이가 있
 
 `sync-neo4j` 를 돌려 노드·관계 통계가 이전과 같은지 확인한다.
 
-**대상은 `bolt://localhost:7690` 이다.** 조정자가 일회용 컨테이너를 띄워 뒀다
+**대상은 `bolt://localhost:7690` 이다.** 이 plan 작업 중 띄운 일회용 컨테이너다
 (`devloop-plan001-neo4j`, `neo4j:5-community`, tmpfs, 인증 `neo4j/devloop-test-password`).
 
 - 7688 은 다른 프로젝트가 점유 중이고 7687 은 운영이다. **둘 다 쓰지 마라**
-- 7690 이 안 떠 있으면 직접 띄우지 말고 조정자에게 알려라
+- 7690 이 안 떠 있으면 같은 설정으로 다시 띄운다 (docker run -d --rm --name devloop-plan001-neo4j -p 7690:7687 --tmpfs /data --tmpfs /logs -e NEO4J_AUTH=neo4j/devloop-test-password neo4j:5-community)
 
 ```bash
 # cwd: 저장소 루트
