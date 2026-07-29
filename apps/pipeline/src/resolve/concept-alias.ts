@@ -1,0 +1,90 @@
+import { INFERRED_GRAPH_FILE, PARSED_GRAPH_FILE, type ConceptDictionary, type ConceptEntry } from "@devloop/shared";
+import { CONCEPT_KEY_CANONICAL_OVERRIDES, CONCEPT_KEY_MERGE_DENYLIST } from "./concept-alias.const";
+
+export type ConceptSource = "llm" | "structural";
+
+export function normalizeText(value: string): string {
+  return value.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+export function normalizeConceptKey(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9가-힣]/g, "");
+}
+
+function conceptLookupKeys(value: string): string[] {
+  const normalized = normalizeText(value);
+  const conceptKey = normalizeConceptKey(value);
+  if (!conceptKey || CONCEPT_KEY_MERGE_DENYLIST.has(conceptKey)) {
+    return [normalized];
+  }
+  return [...new Set([normalized, conceptKey])];
+}
+
+export function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string, ConceptEntry> {
+  const aliases = new Map<string, ConceptEntry>();
+  const conceptKeyOwners = new Map<string, Map<string, ConceptEntry>>();
+  for (const entry of dictionary) {
+    for (const name of [entry.canonical, ...entry.aliases]) {
+      const exactKey = normalizeText(name);
+      const exactOwner = aliases.get(exactKey);
+      if (exactOwner && exactOwner.canonical !== entry.canonical) {
+        throw conceptDictionaryConflict(exactKey, [exactOwner, entry]);
+      }
+      aliases.set(exactKey, entry);
+      const conceptKey = normalizeConceptKey(name);
+      if (conceptKey) {
+        const owners = conceptKeyOwners.get(conceptKey) ?? new Map();
+        owners.set(entry.canonical, entry);
+        conceptKeyOwners.set(conceptKey, owners);
+      }
+    }
+  }
+
+  for (const [conceptKey, ownersByCanonical] of conceptKeyOwners) {
+    if (CONCEPT_KEY_MERGE_DENYLIST.has(conceptKey)) {
+      continue;
+    }
+    const owners = [...ownersByCanonical.values()];
+    const exactOwner = aliases.get(conceptKey);
+    if (exactOwner) {
+      aliases.set(conceptKey, exactOwner);
+      continue;
+    }
+    if (owners.length === 1) {
+      aliases.set(conceptKey, owners[0]);
+      continue;
+    }
+
+    const canonical = CONCEPT_KEY_CANONICAL_OVERRIDES.get(conceptKey);
+    const selected = owners.find((entry) => entry.canonical === canonical);
+    if (!selected) {
+      throw conceptDictionaryConflict(conceptKey, owners);
+    }
+    aliases.set(conceptKey, selected);
+  }
+  return aliases;
+}
+
+function conceptDictionaryConflict(key: string, owners: readonly ConceptEntry[]): Error {
+  return new Error(
+    `Concept key "${key}" has conflicting canonical entries: ` +
+      `${owners.map((entry) => entry.canonical).join(", ")}. ` +
+      "Merge the entries in the concept dictionary or add a canonical override.",
+  );
+}
+
+export function conceptEntry(value: string, aliasMap: ReadonlyMap<string, ConceptEntry>): ConceptEntry | undefined {
+  return conceptLookupKeys(value)
+    .map((key) => aliasMap.get(key))
+    .find((candidate): candidate is ConceptEntry => candidate !== undefined);
+}
+
+export function conceptSource(sourceFile: string): ConceptSource {
+  if (sourceFile === INFERRED_GRAPH_FILE) {
+    return "llm";
+  }
+  if (sourceFile === PARSED_GRAPH_FILE) {
+    return "structural";
+  }
+  throw new Error(`Unsupported Concept source file "${sourceFile}". ` + `Expected ${INFERRED_GRAPH_FILE} or ${PARSED_GRAPH_FILE}.`);
+}

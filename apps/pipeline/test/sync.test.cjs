@@ -1,7 +1,8 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { buildConceptAliasMap, normalizeGraph } = require('../dist/neo4j/sync');
+const { buildConceptAliasMap } = require('../dist/resolve/concept-alias');
+const { normalizeGraph } = require('../dist/resolve/resolve');
 
 test('label:key 관계 끝점을 실제 노드 키와 Concept canonical로 정규화한다', () => {
   const aliasMap = buildConceptAliasMap([

@@ -5,7 +5,7 @@ import type { OntologyRelationship, RawDoorayObject } from "@devloop/shared";
 import { LlmNodeSchema, LlmRelationshipSchema, type LlmExtraction } from "./llm-extraction.schema";
 import { firstString, readRawProject } from "../raw-reader";
 
-interface EndpointIndex {
+export interface EndpointIndex {
   taskNumbers: Set<string>;
   taskIdToNumber: Map<string, string>;
   wikiPageIds: Set<string>;
@@ -35,7 +35,7 @@ export interface SanitizeLlmGraphFileResult {
   droppedRelationships: DroppedRelationshipsReport;
 }
 
-type LlmGraphRecord = LlmExtraction["nodes"][number] | LlmExtraction["relationships"][number];
+export type LlmGraphRecord = LlmExtraction["nodes"][number] | LlmExtraction["relationships"][number];
 
 async function readPostSummaries(dataRoot: string, project: string): Promise<RawDoorayObject[]> {
   const summaryPath = path.join(dataRoot, "raw", project, "posts.json");
@@ -49,7 +49,7 @@ async function readPostSummaries(dataRoot: string, project: string): Promise<Raw
   }
 }
 
-async function buildEndpointIndex(dataRoot: string, project: string): Promise<EndpointIndex> {
+export async function buildEndpointIndex(dataRoot: string, project: string): Promise<EndpointIndex> {
   const [raw, postSummaries] = await Promise.all([readRawProject(dataRoot, project), readPostSummaries(dataRoot, project)]);
   const taskNumbers = new Set<string>();
   const taskIdToNumber = new Map<string, string>();
@@ -114,7 +114,7 @@ function reportDroppedRelationships(dropped: readonly DroppedRelationship[]): Dr
   };
 }
 
-async function readDroppedRelationships(reportPath: string): Promise<DroppedRelationship[]> {
+export async function readDroppedRelationships(reportPath: string): Promise<DroppedRelationship[]> {
   try {
     const value = JSON.parse(await readFile(reportPath, "utf8")) as {
       droppedRelationships?: { documents?: Array<{ relationships?: unknown[] }> };
@@ -201,10 +201,42 @@ export async function sanitizeLlmExtractions(
   };
 }
 
-function parseLlmGraphRecord(value: unknown): LlmGraphRecord {
+export function parseLlmGraphRecord(value: unknown): LlmGraphRecord {
   const node = LlmNodeSchema.safeParse(value);
   if (node.success) return node.data;
   return LlmRelationshipSchema.parse(value);
+}
+
+export interface SanitizeLlmRecordsResult {
+  records: LlmGraphRecord[];
+  droppedRelationships: DroppedRelationshipsReport;
+  rewrittenRelationships: number;
+}
+
+export function sanitizeLlmRecords(
+  records: readonly LlmGraphRecord[],
+  previousDropped: readonly DroppedRelationship[],
+  index: EndpointIndex,
+): SanitizeLlmRecordsResult {
+  const dropped: DroppedRelationship[] = [];
+  let rewrittenRelationships = 0;
+  const outputRecords: LlmGraphRecord[] = [];
+  for (const record of records) {
+    if (!("type" in record)) {
+      outputRecords.push(record);
+      continue;
+    }
+    const result = sanitizeRelationships([record], index);
+    dropped.push(...result.dropped);
+    rewrittenRelationships += result.rewrittenRelationships;
+    outputRecords.push(...result.relationships);
+  }
+  const droppedRelationships = reportDroppedRelationships(mergeDroppedRelationships(previousDropped, dropped));
+  return {
+    records: outputRecords,
+    droppedRelationships,
+    rewrittenRelationships,
+  };
 }
 
 export async function sanitizeLlmGraphFile(dataRoot: string, project: string): Promise<SanitizeLlmGraphFileResult> {
@@ -225,20 +257,7 @@ export async function sanitizeLlmGraphFile(dataRoot: string, project: string): P
     .filter(Boolean)
     .map((line) => parseLlmGraphRecord(JSON.parse(line)));
   const index = await buildEndpointIndex(dataRoot, project);
-  const dropped: DroppedRelationship[] = [];
-  let rewrittenRelationships = 0;
-  const outputRecords: LlmGraphRecord[] = [];
-  for (const record of records) {
-    if (!("type" in record)) {
-      outputRecords.push(record);
-      continue;
-    }
-    const result = sanitizeRelationships([record], index);
-    dropped.push(...result.dropped);
-    rewrittenRelationships += result.rewrittenRelationships;
-    outputRecords.push(...result.relationships);
-  }
-  const droppedRelationships = reportDroppedRelationships(mergeDroppedRelationships(previousDropped, dropped));
+  const { records: outputRecords, droppedRelationships, rewrittenRelationships } = sanitizeLlmRecords(records, previousDropped, index);
   await Promise.all([
     writeFile(outputPath, outputRecords.length ? `${outputRecords.map((record) => JSON.stringify(record)).join("\n")}\n` : "", "utf8"),
     writeFile(reportPath, `${JSON.stringify({ droppedRelationships }, null, 2)}\n`, "utf8"),
