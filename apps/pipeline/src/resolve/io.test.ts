@@ -265,3 +265,74 @@ test("writeResolved 는 (type, startKey, endKey) 가 같고 properties 만 다�
     await rm(dataDir, { recursive: true, force: true });
   }
 });
+
+// 회귀 테스트 — tie-break 키가 "정렬된 properties 로 만든 별도 문자열" 이면, 속성 값 집합은
+// 같고 원본 객체의 키 삽입 순서만 다른 두 관계(또는 두 노드)는 비교에서는 동순위지만
+// `JSON.stringify` 출력 바이트는 서로 다르다(JSON.parse 가 입력 파일의 키 순서를 보존하기
+// 때문에 실제 inferred.jsonl 에서 이 경우가 재현된다). tie-break 는 반드시 파일에 쓰는
+// 직렬화 결과 자체여야 이 반례가 통과할 수 없다.
+test("writeResolved 는 properties 값 집합은 같고 키 삽입 순서만 다른 관계도 바이트 동등 출력을 낸다", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "pipeline-resolve-io-keyorder-"));
+  try {
+    const nodes = [
+      { label: "Task", key: "1", properties: { number: 1 } },
+      { label: "Concept", key: "api", properties: { name: "api", kind: "tech" } },
+    ];
+    // 두 관계는 속성 값 집합이 완전히 같고 키 삽입 순서만 다르다.
+    const relationshipA = { type: "TAGGED", startKey: "Task:1", endKey: "Concept:api", properties: { dimension: "primary", note: "x" } };
+    const relationshipB = { type: "TAGGED", startKey: "Task:1", endKey: "Concept:api", properties: { note: "x", dimension: "primary" } };
+    const records = [...nodes, relationshipA, relationshipB];
+
+    const buildInput = (order: readonly number[]) => ({
+      parsed: order.map((index) => ({ value: records[index], sourceFile: "parsed.jsonl" })),
+      inferred: [],
+      dictionary: [{ canonical: "api", kind: "tech" as const, aliases: [] }],
+      endpointIndex: EMPTY_ENDPOINT_INDEX,
+      previousDropped: [],
+    });
+
+    const graph1 = resolveGraph(buildInput([0, 1, 2, 3]));
+    const graph2 = resolveGraph(buildInput([0, 1, 3, 2]));
+
+    const outPath1 = join(dataDir, "out1.jsonl");
+    const outPath2 = join(dataDir, "out2.jsonl");
+    await writeResolved(outPath1, graph1);
+    await writeResolved(outPath2, graph2);
+
+    const [content1, content2] = await Promise.all([readFile(outPath1, "utf8"), readFile(outPath2, "utf8")]);
+    assert.equal(content1, content2);
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});
+
+// 회귀 테스트 — 노드도 관계와 같은 함정을 방어적으로 막는다. 실제로는 `resolveGraph` 가
+// label:key 로 노드를 병합하므로 최종 결과에 같은 라벨·키의 노드가 둘 남는 일은 없지만,
+// `writeResolved` 자체는 정렬 함수라 그 전제에 기대지 않는다 — 라벨·키가 같은 두 노드가
+// 주어지면 tie-break(직렬화 바이트) 로 항상 같은 순서를 내야 한다. `writeResolved` 는
+// `resolveGraph` 를 거치지 않고 직접 `ResolveResult` 를 받아 이 성질만 좁게 검증한다.
+test("writeResolved 는 라벨·키가 같은 두 노드도 tie-break 로 결정적 순서를 낸다", async () => {
+  const dataDir = await mkdtemp(join(tmpdir(), "pipeline-resolve-io-node-tiebreak-"));
+  try {
+    const nodeA = { label: "Concept", key: "api", properties: { dimension: "secondary" } };
+    const nodeB = { label: "Concept", key: "api", properties: { dimension: "primary" } };
+    const buildResult = (nodes: readonly unknown[]): ResolveResult => ({
+      nodes: nodes as ResolveResult["nodes"],
+      relationships: [],
+      unknownConcepts: new Map(),
+      skippedRelationships: { count: 0, samples: [] },
+      droppedRelationships: { count: 0, documents: [] },
+      rewrittenRelationships: 0,
+    });
+
+    const outPath1 = join(dataDir, "out1.jsonl");
+    const outPath2 = join(dataDir, "out2.jsonl");
+    await writeResolved(outPath1, buildResult([nodeA, nodeB]));
+    await writeResolved(outPath2, buildResult([nodeB, nodeA]));
+
+    const [content1, content2] = await Promise.all([readFile(outPath1, "utf8"), readFile(outPath2, "utf8")]);
+    assert.equal(content1, content2);
+  } finally {
+    await rm(dataDir, { recursive: true, force: true });
+  }
+});

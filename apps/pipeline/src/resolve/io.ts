@@ -1,13 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
-import {
-  CORE_CONCEPTS,
-  ConceptDictionarySchema,
-  INFERRED_GRAPH_FILE,
-  PARSED_GRAPH_FILE,
-  type ConceptDictionary,
-  type OntologyRelationship,
-} from "@devloop/shared";
+import { CORE_CONCEPTS, ConceptDictionarySchema, INFERRED_GRAPH_FILE, PARSED_GRAPH_FILE, type ConceptDictionary } from "@devloop/shared";
 import { buildEndpointIndex, readDroppedRelationships } from "../infer/llm-relationship-sanitizer";
 import { compareCodePoints } from "./node-merge";
 import type { ResolveInput } from "./resolve";
@@ -92,36 +85,45 @@ export async function readResolveInput(dataDir: string, project: string): Promis
 }
 
 /**
- * `type·startKey·endKey` 만으로는 전순서가 안 나온다 — 식별 속성(예: `ASSIGNED_TO.role`,
- * `TAGGED.dimension`)으로만 갈리는 관계는 세 키가 모두 같아 남은 순서가 정해지지 않는다.
- * 지금은 V8 의 안정 정렬 덕에 입력 순서가 우연히 유지될 뿐이라, 입력 순서가 바뀌면
- * (예: 파일 병합 순서 변경) 바이트 동등이 조용히 깨질 수 있다.
+ * `type·startKey·endKey`(관계) 또는 `label·key`(노드) 만으로는 전순서가 안 나온다 — 식별 속성
+ * (예: `ASSIGNED_TO.role`, `TAGGED.dimension`)으로만 갈리는 관계나, 속성만 다른 동명 노드는
+ * 앞선 키가 모두 같아 남은 순서가 정해지지 않는다.
  *
- * 어떤 속성이 식별에 쓰이는지는 `resolve/` 가 알 필요 없다 — 그건 Neo4j 적재기(`neo4j/sync.const.ts`
- * 의 `RELATIONSHIP_IDENTITY_PROPERTIES`)의 쓰기 관심사다. `resolve/` 는 결정성만 보장하면 되므로,
- * 정렬된 properties 전체를 tie-break 키로 쓴다 — 어떤 속성이 갈랐든 전순서가 선다.
+ * tie-break 키는 **파일에 실제로 쓰는 직렬화 결과 그 자체**를 쓴다. 한때 `properties` 를 키
+ * 정렬해 만든 별도 비교 키를 썼는데, 그러면 "비교에서 동순위" 와 "출력 바이트가 같음" 이 어긋난다
+ * — 같은 속성 집합이라도 원본 객체의 키 **삽입 순서**가 다르면 `JSON.stringify` 결과가 달라지기
+ * 때문이다(`JSON.parse` 는 입력 파일의 키 순서를 그대로 보존한다). 비교에 쓰는 문자열과 파일에
+ * 쓰는 문자열을 같게 만들면 "비교에서 같으면 바이트도 같다" 가 구성상 보장된다.
  */
-function relationshipTieBreakKey(relationship: OntologyRelationship): string {
-  const sortedEntries = Object.keys(relationship.properties)
-    .sort(compareCodePoints)
-    .map((key) => [key, relationship.properties[key]]);
-  return JSON.stringify(sortedEntries);
+function serializeGraphRecord(record: GraphRecord): string {
+  return JSON.stringify(record);
 }
 
 /**
- * 노드는 라벨 → 키, 관계는 유형 → 시작키 → 끝키 → tie-break 순으로 정렬해 바이트 동등을 보장한다.
- * `resolveGraph` 는 순수 함수로 남기고(Map 순회 순서에 좌우됨), 결정적 순서는 파일로 쓸 때만 강제한다.
+ * 노드는 라벨 → 키 → tie-break, 관계는 유형 → 시작키 → 끝키 → tie-break 순으로 정렬해 바이트
+ * 동등을 보장한다. `resolveGraph` 는 순수 함수로 남기고(Map 순회 순서에 좌우됨), 결정적 순서는
+ * 파일로 쓸 때만 강제한다.
+ *
+ * 직렬화 문자열은 레코드별로 한 번만 계산해 정렬 비교자와 파일 출력 양쪽에 재사용한다.
+ * 비교자 안에서 매번 `JSON.stringify` 를 호출하면 O(n log n) 번 다시 직렬화하게 된다.
  */
-function sortedGraphRecords(result: ResolveResult): GraphRecord[] {
-  const nodes = [...result.nodes].sort((a, b) => compareCodePoints(a.label, b.label) || compareCodePoints(a.key, b.key));
-  const relationships = [...result.relationships].sort(
+function sortedSerializedGraphRecords(result: ResolveResult): string[] {
+  const nodes = result.nodes.map((node) => ({ node, serialized: serializeGraphRecord(node) }));
+  nodes.sort(
     (a, b) =>
-      compareCodePoints(a.type, b.type) ||
-      compareCodePoints(a.startKey, b.startKey) ||
-      compareCodePoints(a.endKey, b.endKey) ||
-      compareCodePoints(relationshipTieBreakKey(a), relationshipTieBreakKey(b)),
+      compareCodePoints(a.node.label, b.node.label) || compareCodePoints(a.node.key, b.node.key) || compareCodePoints(a.serialized, b.serialized),
   );
-  return [...nodes, ...relationships];
+
+  const relationships = result.relationships.map((relationship) => ({ relationship, serialized: serializeGraphRecord(relationship) }));
+  relationships.sort(
+    (a, b) =>
+      compareCodePoints(a.relationship.type, b.relationship.type) ||
+      compareCodePoints(a.relationship.startKey, b.relationship.startKey) ||
+      compareCodePoints(a.relationship.endKey, b.relationship.endKey) ||
+      compareCodePoints(a.serialized, b.serialized),
+  );
+
+  return [...nodes.map((entry) => entry.serialized), ...relationships.map((entry) => entry.serialized)];
 }
 
 /**
@@ -129,9 +131,9 @@ function sortedGraphRecords(result: ResolveResult): GraphRecord[] {
  * 한 줄에 하나)이다 — 메타데이터 줄을 첫 줄에 넣지 않는다. 읽는 쪽이 그 규칙을 잊으면 조용히 깨진다.
  */
 export async function writeResolved(outPath: string, result: ResolveResult): Promise<void> {
-  const records = sortedGraphRecords(result);
+  const lines = sortedSerializedGraphRecords(result);
   await mkdir(dirname(outPath), { recursive: true });
-  await writeFile(outPath, records.length ? `${records.map((record) => JSON.stringify(record)).join("\n")}\n` : "", "utf8");
+  await writeFile(outPath, lines.length ? `${lines.join("\n")}\n` : "", "utf8");
 }
 
 export async function writeResolveReport(outPath: string, result: ResolveResult): Promise<void> {
