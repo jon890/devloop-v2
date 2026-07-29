@@ -88,7 +88,7 @@ function conceptReferenceCounts(relationships: readonly OntologyRelationship[]):
   return counts;
 }
 
-function compareCodePoints(left: string, right: string): number {
+export function compareCodePoints(left: string, right: string): number {
   if (left === right) {
     return 0;
   }

@@ -1,24 +1,19 @@
-import { readdir, readFile } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { resolve } from "node:path";
 import neo4j, { type Driver, type Integer, type Session } from "neo4j-driver";
 import {
-  CORE_CONCEPTS,
-  ConceptDictionarySchema,
-  INFERRED_GRAPH_FILE,
   NODE_KEY_PROPERTIES,
   NODE_LABELS,
-  PARSED_GRAPH_FILE,
   RELATIONSHIP_TYPES,
-  type ConceptDictionary,
   type NodeLabel,
   type OntologyNode,
   type OntologyRelationship,
   type RelationshipType,
 } from "@devloop/shared";
-import { buildEndpointIndex, readDroppedRelationships } from "../infer/llm-relationship-sanitizer";
+import { readFlag } from "../cli-options";
+import { readResolveInput } from "../resolve/io";
 import { normalizedKey } from "../resolve/node-merge";
 import { resolveGraph } from "../resolve/resolve";
-import type { ResolveResult, SourcedRecord } from "../resolve/resolve.schema";
+import type { ResolveResult } from "../resolve/resolve.schema";
 import { RELATIONSHIP_IDENTITY_PROPERTIES } from "./sync.const";
 import { neo4jCredentials } from "./neo4j-config";
 
@@ -51,51 +46,6 @@ function parseArgs(args: readonly string[]): LoadOptions {
   const dataDir = readFlag(args, "--data-dir") ?? process.env.PIPELINE_DATA_DIR ?? resolve(__dirname, "../../data");
 
   return { project, dataDir: resolve(dataDir) };
-}
-
-function readFlag(args: readonly string[], flag: string): string | undefined {
-  const index = args.indexOf(flag);
-  const value = index >= 0 ? args[index + 1] : undefined;
-  return value?.trim() || undefined;
-}
-
-async function loadConceptDictionary(dataDir: string, project: string): Promise<ConceptDictionary> {
-  const path = resolve(dataDir, "concepts", `${project}.json`);
-  try {
-    const raw = await readFile(path, "utf8");
-    return ConceptDictionarySchema.parse([...CORE_CONCEPTS, ...JSON.parse(raw)]);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return ConceptDictionarySchema.parse(CORE_CONCEPTS);
-    }
-    throw error;
-  }
-}
-
-async function readJsonlRecords(graphDir: string): Promise<SourcedRecord[]> {
-  const entries = await readdir(graphDir, { withFileTypes: true });
-  const jsonlFiles = entries
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".jsonl"))
-    .map((entry) => resolve(graphDir, entry.name))
-    .sort();
-
-  const records: SourcedRecord[] = [];
-  for (const file of jsonlFiles) {
-    const content = await readFile(file, "utf8");
-    content
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .forEach((line, index) => {
-        try {
-          records.push({ value: JSON.parse(line), sourceFile: basename(file) });
-        } catch (error) {
-          throw new Error(`${file}:${index + 1} invalid JSONL record: ${(error as Error).message}`);
-        }
-      });
-  }
-
-  return records;
 }
 
 function databaseKey(label: NodeLabel, key: string): DatabaseKey {
@@ -338,15 +288,8 @@ async function loadGraph(options: LoadOptions): Promise<void> {
 }
 
 async function prepareLoadGraph(options: LoadOptions): Promise<ResolveResult> {
-  const graphDir = resolve(options.dataDir, "graph", options.project);
-  const dictionary = await loadConceptDictionary(options.dataDir, options.project);
-  const endpointIndex = await buildEndpointIndex(options.dataDir, options.project);
-  const reportPath = resolve(graphDir, "inference-dropped-relationships.json");
-  const previousDropped = await readDroppedRelationships(reportPath);
-  const records = await readJsonlRecords(graphDir);
-  const parsed = records.filter((record) => record.sourceFile === PARSED_GRAPH_FILE);
-  const inferred = records.filter((record) => record.sourceFile === INFERRED_GRAPH_FILE);
-  return resolveGraph({ parsed, inferred, dictionary, endpointIndex, previousDropped });
+  const input = await readResolveInput(options.dataDir, options.project);
+  return resolveGraph(input);
 }
 
 async function writeGraphToNeo4j(
