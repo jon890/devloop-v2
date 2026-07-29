@@ -1,7 +1,7 @@
 # Phase 02 — 정규화를 resolve 디렉터리로 옮기고 계약을 만든다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

@@ -1,7 +1,7 @@
 # Phase 03 — resolve-graph 명령과 입출력 계층을 붙인다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

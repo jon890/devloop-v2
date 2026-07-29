@@ -52,11 +52,10 @@ API e2e는 `pnpm --filter api test:e2e`로 실행하며, 테스트 전용 Neo4j 
 
 `NEO4J_URI`는 인라인으로 주면 첫 줄에만 걸린다. `apply-schema`·`sync-neo4j`는 기본값
 `bolt://localhost:7687`로 붙으므로, 세 명령 모두에 같은 URI가 걸리도록 `export`로 셸에 남겨야 한다.
-아래는 실제 운영 그래프(`7687`)를 초기화하는 예시다 — 운영 포트라 `--allow-production`이 필요하다.
 
 ```bash
-export NEO4J_URI=bolt://localhost:7687
-pnpm --filter pipeline reset-neo4j --force --allow-production
+export NEO4J_URI=bolt://localhost:7690
+pnpm --filter pipeline reset-neo4j --force
 pnpm apply-schema
 pnpm --filter pipeline sync-neo4j
 ```

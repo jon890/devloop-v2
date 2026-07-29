@@ -11,7 +11,7 @@ import {
 } from "@devloop/shared";
 import { DEFAULT_PROJECT, readDataDirFlag, readFlag } from "../cli-options";
 import { readResolveInput } from "../resolve/io";
-import { normalizedKey } from "../resolve/node-merge";
+import { compareCodePoints, normalizedKey } from "../resolve/node-merge";
 import { resolveGraph } from "../resolve/resolve";
 import type { ResolveResult } from "../resolve/resolve.schema";
 import { RELATIONSHIP_IDENTITY_PROPERTIES } from "./sync.const";
@@ -254,7 +254,8 @@ async function loadGraph(options: LoadOptions): Promise<void> {
             relationships: resolved.relationships.length,
           },
           stats,
-          unknownConcepts: Object.fromEntries([...resolved.unknownConcepts.entries()].sort()),
+          // resolve-graph 와 같은 형태로 낸다 — 튜플 배열이라야 숫자처럼 보이는 키의 순서가 지켜진다.
+          unknownConcepts: [...resolved.unknownConcepts.entries()].sort(([left], [right]) => compareCodePoints(left, right)),
           droppedRelationships: resolved.droppedRelationships,
           skippedRelationships: resolved.skippedRelationships,
         },

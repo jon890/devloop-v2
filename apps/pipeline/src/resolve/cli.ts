@@ -99,10 +99,11 @@ export async function runResolveGraph(args: readonly string[]): Promise<void> {
         report: options.reportPath,
         nodes: result.nodes.length,
         relationships: result.relationships.length,
-        // `.sort()` 기본 비교자는 쓰지 않는다 — 숫자처럼 보이는 키(예: "483")가 JS 정수 키 정렬
-        // 규칙에 걸려 순서가 뒤바뀐다(resolve.schema.ts 의 UnknownConceptEntrySchema 주석 참조).
-        // 파일(resolve-report.json)이 쓰는 것과 같은 compareCodePoints 로 맞춘다.
-        unknownConcepts: Object.fromEntries([...result.unknownConcepts.entries()].sort(([left], [right]) => compareCodePoints(left, right))),
+        // 객체가 아니라 튜플 배열로 낸다 — 객체는 숫자처럼 보이는 키(예: "483")를 정렬과 무관하게
+        // 앞으로 재배치해서 비교자를 바꿔도 순서를 지킬 수 없다.
+        // 파일(resolve-report.json)이 같은 이유로 튜플 배열을 쓴다
+        // (resolve.schema.ts 의 UnknownConceptEntrySchema 주석 참조).
+        unknownConcepts: [...result.unknownConcepts.entries()].sort(([left], [right]) => compareCodePoints(left, right)),
         skippedRelationships: result.skippedRelationships,
         droppedRelationships: result.droppedRelationships,
         rewrittenRelationships: result.rewrittenRelationships,

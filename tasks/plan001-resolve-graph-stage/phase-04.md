@@ -1,7 +1,7 @@
 # Phase 04 — sync-neo4j 를 쓰기 전용으로 줄이고 reset-neo4j 를 만든다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 
@@ -66,6 +66,17 @@ pnpm --filter pipeline reset-neo4j --force [--project <code>]
 
 1. 대상 URI 를 확인한다. **포트가 `7687`(운영)이면 즉시 예외로 중단한다**
 2. `--force` 가 없으면 거부한다
+
+**구현 중 1번이 바뀌었다.** 코드 검토에서 이 명령이 기본 URI 로는 **항상 실패**한다는 것이
+드러났다 — 기본값이 `bolt://localhost:7687` 인데 바로 다음 줄이 7687 을 거부한다.
+그런데 문서들은 `NEO4J_URI` 없이 이 명령을 안내하고 있었다. 즉 문서화된 본래 용도를
+수행할 수 없는 명령이었다.
+
+최종 동작은 이렇다. 근거는 `docs/data-schema.md` 의 삭제 규칙 절에 남겼다.
+
+- `NEO4J_URI` 가 없으면 거부한다. 기본값을 없애 대상이 항상 명시되게 했다
+- 7687 은 `--force` 에 더해 `--allow-production` 을 함께 줄 때만 허용한다.
+  차단이 아니라 두 번 확인이다 — 초기화는 이 저장소의 표준 절차라 아예 막으면 명령이 쓸모없어진다
 3. 실행 전 대상 URI 와 현재 노드·관계 수를 출력한다
 4. `MATCH (n) DETACH DELETE n` 을 실행한다
 5. 삭제 후 노드 수가 0 인지 확인해 출력한다
