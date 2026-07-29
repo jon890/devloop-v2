@@ -256,6 +256,9 @@ docker exec devloop-plan001-neo4j cypher-shell -u neo4j -p devloop-test-password
 ```bash
 # cwd: 저장소 루트 — 구현 완료 후
 docker exec devloop-plan001-neo4j cypher-shell -u neo4j -p devloop-test-password 'MATCH (n) DETACH DELETE n'
+# 초기화 직후에도 0 을 확인한다. 적재기가 MERGE 전용이라 잔여 노드가 있으면
+# 새 코드가 노드를 덜 만드는 회귀가 그 잔여분에 가려져 diff 를 통과한다
+docker exec devloop-plan001-neo4j cypher-shell -u neo4j -p devloop-test-password 'MATCH (n) RETURN count(n) AS c'
 pnpm apply-schema
 pnpm --filter pipeline sync-neo4j --project tc-ocr --data-dir "$D" | tee /tmp/after.summary.txt
 # 위 두 Cypher 를 다시 실행해 /tmp/after.nodes.txt · /tmp/after.rels.txt 로 저장

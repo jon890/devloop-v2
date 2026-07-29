@@ -79,7 +79,7 @@ export async function writeResolveReport(outPath: string, result: ResolveResult)
 | `parsed.jsonl` | `<dataDir>/graph/<project>/` | **즉시 실패.** 필수 입력이다 |
 | `inferred.jsonl` | 같은 위치 | **경고하고 빈 배열로 진행.** 구조만으로도 그래프가 성립한다 |
 | Concept 사전 | `<dataDir>/concepts/<project>.json` | 코어 사전만으로 진행 (기존 동작) |
-| raw 문서 (`endpointIndex` 재료) | `<dataDir>/raw/<project>/` | **즉시 실패.** 아래 이유 참조 |
+| raw 문서 (`endpointIndex` 재료) | `<dataDir>/raw/<project>/` | `io.ts` 는 **기존 동작 유지**. 엄격 판정은 `cli.ts` 가 한다 (아래) |
 | `inference-dropped-relationships.json` | `<dataDir>/graph/<project>/` | 빈 배열 (`readDroppedRelationships` 의 기존 동작) |
 
 뒤 두 입력은 Phase 02 에서 `sync.ts` 가 직접 챙기던 것이다. 이제 `readResolveInput` 한 곳으로 모은다.
@@ -92,9 +92,27 @@ export async function writeResolveReport(outPath: string, result: ResolveResult)
 사전 변경 전후를 `cmp` 하면 **둘 다 똑같이 비어 "차이 없음" 이라는 틀린 결론**이 나온다.
 이 단계의 존재 이유가 정확히 그 비교이므로 그냥 두면 안 된다.
 
-- `resolve-graph` 경로에서는 raw 부재와 **빈 색인**을 실패로 다룬다
-- `sync-neo4j` 경로의 기존 동작은 **바꾸지 마라.** 이번 plan 은 적재 동작 불변이 전제다
-- 4번의 표준출력 요약에 색인 크기(Task·Wiki 끝점 수)를 넣어 빈 색인이 눈에 띄게 한다
+**엄격 판정을 `io.ts` 에 넣지 마라. `resolve/cli.ts` 에 둔다.**
+
+`readResolveInput` 은 시그니처가 하나인데 호출처가 둘이다 — `resolve-graph` 와 `sync-neo4j`.
+여기서 던지게 만들면 **`sync-neo4j` 도 raw 없이는 못 돌게 되어 적재 동작이 조용히 바뀐다.**
+`tc-ocr` 에는 raw 가 있으니 테스트도 검증도 전부 통과하고 바뀐 사실이 드러나지 않는다.
+이 plan 이 막으려는 실패가 정확히 그것이다.
+
+| 계층 | 책임 |
+| --- | --- |
+| `io.ts` `readResolveInput` | 기존 동작 그대로 읽는다. 색인이 비어도 그대로 돌려준다 |
+| `resolve/cli.ts` | 받은 색인이 비었으면 **실패시킨다.** `resolve-graph` 에만 적용된다 |
+| `sync.ts` | 검사하지 않는다. 기존 동작이 그대로 유지된다 |
+
+정책을 명령 경계에 두면 플래그 인자가 필요 없다.
+`readResolveInput` 에 `{ requireEndpointIndex: boolean }` 같은 것을 붙이지 마라 —
+호출처가 둘뿐이고 정책이 명령마다 다르므로 `cli.ts` 쪽이 단순하다.
+
+4번의 표준출력 요약에 색인 크기(Task·Wiki 끝점 수)를 넣어 빈 색인이 눈에 띄게 한다.
+
+**검증** — `sync-neo4j` 가 여전히 raw 부재를 견디는지 테스트로 고정하라.
+`cli.ts` 의 검사를 `io.ts` 로 잘못 내리면 이 테스트가 실패해야 한다.
 
 **`readdir` 로 디렉터리를 훑지 마라.** 위 작업 순서 섹션의 이유다. 파일명을 명시해 읽는다.
 
