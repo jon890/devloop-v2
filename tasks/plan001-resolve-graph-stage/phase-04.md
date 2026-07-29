@@ -1,0 +1,189 @@
+# Phase 04 — sync-neo4j 를 쓰기 전용으로 줄이고 reset-neo4j 를 만든다
+
+**Execution profile**: standard
+**Status**: pending
+
+---
+
+## 목표
+
+`sync-neo4j` 에 남은 비적재 관심사를 걷어내 **Neo4j 쓰기 전용**으로 만든다.
+그리고 지금까지 손으로 하던 초기화 절차에 이름을 준다.
+
+`sync.ts` 는 시작 시점 875줄이었고 이 phase 이후 약 200줄이 목표다.
+
+**범위 외**
+
+- 정규화 로직 변경 — 이번 plan 전체에서 하지 않는다
+- Neo4j 스키마 변경 — 노드 라벨·관계 유형·제약·인덱스는 그대로다
+- staging 인스턴스(7689) 신설 — 별도 계획의 몫이다
+
+---
+
+## 작업 항목 (4)
+
+### 1. 죽은 마이그레이션 두 개를 삭제한다
+
+`sync.ts` 의 `writeGraphToNeo4j` 가 매 적재마다 조건 없이 두 함수를 실행한다.
+
+| 함수 | 목적 | 실측 |
+| --- | --- | --- |
+| `migrateTaskNumberType` | `Task.number` 를 문자열·소수에서 정수로 | 적재기가 `databaseKey` 로 **이미 정수를 쓴다.** 그래프 490건 전부 `INTEGER NOT NULL` |
+| `removeLegacyUnknownTagDimensions` | `TAGGED{dimension:'unknown'}` 삭제 | `dimension` 이 `0`·`1`·`2` 뿐. `unknown` **0건** |
+
+둘 다 옛 코드로 적재된 그래프를 고치려던 것이고 현재 적재기는 그 상태를 만들지 않는다.
+**함수와 호출을 모두 삭제한다.**
+
+삭제 전에 위 실측을 **직접 재확인하라.** 대상 인스턴스에서 확인하고 출력을 보고에 남긴다.
+
+```cypher
+MATCH (t:Task) RETURN valueType(t.number) AS type, count(*) AS c
+MATCH ()-[r:TAGGED]->() RETURN r.dimension AS dim, count(*) AS c
+```
+
+실측이 다르면(문자열 `number` 나 `unknown` dimension 이 있으면) **삭제하지 말고 보고하라.**
+
+### 2. `apps/pipeline/src/neo4j/reset.ts` — 초기화 명령
+
+```
+pnpm --filter pipeline reset-neo4j --force [--project <code>]
+```
+
+동작 순서다.
+
+1. 대상 URI 를 확인한다. **포트가 `7687`(운영)이면 즉시 예외로 중단한다**
+2. `--force` 가 없으면 거부한다
+3. 실행 전 대상 URI 와 현재 노드·관계 수를 출력한다
+4. `MATCH (n) DETACH DELETE n` 을 실행한다
+5. 삭제 후 노드 수가 0 인지 확인해 출력한다
+
+**삭제 범위는 전체다.** 프로젝트 단위 삭제는 만들지 마라 —
+`Task.number` 가 key 라서 프로젝트가 달라도 같은 번호는 같은 노드다. 부분 삭제가 안전하지 않다.
+`--project` 인자는 출력 표기용으로만 받는다.
+
+포트 가드는 기존 구현을 참고하라 — `apps/api/test/run-e2e.js` 에 같은 형태의 가드가 있다.
+
+### 3. `sync.ts` 를 쓰기 전용으로 정리한다
+
+남길 것과 없앨 것이다.
+
+| 대상 | 처리 |
+| --- | --- |
+| `mergeNodes`·`mergeRelationships` 계열, `prepareRelationshipRows`, `splitRowsByIdentity`, `mergeRowsWithIdentity`, `mergeRowsWithoutIdentity` | 남긴다 |
+| `sanitizeProperties`·`stripResolverProperties` | 남긴다 (쓰기 직전 정리) |
+| `collectStats` | 남긴다 |
+| `databaseKey` | 남긴다 (적재 키 변환은 쓰기 관심사다) |
+| 읽기 함수 | Phase 03 에서 `io.ts` 로 이동 완료. 잔재가 있으면 제거 |
+| 자체 `parseArgs`·`readFlag` | Phase 03 에서 `cli-options.ts` 로 공용화 완료. 잔재 제거 |
+| `NEO4J_URI` 기본값 | **그대로 둔다.** 파이프라인 설정 정리는 이번 범위가 아니다 |
+
+### 4. 단계 등록과 문서 반영
+
+| 파일 | 변경 |
+| --- | --- |
+| `apps/pipeline/package.json` | `reset-neo4j` 스크립트 추가 |
+| `apps/pipeline/src/cli-options.ts` | 스테이지 목록에 추가 |
+| `README.md` | 초기화 절차를 `reset-neo4j --force` 로 갱신 |
+
+`docs/` 는 이미 갱신돼 있다 (`docs/adr/0004-resolve-as-inspection-stage.md`,
+`docs/flow.md`, `docs/data-schema.md`). **다시 쓰지 마라.**
+문서와 구현이 어긋나는 곳만 찾아 보고하라.
+
+---
+
+## Critical Files
+
+| 파일 | 변경 |
+| --- | --- |
+| `apps/pipeline/src/neo4j/reset.ts` | 신규 |
+| `apps/pipeline/src/neo4j/sync.ts` | 수정 — 마이그레이션 삭제, 잔재 정리 |
+| `apps/pipeline/src/cli-options.ts` | 수정 — 스테이지 목록 |
+| `apps/pipeline/package.json` | 수정 — 스크립트 |
+| `README.md` | 수정 — 초기화 절차 |
+| 테스트 | 추가 — 아래 검증 참조 |
+
+---
+
+## 검증
+
+```bash
+# cwd: 저장소 루트
+pnpm -r build
+pnpm --filter api test:unit
+pnpm --filter pipeline test
+pnpm format:check
+```
+
+`pnpm --filter api test` 는 쓰지 마라 — exit 0 으로 조용히 통과한다. 테스트 **개수**를 확인하라.
+
+### 가드 테스트와 변이 검증 (필수)
+
+- `--force` 없이 실행하면 거부하는지
+- 대상 포트가 `7687` 이면 거부하는지
+- **변이 검증** — 두 가드를 각각 무력화했을 때 해당 테스트가 실제로 실패하는지 확인하고 원복한다.
+  `git status` 가 깨끗한지 보여라
+
+가드 테스트는 **실제로 DB 에 접속하지 않고** 판정되어야 한다. 접속 전에 거부하는 것이 요점이다.
+
+### 적재 결과 동등성 (이 plan 전체의 통과 조건)
+
+`sync.ts` 를 875줄에서 약 200줄로 줄였으므로 결과가 같은지 증명해야 한다.
+
+```bash
+# cwd: 저장소 루트
+# 1. 현재 통계 기록
+# 2. reset-neo4j --force 로 초기화
+# 3. apply-schema
+# 4. sync-neo4j 로 재적재
+# 5. 노드·관계 통계가 1번과 동일한지 확인
+```
+
+**대상 인스턴스를 반드시 명시하라.**
+
+```bash
+# cwd: 저장소 루트
+NEO4J_URI=bolt://localhost:7688 pnpm --filter pipeline reset-neo4j --force
+```
+
+`NEO4J_URI` 를 지정하지 않으면 `.env` 기본값인 **운영 그래프(7687)** 로 간다.
+실제로 이 실수로 운영 그래프가 오염된 사례가 있다 — fixture 검증 중 기존 업무 노드가
+같은 `number` 키로 병합됐다.
+
+테스트 인스턴스가 없으면 `PHASE_BLOCKED` 로 남기고 조정자에게 넘겨라.
+**운영 그래프에서 검증하지 마라.**
+
+---
+
+## 의도 메모 (왜)
+
+- **마이그레이션을 분리하지 않고 삭제하는 이유** — 적재기가 그 상태를 만들지 않으므로 죽은 코드다.
+  옛 그래프를 만나면 `reset-neo4j` 후 재적재로 다룬다. `jsonl` 이 남아 있어 항상 가능하다.
+  마이그레이션 자리가 필요해지면 그때 만든다 — 지금 만들면 빈 껍데기다
+- **`reset-neo4j` 를 만드는 이유** — 초기화가 이 저장소의 표준 절차인데 이름이 없어
+  매번 손으로 Cypher 를 쳤다. 그 과정에서 대상을 잘못 지정하는 사고가 실제로 났다
+- **프로젝트 단위 삭제를 만들지 않는 이유** — `Task.number` 가 프로젝트를 구분하지 않는다.
+  부분 삭제는 다른 프로젝트 노드를 지울 수 있다
+- **`NEO4J_URI` 기본값을 남기는 이유** — 파이프라인 설정을 config 로 모으는 것은 별개 관심사다.
+  API 는 이미 정리했고(ADR 0003) 파이프라인은 후속 작업이다
+
+근거 문서 — `docs/adr/0004-resolve-as-inspection-stage.md`, `docs/data-schema.md`
+
+---
+
+## Blocked 조건
+
+- 테스트용 Neo4j 인스턴스가 없어 적재 동등성을 확인할 수 없으면
+  `PHASE_BLOCKED: 테스트 Neo4j 부재로 적재 동등성 검증 불가` 를 출력하고,
+  **가드 테스트와 단위 테스트까지는 완료한 상태로** 종료한다
+- 1번의 실측이 문서와 다르면(문자열 `Task.number` 나 `unknown` dimension 존재)
+  `PHASE_BLOCKED: 마이그레이션이 아직 필요한 데이터 발견` 을 출력하고 삭제하지 않는다
+
+---
+
+## 마지막 phase 마무리
+
+이 plan 의 마지막 phase 다. 검증을 모두 통과한 뒤 다음을 처리한다.
+
+- `tasks/plan001-resolve-graph-stage/index.json` 에서 이 phase 의 `status` 를 `completed` 로 바꾼다
+- 네 phase 가 모두 `completed` 이면 최상위 `status` 도 `completed` 로 바꾼다
+- 어느 phase 든 `PHASE_BLOCKED` 로 끝났으면 **`completed` 로 바꾸지 말고** 그 사유를 보고한다
