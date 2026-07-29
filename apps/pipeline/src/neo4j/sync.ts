@@ -210,28 +210,6 @@ async function mergeRowsWithoutIdentity(
   );
 }
 
-async function migrateTaskNumberType(session: Session): Promise<void> {
-  await session.run(`
-    MATCH (task:Task)
-    WHERE valueType(task.number) STARTS WITH 'STRING'
-       OR valueType(task.number) STARTS WITH 'FLOAT'
-    WITH task, toInteger(task.number) AS integerNumber
-    WHERE integerNumber IS NOT NULL
-    SET task.number = integerNumber
-  `);
-}
-
-async function removeLegacyUnknownTagDimensions(session: Session, project: string): Promise<void> {
-  await session.run(
-    `
-    MATCH (:Project { code: $project })-[:CONTAINS]->(task:Task)
-    MATCH (task)-[tagged:TAGGED { dimension: 'unknown' }]->()
-    DELETE tagged
-    `,
-    { project },
-  );
-}
-
 function sanitizeProperties(properties: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(properties).filter(([, value]) => value !== undefined && value !== null));
 }
@@ -306,8 +284,6 @@ async function writeGraphToNeo4j(
   const session = driver.session({ database: "neo4j" });
 
   try {
-    await migrateTaskNumberType(session);
-    await removeLegacyUnknownTagDimensions(session, options.project);
     await mergeNodes(session, graph.nodes);
     await mergeRelationships(session, graph.relationships);
     const stats = await collectStats(session);

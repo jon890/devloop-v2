@@ -45,6 +45,20 @@ pnpm web
 API e2e는 `pnpm --filter api test:e2e`로 실행하며, 테스트 전용 Neo4j `bolt://localhost:7688`을 자동으로 기동하고 종료한다.
 이 테스트는 운영 개발 DB 포트 `7687`을 거부한다.
 
+## 그래프 초기화
+
+적재기(`sync-neo4j`)는 MERGE 전용이라 노드가 자동으로 줄지 않는다.
+정규화를 고쳐 노드가 합쳐지게 만들었어도, 그래프를 비우고 다시 적재해야 병합 효과가 보인다.
+
+```bash
+pnpm --filter pipeline reset-neo4j --force
+pnpm apply-schema
+pnpm --filter pipeline sync-neo4j
+```
+
+`reset-neo4j`는 `--force` 없이 실행을 거부하고, 대상 포트가 운영(`7687`)이면 즉시 중단한다.
+산출물 `jsonl`이 `data/graph/`에 남아 있으므로 초기화 후 재적재로 항상 복원된다.
+
 ## 모델 구성
 
 - `LLM_MODEL=gpt-5.5`: 파이프라인 추출 모델. API는 이 값을 읽지 않는다

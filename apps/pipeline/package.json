@@ -10,6 +10,7 @@
     "start": "node dist/main.js",
     "sync-neo4j": "pnpm build && node dist/neo4j/sync.js",
     "resolve-graph": "pnpm build && node dist/resolve/cli.js",
+    "reset-neo4j": "pnpm build && node dist/neo4j/reset.js",
     "audit-concepts": "pnpm build && node dist/concepts/audit.js",
     "apply-schema": "pnpm build && node dist/neo4j/apply-schema.js",
     "seed-concepts": "pnpm build && node dist/main.js seed-concepts",
