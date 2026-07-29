@@ -1,37 +1,24 @@
 import type { GraphStatsResponse } from "@devloop/shared";
 import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation } from "react-router";
 import { getGraphStats, useMockApi } from "./api-client";
-import { ExplorerPage } from "./ExplorerPage";
-import { OntologyPage } from "./OntologyPage";
-import { QueryWorkspace } from "./query/QueryWorkspace";
+import { appRoutes, getAppRouteByPathname, type AppRoute } from "./app-route.const";
 import { useQueryWorkspace } from "./query/useQueryWorkspace";
-import { SchemaMapPage } from "./SchemaMapPage";
-
-type ViewId = "query" | "ontology" | "schema" | "explorer";
-
-const views: { id: ViewId; label: string }[] = [
-  { id: "query", label: "질의응답" },
-  { id: "ontology", label: "온톨로지 정의" },
-  { id: "schema", label: "스키마 맵" },
-  { id: "explorer", label: "인스턴스 탐색" },
-];
-
-const viewTitles: Record<ViewId, string> = {
-  query: "결정의 맥락을 따라가세요",
-  ontology: "지식의 계약을 읽습니다",
-  schema: "구조와 규모를 함께 봅니다",
-  explorer: "연결을 한 단계씩 펼칩니다",
-};
 
 function sum(values: Record<string, number> | undefined) {
   return Object.values(values ?? {}).reduce((total, count) => total + count, 0);
 }
 
+export type AppOutletContext = {
+  workspace: ReturnType<typeof useQueryWorkspace>;
+  graphStatsError: string | null;
+};
+
 export function App() {
-  const [view, setView] = useState<ViewId>("query");
   const [stats, setStats] = useState<GraphStatsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const workspace = useQueryWorkspace({ onSubmitStart: () => setError(null) });
+  const activeRoute = getAppRouteByPathname(useLocation().pathname);
 
   useEffect(() => {
     getGraphStats()
@@ -43,16 +30,13 @@ export function App() {
 
   return (
     <main className="app-shell">
-      <AppHeader view={view} stats={stats} onViewChange={setView} />
-      {view === "query" && <QueryWorkspace workspace={workspace} graphStatsError={error} />}
-      {view === "ontology" && <OntologyPage />}
-      {view === "schema" && <SchemaMapPage />}
-      {view === "explorer" && <ExplorerPage />}
+      <AppHeader activeRoute={activeRoute} stats={stats} />
+      <Outlet context={{ workspace, graphStatsError: error } satisfies AppOutletContext} />
     </main>
   );
 }
 
-function AppHeader({ view, stats, onViewChange }: { view: ViewId; stats: GraphStatsResponse | null; onViewChange: (view: ViewId) => void }) {
+function AppHeader({ activeRoute, stats }: { activeRoute: AppRoute; stats: GraphStatsResponse | null }) {
   return (
     <header className="site-header">
       <div className="topbar">
@@ -67,7 +51,7 @@ function AppHeader({ view, stats, onViewChange }: { view: ViewId; stats: GraphSt
           </svg>
           <div>
             <p className="eyebrow">Dooray knowledge map</p>
-            <h1>{viewTitles[view]}</h1>
+            <h1>{activeRoute.title}</h1>
           </div>
         </div>
         <div className="stats" aria-label="전체 그래프 규모">
@@ -84,16 +68,10 @@ function AppHeader({ view, stats, onViewChange }: { view: ViewId; stats: GraphSt
         </div>
       </div>
       <nav className="main-nav" aria-label="그래프 화면">
-        {views.map((item) => (
-          <button
-            type="button"
-            key={item.id}
-            className={view === item.id ? "active" : ""}
-            aria-current={view === item.id ? "page" : undefined}
-            onClick={() => onViewChange(item.id)}
-          >
-            {item.label}
-          </button>
+        {appRoutes.map((route) => (
+          <NavLink key={route.id} to={route.path} end>
+            {route.label}
+          </NavLink>
         ))}
       </nav>
     </header>

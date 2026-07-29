@@ -51,12 +51,12 @@ h1 { margin: 3px 0 0; font-family: "Iowan Old Style", "Noto Serif KR", serif; fo
 .mode-badge { border: 1px solid #547381; padding: 5px 8px; border-radius: 999px; font-family: "SFMono-Regular", monospace; letter-spacing: .08em; }
 .mode-badge.mock { color: #446f62; border-color: #8db1a6; background: #dceae5; }
 .main-nav { min-height: 43px; display: flex; align-items: stretch; gap: 3px; padding: 0 30px; border-bottom: 1px solid #aebbc0; background: #e5eae9; }
-.main-nav button { position: relative; border: 0; padding: 0 15px; color: #6a777e; background: transparent; font-size: 11px; font-weight: 750; cursor: pointer; }
-.main-nav button::after { content: ""; position: absolute; height: 3px; left: 14px; right: 14px; bottom: -1px; background: transparent; }
-.main-nav button:hover { color: #21333e; background: rgba(255, 255, 255, .38); }
-.main-nav button.active { color: #142631; }
-.main-nav button.active::after { background: #327d8e; }
-.main-nav button:focus-visible { outline: 3px solid rgba(45, 128, 152, .35); outline-offset: -3px; }
+.main-nav a { position: relative; display: flex; align-items: center; padding: 0 15px; color: #6a777e; background: transparent; font-size: 11px; font-weight: 750; text-decoration: none; cursor: pointer; }
+.main-nav a::after { content: ""; position: absolute; height: 3px; left: 14px; right: 14px; bottom: -1px; background: transparent; }
+.main-nav a:hover { color: #21333e; background: rgba(255, 255, 255, .38); }
+.main-nav a.active { color: #142631; }
+.main-nav a.active::after { background: #327d8e; }
+.main-nav a:focus-visible { outline: 3px solid rgba(45, 128, 152, .35); outline-offset: -3px; }
 
 .workspace { min-height: 0; display: grid; grid-template-columns: minmax(390px, 42%) 1fr; }
 .chat-panel { background: var(--paper); border-right: 1px solid #9cabb2; padding: 26px 30px 42px; overflow-y: auto; }
@@ -272,7 +272,7 @@ h1 { margin: 3px 0 0; font-family: "Iowan Old Style", "Noto Serif KR", serif; fo
 @media (max-width: 900px) {
   .topbar { padding-inline: 18px; }
   .main-nav { padding-inline: 12px; overflow-x: auto; }
-  .main-nav button { flex: 0 0 auto; }
+  .main-nav a { flex: 0 0 auto; }
   .stats-divider, .stats > div span { display: none; }
   .workspace { grid-template-columns: 1fr; }
   .chat-panel { border-right: 0; padding: 24px 20px 34px; }
