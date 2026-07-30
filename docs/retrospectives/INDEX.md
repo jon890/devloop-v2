@@ -6,3 +6,4 @@
 | RETRO-0002 | 2026-07-30 | plan002-pipeline-config | 관리 문서가 현재 구현과 목표 설계를 섞었다 | 해결 | 승격 안 함 |
 | RETRO-0003 | 2026-07-30 | plan003-registry-curation | 사전 재생성이 기존 표기와 구조 전용 Concept 을 지웠다 | 해결 | 승격 안 함 |
 | RETRO-0004 | 2026-07-30 | plan003-registry-curation | 판단 조회 누락과 원천 소유권 충돌이 조용히 통과했다 | 해결 | 승격 안 함 |
+| RETRO-0005 | 2026-07-30 | plan003-registry-curation | 구현 완료 뒤 목표 상태 문구가 남았다 | 해결 | 승격 안 함 |
