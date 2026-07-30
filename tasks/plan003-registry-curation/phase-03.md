@@ -86,17 +86,17 @@ registry 와 resolve 가 **같은 함수**를 써야 한다. 두 정규화가 �
 - 판단 조회 실패는 즉시 실패다. 판단을 조용히 빼고 사전을 만들면 잘못된 사전이 산출된다
 - 판단이 0건인 것은 정상이다. "판단 0건 적용" 을 출력해 **없다** 와 **못 읽었다** 를 구분한다
 
-### 4. 전역 상수를 제거한다
+### 4. 전역 canonical override 를 제거하고 legacy 차단은 임시 fallback 으로 유지한다
 
-`resolve/concept-alias.const.ts` 의 `CONCEPT_KEY_MERGE_DENYLIST` 와
-`CONCEPT_KEY_CANONICAL_OVERRIDES` 를 없앤다.
+`CONCEPT_KEY_CANONICAL_OVERRIDES` 는 빈 Map 이므로 없앤다.
+`CONCEPT_KEY_MERGE_DENYLIST` 의 기존 2건은 이 phase 에서 제거하지 않고 임시 fallback 으로 유지한다.
 
-- 차단 2건은 Phase 04 가 DB 로 주입한다. **이 phase 에서 값을 옮기지 마라**
-- `CONCEPT_KEY_CANONICAL_OVERRIDES` 는 빈 Map 이므로 그냥 없앤다.
-  근거는 [ADR 0005](../../docs/adr/0005-curation-in-relational-store.md) 에 있다
-- 상수를 없애면 그 사이 차단이 비어 있는 상태가 된다.
-  Phase 04 주입 전까지 **부당 병합 2건이 되살아난다** — 그 사실을 보고에 적고,
-  Phase 04 를 반드시 이어서 수행하라
+- 차단 2건은 Phase 04 가 DB 로 주입한 뒤 fallback 을 제거한다.
+  이 순서로 보호가 비는 구간을 없애고 판단 0건 산출물 불변을 보장한다
+- `CONCEPT_KEY_CANONICAL_OVERRIDES` 제거 근거는
+  [ADR 0005](../../docs/adr/0005-curation-in-relational-store.md) 에 있다
+- 임시 fallback 은 Phase 04 완료 전까지만 존재한다.
+  DB 주입 후에도 남겨 두면 판단 저장소와 코드가 같은 값을 중복 소유하므로 반드시 제거한다
 
 ### 5. `sync-neo4j`·`resolve-graph` 의 읽기 경계 유지
 
@@ -116,7 +116,7 @@ registry 와 resolve 가 **같은 함수**를 써야 한다. 두 정규화가 �
 | `packages/registry/src/curation.service.ts` | 수정 — 필요 시 조회 표면 조정 |
 | `apps/pipeline/src/resolve/io.ts` | 수정 — 판단 조회와 합성 |
 | `apps/pipeline/src/resolve/concept-alias.ts` | 수정 — 이동한 함수 import |
-| `apps/pipeline/src/resolve/concept-alias.const.ts` | 수정 — 상수 제거 |
+| `apps/pipeline/src/resolve/concept-alias.const.ts` | 수정 — 빈 canonical override 제거, legacy 차단 fallback 유지 |
 | `apps/pipeline/src/concepts/concept-seeder.ts` | 수정 — 판정 규칙 |
 | `apps/pipeline/src/infer/llm-extractor.ts` | 수정 — `readProjectConcepts` 제거 |
 | 테스트 | 추가·수정 |

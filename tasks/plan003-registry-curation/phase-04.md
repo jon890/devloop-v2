@@ -108,7 +108,14 @@ pnpm --filter pipeline import-curation --project tc-ocr --file <빈 판단 파�
 
 되돌릴 수 있다는 것이 이 단계를 만든 이유다. 그래프를 건드리기 전에 확인한다.
 
-### 4. 보관본을 만든다
+### 4. legacy 차단 fallback 을 제거하고 보관본을 만든다
+
+차단 4건이 DB 에 들어가고 위 diff 판정이 통과한 뒤,
+Phase 03 에서 임시 유지한 코드 fallback 2건을 제거한다.
+
+- 제거 뒤 `resolve-graph` 를 다시 실행해 fallback 제거 전 산출물과 바이트가 같은지 확인한다
+- 다르면 DB 차단이 코드 fallback 을 완전히 대체하지 못한 것이므로 원복하고 보고한다
+- `CONCEPT_KEY_CANONICAL_OVERRIDES` 와 legacy denylist 값이 코드에 0건인지 grep 으로 확인한다
 
 ```bash
 # cwd: 저장소 루트
@@ -127,9 +134,11 @@ pnpm --filter pipeline export-curation --project tc-ocr --out <저장소 밖 절
 | --- | --- |
 | 주입 JSON | 신규 — **저장소 밖에 둔다** |
 | `docs/data-schema.md` | 확인만. 판단 저장소 절이 실제와 맞는지 |
+| `apps/pipeline/src/resolve/concept-alias.const.ts`·관련 공유 모듈 | 수정 — DB 주입 확인 뒤 legacy fallback 제거 |
 | `CLAUDE.md` | 수정 — 진행 표에서 별칭 등록 항목을 완료로 바꾼다 |
 
-코드 변경은 없어야 한다. 필요해지면 앞 phase 에 빠진 것이 있다는 뜻이므로 **보고하라.**
+fallback 제거 외 코드 변경은 없어야 한다.
+다른 변경이 필요해지면 앞 phase 에 빠진 것이 있다는 뜻이므로 **보고하라.**
 
 ---
 
