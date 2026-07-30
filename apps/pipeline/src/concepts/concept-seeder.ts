@@ -1,7 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { ConceptDictionarySchema, type ConceptDictionary, type ConceptEntry, type ConceptKind } from "@devloop/shared";
+import { ConceptDictionarySchema, normalizeConceptKey, type ConceptDictionary, type ConceptEntry, type ConceptKind } from "@devloop/shared";
 import type { PipelineConfig } from "../config";
+import { composeConceptDictionary, readConceptCuration, type ConceptCuration } from "./dictionary";
 import { firstString, readRawProject } from "../raw-reader";
 
 const TAG_KINDS: Record<string, ConceptKind> = {
@@ -16,6 +17,7 @@ export interface ConceptSeedOptions {
   dataRoot: string;
   project: string;
   config?: PipelineConfig;
+  curation?: ConceptCuration;
 }
 
 export interface ConceptSeedResult {
@@ -46,7 +48,7 @@ function isDotPartAlias(canonical: string, alias: string): boolean {
   return canonical.split(".").some((part) => normalizeConceptName(part) === normalizedAlias);
 }
 
-function removeConflictingAliases(entries: readonly ConceptEntry[]): ConceptEntry[] {
+export function removeConflictingAliases(entries: readonly ConceptEntry[], preservedAliasKeys: ReadonlySet<string> = new Set()): ConceptEntry[] {
   const canonicalOwners = new Map<string, Set<string>>();
   const aliasOwners = new Map<string, Set<string>>();
 
@@ -67,6 +69,7 @@ function removeConflictingAliases(entries: readonly ConceptEntry[]): ConceptEntr
   return entries.map((entry) => ({
     ...entry,
     aliases: entry.aliases.filter((alias) => {
+      if (preservedAliasKeys.has(normalizeConceptKey(alias))) return true;
       if (isDotPartAlias(entry.canonical, alias)) return false;
       const aliasName = normalizeConceptName(alias);
       const otherCanonical = [...(canonicalOwners.get(aliasName) ?? [])].some((canonical) => canonical !== entry.canonical);
@@ -76,7 +79,7 @@ function removeConflictingAliases(entries: readonly ConceptEntry[]): ConceptEntr
   }));
 }
 
-function titleConcepts(title: string): string[] {
+function titleConcepts(title: string, suppressedCanonicalKeys: ReadonlySet<string> = new Set()): string[] {
   const matches = [...title.matchAll(ENGLISH_TITLE_TOKEN)].filter((match) => match[0].length >= 2);
   const concepts = new Set(matches.map((match) => match[0]));
   let phraseStart = 0;
@@ -93,7 +96,7 @@ function titleConcepts(title: string): string[] {
     phraseStart = index;
   }
 
-  return [...concepts];
+  return [...concepts].filter((concept) => !suppressedCanonicalKeys.has(normalizeConceptKey(concept)));
 }
 
 function titlePrefix(subject: string): string | undefined {
@@ -138,6 +141,10 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
   const outputPath = path.join(options.dataRoot, "concepts", `${options.project}.json`);
   const concepts = new Map<string, ConceptEntry>();
   const existingConcepts = await readExisting(outputPath);
+  const curation = options.curation ?? (await readConceptCuration(options.config, options.project, "seed-concepts"));
+  const judgedAliasKeys = judgedAliasKeySet(curation);
+  const decisionCount = curation.merges.reduce((sum, merge) => sum + merge.aliases.length, 0) + curation.blocks.length;
+  console.log(`판단 ${decisionCount}건 적용`);
 
   for (const name of Object.values(raw.tags)) {
     mergeConcept(concepts, tagConcept(name));
@@ -157,7 +164,7 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
   for (const wiki of raw.wikis) {
     const subject = firstString(wiki, ["subject", "title"]);
     if (!subject) continue;
-    for (const concept of titleConcepts(subject)) {
+    for (const concept of titleConcepts(subject, judgedAliasKeys)) {
       mergeConcept(concepts, { canonical: concept, kind: inferKind(concept, subject), aliases: [] });
     }
   }
@@ -166,10 +173,17 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
     if (concepts.has(existing.canonical)) mergeConcept(concepts, existing);
   }
 
+  const withoutConflicts = removeConflictingAliases([...concepts.values()], judgedAliasKeys).sort((left, right) =>
+    left.canonical.localeCompare(right.canonical),
+  );
   const result = ConceptDictionarySchema.parse(
-    removeConflictingAliases([...concepts.values()]).sort((left, right) => left.canonical.localeCompare(right.canonical)),
+    composeConceptDictionary(withoutConflicts, curation, { fallbackKind: (canonical) => inferKind(canonical) }).dictionary,
   );
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
   return { outputPath, concepts: result };
+}
+
+function judgedAliasKeySet(curation: ConceptCuration): Set<string> {
+  return new Set(curation.merges.flatMap((merge) => merge.aliases.map((alias) => normalizeConceptKey(alias))).filter(Boolean));
 }

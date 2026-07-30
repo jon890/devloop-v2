@@ -19,11 +19,12 @@ export function buildUnmatchedConceptRepresentatives(
   inputRelationships: readonly OntologyRelationship[],
   aliasMap: ReadonlyMap<string, ConceptEntry>,
   nodeSources?: readonly string[],
+  blockedConceptKeys: ReadonlySet<string> = new Set(),
 ): Map<string, string> {
   const groups = new Map<string, Map<string, { occurrences: number; referenceKey: string }>>();
 
   inputNodes.forEach((node, index) => {
-    addUnmatchedConceptCandidate(groups, node, aliasMap, nodeSources?.[index] ?? PARSED_GRAPH_FILE);
+    addUnmatchedConceptCandidate(groups, node, aliasMap, nodeSources?.[index] ?? PARSED_GRAPH_FILE, blockedConceptKeys);
   });
 
   const referenceCounts = conceptReferenceCounts(inputRelationships);
@@ -35,6 +36,7 @@ function addUnmatchedConceptCandidate(
   node: OntologyNode,
   aliasMap: ReadonlyMap<string, ConceptEntry>,
   sourceFile: string,
+  blockedConceptKeys: ReadonlySet<string>,
 ): void {
   if (node.label !== CONCEPT_LABEL || conceptEntry(node.key, aliasMap)) {
     return;
@@ -45,7 +47,7 @@ function addUnmatchedConceptCandidate(
   }
 
   const key = normalizeConceptKey(node.key);
-  if (!key || CONCEPT_KEY_MERGE_DENYLIST.has(key)) {
+  if (!key || CONCEPT_KEY_MERGE_DENYLIST.has(key) || blockedConceptKeys.has(key)) {
     return;
   }
   const displayName = normalizeText(node.key);

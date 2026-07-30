@@ -83,9 +83,9 @@ export function assertEndpointIndexNotEmpty(input: ResolveInput): void {
   }
 }
 
-export async function runResolveGraph(args: readonly string[], config: Pick<PipelineConfig, "pipelineDataDir">): Promise<void> {
+export async function runResolveGraph(args: readonly string[], config: PipelineConfig): Promise<void> {
   const options = parseResolveArgs(args, config);
-  const input = await readResolveInput(options.dataDir, options.project);
+  const input = await readResolveInput(options.dataDir, options.project, config);
   assertEndpointIndexNotEmpty(input);
 
   const result = resolveGraph(input);

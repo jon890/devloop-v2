@@ -1,8 +1,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { CORE_CONCEPTS, ConceptDictionarySchema, INFERRED_GRAPH_FILE, type ConceptDictionary } from "@devloop/shared";
+import { INFERRED_GRAPH_FILE, type ConceptDictionary } from "@devloop/shared";
 import { LlmReasoningEffortSchema, type LlmCli, type LlmReasoningEffort } from "../llm";
 import type { PipelineConfig } from "../config";
+import { loadConceptDictionary, readConceptCuration } from "../concepts/dictionary";
 import { buildExtractionPrompt, buildJsonRepairPrompt, EXTRACTION_PROMPT_VERSION, type ExtractionPromptDocument } from "./extraction-prompt";
 import { LlmExtractionSchema, type LlmExtraction } from "./llm-extraction.schema";
 import { sanitizeLlmExtractions, type DroppedRelationshipsReport } from "./llm-relationship-sanitizer";
@@ -105,31 +106,6 @@ function validateSourceDocId(extraction: LlmExtraction, sourceDocId: string): Ll
     }
   }
   return extraction;
-}
-
-async function readProjectConcepts(dataRoot: string, project: string): Promise<ConceptDictionary> {
-  const projectPath = path.join(dataRoot, "concepts", `${project}.json`);
-  let projectConcepts: ConceptDictionary = [];
-  try {
-    projectConcepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(projectPath, "utf8")));
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-  }
-  const byCanonical = new Map<string, ConceptDictionary[number]>();
-  for (const entry of [...CORE_CONCEPTS, ...projectConcepts]) {
-    const existing = byCanonical.get(entry.canonical);
-    byCanonical.set(
-      entry.canonical,
-      existing
-        ? {
-            canonical: entry.canonical,
-            kind: existing.kind,
-            aliases: [...new Set([...existing.aliases, ...entry.aliases])],
-          }
-        : { canonical: entry.canonical, kind: entry.kind, aliases: [...entry.aliases] },
-    );
-  }
-  return ConceptDictionarySchema.parse([...byCanonical.values()]);
 }
 
 async function readCache(cachePath: string, expected: Omit<CacheEnvelope, "result">): Promise<LlmExtraction | undefined> {
@@ -357,7 +333,7 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
   }
   const [allDocuments, concepts] = await Promise.all([
     buildLlmDocuments(options.dataRoot, options.project),
-    readProjectConcepts(options.dataRoot, options.project),
+    readCuratedConceptDictionary(options.dataRoot, options.project, options.config),
   ]);
   const docFilter = options.docFilter?.length ? new Set(options.docFilter) : undefined;
   const documents = docFilter ? allDocuments.filter((document) => docFilter.has(document.sourceDocId)) : allDocuments;
@@ -398,4 +374,9 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
     rewrittenRelationships: sanitized.rewrittenRelationships,
     droppedRelationships: sanitized.droppedRelationships,
   };
+}
+
+async function readCuratedConceptDictionary(dataRoot: string, project: string, config: PipelineConfig | undefined): Promise<ConceptDictionary> {
+  const curation = await readConceptCuration(config, project, "infer-knowledge");
+  return (await loadConceptDictionary(dataRoot, project, curation)).dictionary;
 }

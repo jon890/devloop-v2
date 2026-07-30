@@ -7,12 +7,12 @@ import {
   type ConceptDictionary,
   type ConceptEntry,
 } from "@devloop/shared";
-import { CONCEPT_KEY_CANONICAL_OVERRIDES, CONCEPT_KEY_MERGE_DENYLIST } from "./concept-alias.const";
+import { CONCEPT_KEY_MERGE_DENYLIST } from "./concept-alias.const";
 
 export type ConceptSource = "llm" | "structural";
 export { normalizeConceptKey, normalizeText } from "@devloop/shared";
 
-export function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string, ConceptEntry> {
+export function buildConceptAliasMap(dictionary: ConceptDictionary, blockedConceptKeys: ReadonlySet<string> = new Set()): Map<string, ConceptEntry> {
   const aliases = new Map<string, ConceptEntry>();
   const conceptKeyOwners = new Map<string, Map<string, ConceptEntry>>();
   for (const entry of dictionary) {
@@ -33,7 +33,7 @@ export function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string,
   }
 
   for (const [conceptKey, ownersByCanonical] of conceptKeyOwners) {
-    if (CONCEPT_KEY_MERGE_DENYLIST.has(conceptKey)) {
+    if (CONCEPT_KEY_MERGE_DENYLIST.has(conceptKey) || blockedConceptKeys.has(conceptKey)) {
       continue;
     }
     const owners = [...ownersByCanonical.values()];
@@ -47,12 +47,7 @@ export function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string,
       continue;
     }
 
-    const canonical = CONCEPT_KEY_CANONICAL_OVERRIDES.get(conceptKey);
-    const selected = owners.find((entry) => entry.canonical === canonical);
-    if (!selected) {
-      throw conceptDictionaryConflict(conceptKey, owners);
-    }
-    aliases.set(conceptKey, selected);
+    throw conceptDictionaryConflict(conceptKey, owners);
   }
   return aliases;
 }
@@ -61,7 +56,7 @@ function conceptDictionaryConflict(key: string, owners: readonly ConceptEntry[])
   return new Error(
     `Concept key "${key}" has conflicting canonical entries: ` +
       `${owners.map((entry) => entry.canonical).join(", ")}. ` +
-      "Merge the entries in the concept dictionary or add a canonical override.",
+      "Merge the entries in the concept dictionary or add a registry block.",
   );
 }
 

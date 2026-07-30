@@ -75,7 +75,7 @@ test("해결되지 않은 강화 키의 사전 canonical 충돌은 조치를 안
         { canonical: "Unapproved Key", kind: "tech", aliases: [] },
         { canonical: "Unapproved-Key", kind: "tech", aliases: [] },
       ]),
-    /Merge the entries in the concept dictionary or add a canonical override/,
+    /Merge the entries in the concept dictionary or add a registry block/,
   );
 });
 

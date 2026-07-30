@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { EndpointIndex } from "../infer/llm-relationship-sanitizer";
+import { composeConceptDictionary } from "../concepts/dictionary";
 import { readResolveInput, writeResolved, writeResolveReport } from "./io";
 import { resolveGraph } from "./resolve";
 import type { ResolveResult } from "./resolve.schema";
@@ -216,6 +217,28 @@ test("writeResolveReport 는 droppedRelationships 를 파일에 그대로 담는
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
+});
+
+test("composeConceptDictionary 는 판단 alias 를 canonical 에 흡수하고 결정적 순서로 낸다", () => {
+  const composed = composeConceptDictionary(
+    [
+      { canonical: "Gateway", kind: "component", aliases: [] },
+      { canonical: "OCR API Gateway", kind: "component", aliases: ["API Gateway"] },
+      { canonical: "Document.Console", kind: "component", aliases: [] },
+    ],
+    {
+      merges: [{ canonical: "OCR API Gateway", aliases: ["gateway", "Gateway"], reason: "human judgment" }],
+      blocks: [{ key: "Document.Console", reason: "separate product" }],
+    },
+  );
+
+  assert.equal(composed.decisionCount, 3);
+  assert.deepEqual([...composed.blockedConceptKeys], ["documentconsole"]);
+  assert.deepEqual([...composed.judgedAliasKeys], ["gateway"]);
+  assert.deepEqual(composed.dictionary, [
+    { canonical: "Document.Console", kind: "component", aliases: [] },
+    { canonical: "OCR API Gateway", kind: "component", aliases: ["API Gateway", "Gateway", "gateway"] },
+  ]);
 });
 
 // 회귀 테스트 — (type, startKey, endKey) 가 같고 properties 만 다른 관계 2건은 relationshipTieBreakKey

@@ -9,7 +9,8 @@ const { ConceptDictionarySchema, OntologyNodeSchema, OntologyRelationshipSchema 
 const { ClaudeCliAdapter } = require('../dist/llm/claude-cli.adapter');
 const { CodexCliAdapter } = require('../dist/llm/codex-cli.adapter');
 const { LlmResultSchema } = require('../dist/llm/llm-cli');
-const { seedConcepts } = require('../dist/concepts/concept-seeder');
+const { removeConflictingAliases, seedConcepts } = require('../dist/concepts/concept-seeder');
+const { normalizeConceptKey } = require('@devloop/shared');
 const { LlmNodeSchema, LlmRelationshipSchema } = require('../dist/infer/llm-extraction.schema');
 const { extractLlm } = require('../dist/infer/llm-extractor');
 const { sanitizeLlmGraphFile } = require('../dist/infer/llm-relationship-sanitizer');
@@ -278,6 +279,41 @@ test('태그 차원·위키 영문 기술어·업무 prefix로 중복 없는 Con
   assert.equal(byCanonical.has('감싸나'), false);
   assert.deepEqual(byCanonical.get('배포 Main'), { canonical: '배포 Main', kind: 'component', aliases: [] });
   assert.equal(concepts.some((entry) => /^[012]:\s/.test(entry.canonical)), false);
+});
+
+test('판단 alias 는 seed-concepts 재생성 후 canonical 로 되살아나지 않고 alias 로 남는다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  await writeFile(path.join(dataRoot, 'raw', 'tc-ocr', 'wiki', '203.json'), JSON.stringify({
+    pageId: 203,
+    subject: 'Gateway / OCR API Gateway',
+    parentId: 0,
+    body: { content: '' },
+  }));
+
+  const result = await seedConcepts({
+    dataRoot,
+    project: 'tc-ocr',
+    curation: {
+      merges: [{ canonical: 'OCR API Gateway', aliases: ['Gateway'], reason: 'human judgment' }],
+      blocks: [],
+    },
+  });
+  const concepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(result.outputPath, 'utf8')));
+  const byCanonical = new Map(concepts.map((entry) => [entry.canonical, entry]));
+
+  assert.equal(byCanonical.has('Gateway'), false);
+  assert.ok(byCanonical.get('OCR API Gateway').aliases.includes('Gateway'));
+});
+
+test('removeConflictingAliases 는 판단 alias 를 다른 canonical 과 겹쳐도 보존한다', () => {
+  const entries = removeConflictingAliases(
+    [
+      { canonical: 'Gateway', kind: 'component', aliases: [] },
+      { canonical: 'OCR API Gateway', kind: 'component', aliases: ['Gateway'] },
+    ],
+    new Set([normalizeConceptKey('Gateway')]),
+  );
+  assert.deepEqual(entries.find((entry) => entry.canonical === 'OCR API Gateway').aliases, ['Gateway']);
 });
 
 test('fixture 문서 5건을 문서당 1회, 동시 4개 이하로 LLM 추출하고 캐시한다', async () => {
