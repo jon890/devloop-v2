@@ -7,7 +7,6 @@ import {
   type ConceptDictionary,
   type ConceptEntry,
 } from "@devloop/shared";
-import { CONCEPT_KEY_MERGE_DENYLIST } from "./concept-alias.const";
 
 export type ConceptSource = "llm" | "structural";
 export { normalizeConceptKey, normalizeText } from "@devloop/shared";
@@ -33,7 +32,7 @@ export function buildConceptAliasMap(dictionary: ConceptDictionary, blockedConce
   }
 
   for (const [conceptKey, ownersByCanonical] of conceptKeyOwners) {
-    if (CONCEPT_KEY_MERGE_DENYLIST.has(conceptKey) || blockedConceptKeys.has(conceptKey)) {
+    if (blockedConceptKeys.has(conceptKey)) {
       continue;
     }
     const owners = [...ownersByCanonical.values()];
@@ -60,8 +59,12 @@ function conceptDictionaryConflict(key: string, owners: readonly ConceptEntry[])
   );
 }
 
-export function conceptEntry(value: string, aliasMap: ReadonlyMap<string, ConceptEntry>): ConceptEntry | undefined {
-  return conceptLookupKeys(value)
+export function conceptEntry(
+  value: string,
+  aliasMap: ReadonlyMap<string, ConceptEntry>,
+  blockedConceptKeys: ReadonlySet<string> = new Set(),
+): ConceptEntry | undefined {
+  return conceptLookupKeys(value, blockedConceptKeys)
     .map((key) => aliasMap.get(key))
     .find((candidate): candidate is ConceptEntry => candidate !== undefined);
 }

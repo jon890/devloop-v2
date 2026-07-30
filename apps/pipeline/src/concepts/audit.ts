@@ -1,8 +1,9 @@
 import "reflect-metadata";
 import neo4j, { type Driver } from "neo4j-driver";
 import { type PipelineConfig, withPipelineConfig } from "../config";
+import { DEFAULT_PROJECT, readFlag } from "../cli-options";
+import { readConceptCuration } from "./dictionary";
 import { normalizeConceptKey } from "../resolve/concept-alias";
-import { CONCEPT_KEY_MERGE_DENYLIST } from "../resolve/concept-alias.const";
 import { neo4jCredentials, requireNeo4jConfig } from "../neo4j/neo4j-config";
 
 interface ConceptSummary {
@@ -31,7 +32,7 @@ async function readConcepts(driver: Driver): Promise<ConceptSummary[]> {
   }
 }
 
-function printReport(concepts: readonly ConceptSummary[]): void {
+function printReport(concepts: readonly ConceptSummary[], blockedReasons: ReadonlyMap<string, string>): void {
   const byKey = new Map<string, ConceptSummary[]>();
   for (const concept of concepts) {
     const key = normalizeConceptKey(concept.name);
@@ -45,7 +46,7 @@ function printReport(concepts: readonly ConceptSummary[]): void {
     .map(([key, group]) => ({
       key,
       concepts: group.sort((left, right) => right.degree - left.degree || left.name.localeCompare(right.name)),
-      deniedReason: CONCEPT_KEY_MERGE_DENYLIST.get(key),
+      deniedReason: blockedReasons.get(key),
     }))
     .sort((left, right) => left.key.localeCompare(right.key));
   const theoreticalMergedNodes = duplicates.reduce((count, group) => count + group.concepts.length - 1, 0);
@@ -82,20 +83,23 @@ function printReport(concepts: readonly ConceptSummary[]): void {
   });
 }
 
-export async function auditConcepts(config: PipelineConfig): Promise<void> {
+export async function auditConcepts(config: PipelineConfig, project = DEFAULT_PROJECT): Promise<void> {
   const dbConfig = requireNeo4jConfig(config, "audit-concepts");
+  const curation = await readConceptCuration(config, project, "audit-concepts");
+  const blockedReasons = new Map(curation.blocks.map((block) => [normalizeConceptKey(block.key), block.reason]));
   const uri = dbConfig.neo4j.uri;
   const { user, password } = neo4jCredentials(dbConfig);
   const driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
   try {
-    printReport(await readConcepts(driver));
+    printReport(await readConcepts(driver), blockedReasons);
   } finally {
     await driver.close();
   }
 }
 
 if (require.main === module) {
-  void withPipelineConfig((config) => auditConcepts(config)).catch((error) => {
+  const project = readFlag(process.argv.slice(2), "--project") ?? DEFAULT_PROJECT;
+  void withPipelineConfig((config) => auditConcepts(config, project)).catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

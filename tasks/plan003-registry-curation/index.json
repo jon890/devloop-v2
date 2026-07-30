@@ -1,7 +1,7 @@
 {
   "name": "plan003-registry-curation",
   "description": "사람이 내린 Concept 판단을 Postgres 로 옮겨 사전 재생성이 지우지 못하게 만든다",
-  "status": "pending",
+  "status": "completed",
   "created_at": "2026-07-30",
   "total_phases": 4,
   "phases": [
@@ -31,7 +31,7 @@
       "file": "phase-04.md",
       "title": "승인된 판단을 주입하고 병합 효과를 적재 없이 확인한다",
       "execution_profile": "standard",
-      "status": "pending"
+      "status": "completed"
     }
   ]
 }
