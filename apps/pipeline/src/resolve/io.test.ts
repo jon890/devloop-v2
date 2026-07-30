@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { EndpointIndex } from "../infer/llm-relationship-sanitizer";
-import { composeConceptDictionary } from "../concepts/dictionary";
+import { composeConceptDictionary, loadConceptDictionary } from "../concepts/dictionary";
 import { readResolveInput, writeResolved, writeResolveReport } from "./io";
 import { resolveGraph } from "./resolve";
 import type { ResolveResult } from "./resolve.schema";
@@ -241,6 +241,12 @@ test("composeConceptDictionary 는 판단 alias 를 canonical 에 흡수하고 �
     { canonical: "Legacy Gateway", kind: "component", aliases: [] },
     { canonical: "OCR API Gateway", kind: "component", aliases: ["API Gateway", "Gateway", "gateway"] },
   ]);
+});
+
+test("loadConceptDictionary 는 판단을 생략하면 실패한다", async () => {
+  const loadWithoutCuration = loadConceptDictionary as unknown as (dataDir: string, project: string) => Promise<unknown>;
+
+  await assert.rejects(() => loadWithoutCuration("/tmp", "sample"), /requires explicit curation/);
 });
 
 // 회귀 테스트 — (type, startKey, endKey) 가 같고 properties 만 다른 관계 2건은 relationshipTieBreakKey

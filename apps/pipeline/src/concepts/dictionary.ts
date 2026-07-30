@@ -30,6 +30,9 @@ export async function readConceptCuration(config: PipelineConfig, project: strin
 }
 
 export async function loadConceptDictionary(dataDir: string, project: string, curation: ConceptCuration): Promise<CuratedConceptDictionary> {
+  if (!curation) {
+    throw new Error("loadConceptDictionary requires explicit curation.");
+  }
   const generated = await readGeneratedConceptDictionary(dataDir, project);
   return composeConceptDictionary(generated, curation);
 }
