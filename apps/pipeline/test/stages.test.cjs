@@ -309,6 +309,29 @@ test('판단 alias 는 seed-concepts 재생성 후 canonical 로 되살아나지
   assert.ok(byCanonical.get('OCR API Gateway').aliases.includes('Gateway'));
 });
 
+test('판단 alias 는 의도된 canonical 만 소유한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  const outputPath = path.join(dataRoot, 'concepts', 'tc-ocr.json');
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, JSON.stringify([
+    { canonical: 'Legacy Gateway', kind: 'component', aliases: ['Gateway'] },
+  ]));
+
+  const result = await seedConcepts({
+    dataRoot,
+    project: 'tc-ocr',
+    curation: {
+      merges: [{ canonical: 'OCR API Gateway', aliases: ['Gateway'], reason: 'human judgment' }],
+      blocks: [],
+    },
+  });
+  const concepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(result.outputPath, 'utf8')));
+  const byCanonical = new Map(concepts.map((entry) => [entry.canonical, entry]));
+
+  assert.deepEqual(byCanonical.get('Legacy Gateway').aliases, []);
+  assert.ok(byCanonical.get('OCR API Gateway').aliases.includes('Gateway'));
+});
+
 test('seed-concepts 는 설정과 명시적 판단이 모두 없으면 실패한다', async () => {
   const dataRoot = await fixtureDataRoot();
   await assert.rejects(() => seedConcepts({ dataRoot, project: 'tc-ocr' }), /requires pipeline config/);
@@ -358,14 +381,15 @@ test('기존 canonical 이 없는 정규화 충돌은 코드포인트 순으로 
   assert.equal(concepts.some((entry) => entry.canonical === 'OCR.Doc'), false);
 });
 
-test('removeConflictingAliases 는 판단 alias 를 다른 canonical 과 겹쳐도 보존한다', () => {
+test('removeConflictingAliases 는 판단 alias 를 의도된 canonical 에만 보존한다', () => {
   const entries = removeConflictingAliases(
     [
-      { canonical: 'Gateway', kind: 'component', aliases: [] },
+      { canonical: 'Legacy Gateway', kind: 'component', aliases: ['Gateway'] },
       { canonical: 'OCR API Gateway', kind: 'component', aliases: ['Gateway'] },
     ],
-    new Set([normalizeConceptKey('Gateway')]),
+    new Map([[normalizeConceptKey('Gateway'), normalizeConceptKey('OCR API Gateway')]]),
   );
+  assert.deepEqual(entries.find((entry) => entry.canonical === 'Legacy Gateway').aliases, []);
   assert.deepEqual(entries.find((entry) => entry.canonical === 'OCR API Gateway').aliases, ['Gateway']);
 });
 

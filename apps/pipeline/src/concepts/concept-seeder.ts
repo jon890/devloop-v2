@@ -48,7 +48,10 @@ function isDotPartAlias(canonical: string, alias: string): boolean {
   return canonical.split(".").some((part) => normalizeConceptName(part) === normalizedAlias);
 }
 
-export function removeConflictingAliases(entries: readonly ConceptEntry[], preservedAliasKeys: ReadonlySet<string> = new Set()): ConceptEntry[] {
+export function removeConflictingAliases(
+  entries: readonly ConceptEntry[],
+  preservedAliasOwners: ReadonlyMap<string, string> = new Map(),
+): ConceptEntry[] {
   const canonicalOwners = new Map<string, Set<string>>();
   const aliasOwners = new Map<string, Set<string>>();
 
@@ -69,7 +72,9 @@ export function removeConflictingAliases(entries: readonly ConceptEntry[], prese
   return entries.map((entry) => ({
     ...entry,
     aliases: entry.aliases.filter((alias) => {
-      if (preservedAliasKeys.has(normalizeConceptKey(alias))) return true;
+      const preservedOwner = preservedAliasOwners.get(normalizeConceptKey(alias));
+      if (preservedOwner === normalizeConceptKey(entry.canonical)) return true;
+      if (preservedOwner) return false;
       if (isDotPartAlias(entry.canonical, alias)) return false;
       const aliasName = normalizeConceptName(alias);
       const otherCanonical = [...(canonicalOwners.get(aliasName) ?? [])].some((canonical) => canonical !== entry.canonical);
@@ -175,7 +180,8 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
   const existingConcepts = await readExisting(outputPath);
   const curation = options.curation ?? (await readConceptCuration(requireSeedConfig(options.config), options.project, "seed-concepts"));
   const blockedConceptKeys = new Set(curation.blocks.map((block) => normalizeConceptKey(block.key)).filter(Boolean));
-  const judgedAliasKeys = judgedAliasKeySet(curation);
+  const judgedAliasOwners = judgedAliasOwnerMap(curation);
+  const judgedAliasKeys = new Set(judgedAliasOwners.keys());
   const decisionCount = curation.merges.reduce((sum, merge) => sum + merge.aliases.length, 0) + curation.blocks.length;
   const generatedConcepts: ConceptEntry[] = [];
   console.log(`판단 ${decisionCount}건 적용`);
@@ -212,7 +218,7 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
     mergeConcept(concepts, preferCanonical(existing, canonicalByKey, blockedConceptKeys));
   }
 
-  const withoutConflicts = removeConflictingAliases([...concepts.values()], judgedAliasKeys).sort((left, right) =>
+  const withoutConflicts = removeConflictingAliases([...concepts.values()], judgedAliasOwners).sort((left, right) =>
     left.canonical.localeCompare(right.canonical),
   );
   const result = ConceptDictionarySchema.parse(
@@ -230,6 +236,11 @@ function requireSeedConfig(config: PipelineConfig | undefined): PipelineConfig {
   return config;
 }
 
-function judgedAliasKeySet(curation: ConceptCuration): Set<string> {
-  return new Set(curation.merges.flatMap((merge) => merge.aliases.map((alias) => normalizeConceptKey(alias))).filter(Boolean));
+function judgedAliasOwnerMap(curation: ConceptCuration): Map<string, string> {
+  return new Map(
+    curation.merges.flatMap((merge) => {
+      const canonicalKey = normalizeConceptKey(merge.canonical);
+      return merge.aliases.map((alias) => [normalizeConceptKey(alias), canonicalKey] as const);
+    }),
+  );
 }

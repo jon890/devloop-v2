@@ -223,6 +223,7 @@ test("composeConceptDictionary 는 판단 alias 를 canonical 에 흡수하고 �
   const composed = composeConceptDictionary(
     [
       { canonical: "Gateway", kind: "component", aliases: [] },
+      { canonical: "Legacy Gateway", kind: "component", aliases: ["Gateway"] },
       { canonical: "OCR API Gateway", kind: "component", aliases: ["API Gateway"] },
       { canonical: "Document.Console", kind: "component", aliases: [] },
     ],
@@ -237,6 +238,7 @@ test("composeConceptDictionary 는 판단 alias 를 canonical 에 흡수하고 �
   assert.deepEqual([...composed.judgedAliasKeys], ["gateway"]);
   assert.deepEqual(composed.dictionary, [
     { canonical: "Document.Console", kind: "component", aliases: [] },
+    { canonical: "Legacy Gateway", kind: "component", aliases: [] },
     { canonical: "OCR API Gateway", kind: "component", aliases: ["API Gateway", "Gateway", "gateway"] },
   ]);
 });

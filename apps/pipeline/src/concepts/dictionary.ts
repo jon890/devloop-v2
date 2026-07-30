@@ -58,17 +58,26 @@ export function composeConceptDictionary(
 ): CuratedConceptDictionary {
   const decisionCount = curation.merges.reduce((sum, merge) => sum + merge.aliases.length, 0) + curation.blocks.length;
   const blockedConceptKeys = new Set(curation.blocks.map((block) => normalizeConceptKey(block.key)).filter(Boolean));
-  const judgedAliasKeys = new Set(curation.merges.flatMap((merge) => merge.aliases.map((alias) => normalizeConceptKey(alias))).filter(Boolean));
+  const judgedAliasOwners = judgedAliasOwnerMap(curation);
+  const judgedAliasKeys = new Set(judgedAliasOwners.keys());
   if (decisionCount === 0) {
     return { dictionary: ConceptDictionarySchema.parse(generated), blockedConceptKeys, judgedAliasKeys, decisionCount };
   }
 
   const entries = new Map<string, ConceptEntry>();
   for (const entry of generated) {
-    if (judgedAliasKeys.has(normalizeConceptKey(entry.canonical))) {
+    const canonicalKey = normalizeConceptKey(entry.canonical);
+    const canonicalOwner = judgedAliasOwners.get(canonicalKey);
+    if (canonicalOwner && canonicalOwner !== canonicalKey) {
       continue;
     }
-    mergeEntry(entries, entry);
+    mergeEntry(entries, {
+      ...entry,
+      aliases: entry.aliases.filter((alias) => {
+        const intendedOwner = judgedAliasOwners.get(normalizeConceptKey(alias));
+        return !intendedOwner || intendedOwner === canonicalKey;
+      }),
+    });
   }
 
   for (const merge of curation.merges) {
@@ -118,4 +127,13 @@ function compareConceptNames(left: string, right: string): number {
 
 function compareCodePoints(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function judgedAliasOwnerMap(curation: ConceptCuration): Map<string, string> {
+  return new Map(
+    curation.merges.flatMap((merge) => {
+      const canonicalKey = normalizeConceptKey(merge.canonical);
+      return merge.aliases.map((alias) => [normalizeConceptKey(alias), canonicalKey] as const);
+    }),
+  );
 }
