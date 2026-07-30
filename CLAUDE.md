@@ -1,7 +1,6 @@
 # devloop-v2 — Dooray 지식그래프 GraphRAG
 
 Dooray 업무·위키를 Neo4j 지식그래프로 만들고 자연어로 질의하는 시스템이다.
-사내 GHE 전용이며 외부(github.com) push 를 금지한다.
 
 ## 구조
 
