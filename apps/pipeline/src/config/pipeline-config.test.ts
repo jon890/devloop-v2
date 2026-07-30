@@ -226,46 +226,48 @@ test(".env 가 없고 프로세스 환경에도 NEO4J_URI 가 없어도 기동�
 
 test("PIPELINE_CONFIG 토큰으로 검증된 설정 객체를 주입한다", async () => {
   await withEnv("NEO4J_URI", "bolt://localhost:7690", async () => {
-    @Module({
-      imports: [
-        ConfigModule.forRoot({
-          envFilePath: resolve(tmpdir(), `devloop-missing-${process.pid}-${Date.now()}-token.env`),
-          validate: validatePipelineConfig,
-        }),
-      ],
-      providers: [
-        {
-          provide: PIPELINE_CONFIG,
-          useFactory: (configService: ConfigService): PipelineConfig => configService.getOrThrow("pipeline"),
-          inject: [ConfigService],
-        },
-      ],
-    })
-    class TestModule {}
+    await withEnv("REGISTRY_DATABASE_URL", undefined, async () => {
+      @Module({
+        imports: [
+          ConfigModule.forRoot({
+            envFilePath: resolve(tmpdir(), `devloop-missing-${process.pid}-${Date.now()}-token.env`),
+            validate: validatePipelineConfig,
+          }),
+        ],
+        providers: [
+          {
+            provide: PIPELINE_CONFIG,
+            useFactory: (configService: ConfigService): PipelineConfig => configService.getOrThrow("pipeline"),
+            inject: [ConfigService],
+          },
+        ],
+      })
+      class TestModule {}
 
-    const app = await NestFactory.createApplicationContext(TestModule, { abortOnError: false, logger: false });
-    try {
-      assert.deepEqual(app.get<PipelineConfig>(PIPELINE_CONFIG), {
-        neo4j: {
-          uri: "bolt://localhost:7690",
-          user: "neo4j",
-          password: "devloop-password",
-        },
-        registry: {
-          databaseUrl: undefined,
-        },
-        llm: {
-          provider: "codex",
-          model: undefined,
-          reasoningEffort: undefined,
-          concurrency: 4,
-          timeoutMs: 120_000,
-        },
-        pipelineDataDir: undefined,
-      });
-    } finally {
-      await app.close();
-    }
+      const app = await NestFactory.createApplicationContext(TestModule, { abortOnError: false, logger: false });
+      try {
+        assert.deepEqual(app.get<PipelineConfig>(PIPELINE_CONFIG), {
+          neo4j: {
+            uri: "bolt://localhost:7690",
+            user: "neo4j",
+            password: "devloop-password",
+          },
+          registry: {
+            databaseUrl: undefined,
+          },
+          llm: {
+            provider: "codex",
+            model: undefined,
+            reasoningEffort: undefined,
+            concurrency: 4,
+            timeoutMs: 120_000,
+          },
+          pipelineDataDir: undefined,
+        });
+      } finally {
+        await app.close();
+      }
+    });
   });
 });
 

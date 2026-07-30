@@ -1,6 +1,7 @@
 export * from "./api/api.schema";
 export * from "./concept/concept.const";
 export * from "./concept/concept.schema";
+export * from "./concept/normalize";
 export * from "./graph/graph.const";
 export * from "./graph/graph.schema";
 export * from "./ontology/ontology.const";

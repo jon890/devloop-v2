@@ -115,12 +115,18 @@ importers:
 
   packages/registry:
     dependencies:
+      '@devloop/shared':
+        specifier: workspace:*
+        version: link:../shared
       drizzle-orm:
         specifier: ^0.45.1
         version: 0.45.2(@types/pg@8.20.0)(pg@8.22.0)
       pg:
         specifier: ^8.16.3
         version: 8.22.0
+      zod:
+        specifier: ^3.25.0
+        version: 3.25.76
     devDependencies:
       '@types/pg':
         specifier: ^8.16.0

@@ -1,24 +1,16 @@
-import { INFERRED_GRAPH_FILE, PARSED_GRAPH_FILE, type ConceptDictionary, type ConceptEntry } from "@devloop/shared";
+import {
+  conceptLookupKeys,
+  INFERRED_GRAPH_FILE,
+  normalizeConceptKey,
+  normalizeText,
+  PARSED_GRAPH_FILE,
+  type ConceptDictionary,
+  type ConceptEntry,
+} from "@devloop/shared";
 import { CONCEPT_KEY_CANONICAL_OVERRIDES, CONCEPT_KEY_MERGE_DENYLIST } from "./concept-alias.const";
 
 export type ConceptSource = "llm" | "structural";
-
-export function normalizeText(value: string): string {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-export function normalizeConceptKey(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9가-힣]/g, "");
-}
-
-function conceptLookupKeys(value: string): string[] {
-  const normalized = normalizeText(value);
-  const conceptKey = normalizeConceptKey(value);
-  if (!conceptKey || CONCEPT_KEY_MERGE_DENYLIST.has(conceptKey)) {
-    return [normalized];
-  }
-  return [...new Set([normalized, conceptKey])];
-}
+export { normalizeConceptKey, normalizeText } from "@devloop/shared";
 
 export function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string, ConceptEntry> {
   const aliases = new Map<string, ConceptEntry>();
