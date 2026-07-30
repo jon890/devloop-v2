@@ -41,7 +41,7 @@ flowchart TD
 | 단계 | 입력 | 출력 | 재실행 비용 | Concept 사전 |
 | --- | --- | --- | --- | --- |
 | `fetch-dooray` | 외부 API | `data/raw/` | 네트워크. 원본 API 가 살아 있어야 한다 | 안 쓴다 |
-| `seed-concepts` | `data/raw/` 와 공용 표준어 | `data/concepts/` | 공짜 | 만든다 |
+| `seed-concepts` | `data/raw/`·기존 사전·판단 저장소 | `data/concepts/` | 공짜 | 만든다 |
 | `parse-structure` | `data/raw/` | `graph/parsed.jsonl` | **공짜** (수 초) | 안 쓴다 |
 | `infer-knowledge` | `data/raw/` 와 사전 | `graph/inferred.jsonl` | **문서 수만큼 LLM 호출** | 읽는다 |
 | `sync-neo4j` | 위 셋과 `NEO4J_URI` | Neo4j | 되돌리기 어렵다 | 읽는다 |
@@ -55,13 +55,18 @@ flowchart TD
 | `reset-neo4j` | 그래프 전체 삭제. `NEO4J_URI`·`--force` 필수, 운영 포트(`7687`)는 `--allow-production` 도 필요 |
 | `audit-concepts` | Concept 정규화 감사 (읽기 전용). `NEO4J_URI` 필수 |
 
-ADR 0005의 판단 저장소 명령은 아직 구현되지 않아 현재 실행 흐름에는 포함하지 않는다.
+`seed-concepts` 는 기존 사전 항목을 모두 보존하므로 사전은 자동으로 줄어들지 않는다.
+원천에서 사라진 항목을 정리하는 명령은 아직 없으며, 필요해질 때 별도 판단으로 추가한다.
 
-### 판단 저장소는 아직 실행 경로에 없다
+ADR 0005의 판단 저장소는 `register-project`·`import-curation`·`export-curation` 명령으로 조작한다.
 
-현재 단계들은 파일로 만든 Concept 사전을 읽는다.
-ADR 0005의 판단 저장소를 구현할 때도 수집과 구조 파싱은 저장소를 건드리지 않아 오프라인 성질을 유지한다.
-표준 사전을 읽는 단계만 판단 저장소 조회를 추가한다.
+### 사전을 읽는 단계가 판단 저장소를 조회한다
+
+`seed-concepts`·`infer-knowledge`·`resolve-graph`·`sync-neo4j`는 파일 사전과 관계형 판단 저장소를 합성해 읽는다.
+판단 저장소 접속 정보가 없거나 조회가 실패하면 판단 0건으로 바꾸지 않고 명령을 실패시킨다.
+테스트는 빈 판단을 명시적으로 주입할 수 있다.
+
+`fetch-dooray`와 `parse-structure`는 판단 저장소를 건드리지 않아 기존 오프라인 성질을 유지한다.
 
 ### 두 호출 경로가 같은 순수 함수를 공유한다
 

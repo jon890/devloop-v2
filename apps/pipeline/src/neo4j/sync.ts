@@ -275,7 +275,7 @@ export async function loadGraph(options: LoadOptions): Promise<void> {
 }
 
 async function prepareLoadGraph(options: LoadOptions): Promise<ResolveResult> {
-  const input = await readResolveInput(options.dataDir, options.project);
+  const input = await readResolveInput(options.dataDir, options.project, options.config);
   return resolveGraph(input);
 }
 

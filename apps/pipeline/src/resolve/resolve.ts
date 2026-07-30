@@ -18,18 +18,19 @@ export interface ResolveInput {
   parsed: SourcedRecord[];
   inferred: SourcedRecord[];
   dictionary: ConceptDictionary;
+  blockedConceptKeys?: ReadonlySet<string>;
   endpointIndex: EndpointIndex;
   previousDropped: readonly DroppedRelationship[];
 }
 
 export function resolveGraph(input: ResolveInput): ResolveResult {
-  const aliasMap = buildConceptAliasMap(input.dictionary);
+  const aliasMap = buildConceptAliasMap(input.dictionary, input.blockedConceptKeys);
   const inferredRecords = input.inferred.map((record) => parseLlmGraphRecord(record.value));
   const sanitized = sanitizeLlmRecords(inferredRecords, input.previousDropped, input.endpointIndex);
   const sourcedInferred: SourcedRecord[] = sanitized.records.map((value) => ({ value, sourceFile: INFERRED_GRAPH_FILE }));
   const records = [...sourcedInferred, ...input.parsed];
   const { nodes, nodeSources, relationships, relationshipSources } = parseGraphRecords(records);
-  const graph = normalizeGraph(nodes, relationships, aliasMap, relationshipSources, nodeSources);
+  const graph = normalizeGraph(nodes, relationships, aliasMap, relationshipSources, nodeSources, input.blockedConceptKeys);
 
   return {
     ...graph,
@@ -83,11 +84,19 @@ export function normalizeGraph(
   aliasMap: Map<string, ConceptEntry>,
   relationshipSources?: readonly string[],
   nodeSources?: readonly string[],
+  blockedConceptKeys: ReadonlySet<string> = new Set(),
 ): NormalizedGraph {
   validateNormalizationSources(inputNodes, inputRelationships, relationshipSources, nodeSources);
   const unknownConcepts = new Map<string, number>();
-  const unmatchedRepresentatives = buildUnmatchedConceptRepresentatives(inputNodes, inputRelationships, aliasMap, nodeSources);
-  const { nodesByIdentity, endpointAliases } = normalizeNodes(inputNodes, aliasMap, unmatchedRepresentatives, unknownConcepts, nodeSources);
+  const unmatchedRepresentatives = buildUnmatchedConceptRepresentatives(inputNodes, inputRelationships, aliasMap, nodeSources, blockedConceptKeys);
+  const { nodesByIdentity, endpointAliases } = normalizeNodes(
+    inputNodes,
+    aliasMap,
+    unmatchedRepresentatives,
+    unknownConcepts,
+    nodeSources,
+    blockedConceptKeys,
+  );
   addDictionaryEndpointAliases(endpointAliases, nodesByIdentity, aliasMap);
   const { relationships, skippedRelationships } = normalizeRelationships(inputRelationships, endpointAliases, relationshipSources);
 
@@ -119,6 +128,7 @@ function normalizeNodes(
   unmatchedRepresentatives: ReadonlyMap<string, string>,
   unknownConcepts: Map<string, number>,
   nodeSources?: readonly string[],
+  blockedConceptKeys: ReadonlySet<string> = new Set(),
 ): {
   nodesByIdentity: Map<string, OntologyNode>;
   endpointAliases: Map<string, NodeRef[]>;
@@ -126,7 +136,14 @@ function normalizeNodes(
   const nodesByIdentity = new Map<string, OntologyNode>();
   const endpointAliases = new Map<string, NodeRef[]>();
   inputNodes.forEach((inputNode, index) => {
-    const node = normalizeNode(inputNode, aliasMap, unmatchedRepresentatives, unknownConcepts, nodeSources?.[index] ?? PARSED_GRAPH_FILE);
+    const node = normalizeNode(
+      inputNode,
+      aliasMap,
+      unmatchedRepresentatives,
+      unknownConcepts,
+      nodeSources?.[index] ?? PARSED_GRAPH_FILE,
+      blockedConceptKeys,
+    );
     const identity = `${node.label}:${node.key}`;
     const existing = nodesByIdentity.get(identity);
     nodesByIdentity.set(identity, mergeNode(existing, node));

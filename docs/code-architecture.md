@@ -11,7 +11,7 @@
 | --- | --- |
 | 언어 | TypeScript 단일. 파이프라인·API 는 NestJS, 프론트는 React 와 Vite |
 | 지식그래프 | Neo4j (docker-compose) |
-| 판단 저장소 | Postgres 채택, 아직 미구현 ([ADR 0005](adr/0005-curation-in-relational-store.md)) |
+| 판단 저장소 | Postgres. `packages/registry`가 스키마·repository·service를 소유한다 ([ADR 0005](adr/0005-curation-in-relational-store.md)) |
 | LLM | 구독 계정 CLI 만 쓴다. 종량제 API 는 금지다 ([ADR 0002](adr/0002-llm-via-subscription-cli.md)) |
 | 원천 접근 | 기존 `dooray-cli` 를 자식 프로세스로 호출해 재사용한다. 인증을 다시 구현하지 않는다 |
 | 실행 환경 | 로컬 개발 기계 |
@@ -56,9 +56,10 @@ flowchart LR
 
 `apps/*` 끼리는 서로 의존하지 않는다. 공유가 필요하면 `packages/shared` 로 올린다.
 
-ADR 0005가 채택한 판단 저장소 패키지와 명령은 아직 구현되지 않았다.
-구현할 때는 웹이 import하는 `packages/shared`에 Node 전용 저장소 클라이언트를 넣지 않고,
-별도 패키지로 경계를 둔다.
+ADR 0005가 채택한 판단 저장소는 `packages/registry`가 소유한다.
+스키마·repository·service는 이 패키지에 두고, 파이프라인의
+`register-project`·`import-curation`·`export-curation` 명령이 진입점을 제공한다.
+웹이 import하는 `packages/shared`에는 Node 전용 저장소 클라이언트를 넣지 않는다.
 
 **`packages/shared` 를 고치면 의존 앱을 다시 빌드해야 한다.**
 `pnpm --filter api test:unit` 은 shared 를 재빌드하지 않는다.
@@ -73,6 +74,17 @@ ADR 0005가 채택한 판단 저장소 패키지와 명령은 아직 구현되�
 | `api/` | REST 요청·응답 스키마 |
 | `concept/` | Concept 표준 사전 코어 (도메인 무관 기술 용어) |
 | `raw/` | 원본 문서 스키마 |
+
+## packages/registry
+
+Postgres 판단 저장소의 스키마와 읽기·쓰기 계층을 소유한다.
+파이프라인은 이 패키지의 공개 함수만 사용하며 SQL과 Drizzle 구현을 직접 알지 않는다.
+
+### repository 는 트랜잭션을 열지 않는다
+
+repository는 행 단위 조회·삽입·삭제만 수행하고, 전달받은 `RegistryExecutor`를 그대로 사용한다.
+여러 쓰기를 원자적으로 묶는 경계는 service가 소유한다.
+따라서 `curation.service.ts`와 `project.service.ts`만 트랜잭션을 열며 `*.repo.ts`는 열지 않는다.
 
 ## apps/pipeline
 
@@ -115,8 +127,8 @@ ADR 0005가 채택한 판단 저장소 패키지와 명령은 아직 구현되�
 
 - **적재가 추출 산출물을 덮어썼다** — 적재 중 관계 정리기가 `inferred.jsonl` 을 `writeFile` 했다.
   정리가 순수 함수로 메모리에서 돌게 되어 파일 출력은 `resolve-graph` 단독 실행 때만 일어난다
-- **사전 로딩이 두 곳에 각자 있었다** — 적재 쪽 구현이 `resolve/io.ts` 한 곳으로 모였다.
-  `infer` 쪽(`readProjectConcepts`)은 중복 canonical 처리가 달라 아직 남아 있다
+- **사전 로딩이 두 곳에 각자 있었다** — 생성 사전과 판단 합성을 `concepts/dictionary.ts`로 모았다.
+  `infer`와 `resolve/io.ts`가 같은 로더를 사용한다
 
 정규화가 적재에 묶여 있어 **별칭을 바꿨을 때 효과를 적재 없이 볼 수 없었다.**
 적재기가 MERGE 전용이라 틀리면 그래프를 초기화해야 했다.

@@ -1,6 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
-import { CORE_CONCEPTS, ConceptDictionarySchema, INFERRED_GRAPH_FILE, PARSED_GRAPH_FILE, type ConceptDictionary } from "@devloop/shared";
+import { INFERRED_GRAPH_FILE, PARSED_GRAPH_FILE } from "@devloop/shared";
+import type { PipelineConfig } from "../config";
+import { loadConceptDictionary, readConceptCuration, type ConceptCuration } from "../concepts/dictionary";
 import { buildEndpointIndex, readDroppedRelationships } from "../infer/llm-relationship-sanitizer";
 import { compareCodePoints } from "./node-merge";
 import type { ResolveInput } from "./resolve";
@@ -51,19 +53,6 @@ async function readOptionalJsonlFile(filePath: string): Promise<SourcedRecord[]>
   }
 }
 
-async function loadConceptDictionary(dataDir: string, project: string): Promise<ConceptDictionary> {
-  const path = resolve(dataDir, "concepts", `${project}.json`);
-  try {
-    const raw = await readFile(path, "utf8");
-    return ConceptDictionarySchema.parse([...CORE_CONCEPTS, ...JSON.parse(raw)]);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return ConceptDictionarySchema.parse(CORE_CONCEPTS);
-    }
-    throw error;
-  }
-}
-
 /**
  * `ResolveInput` 의 다섯 입력을 모두 읽는다. 호출처는 `resolve-graph`·`sync-neo4j` 둘이다.
  *
@@ -73,15 +62,28 @@ async function loadConceptDictionary(dataDir: string, project: string): Promise<
  * 빈 색인이 조용히 "차이 없음"으로 보이면 안 되므로 `resolve/cli.ts` 가 별도로 검사해 실패시킨다.
  * `sync-neo4j` 는 여기서 검사하지 않으며 적재 동작이 바뀌지 않는다.
  */
-export async function readResolveInput(dataDir: string, project: string): Promise<ResolveInput> {
+export async function readResolveInput(
+  dataDir: string,
+  project: string,
+  config?: PipelineConfig,
+  explicitCuration?: ConceptCuration,
+): Promise<ResolveInput> {
   const graphDir = resolve(dataDir, "graph", project);
   const parsed = await readRequiredJsonlFile(resolve(graphDir, PARSED_GRAPH_FILE));
   const inferred = await readOptionalJsonlFile(resolve(graphDir, INFERRED_GRAPH_FILE));
-  const dictionary = await loadConceptDictionary(dataDir, project);
+  const curation = explicitCuration ?? (await readConceptCuration(requireResolveConfig(config), project, "resolve-graph"));
+  const { dictionary, blockedConceptKeys } = await loadConceptDictionary(dataDir, project, curation);
   const endpointIndex = await buildEndpointIndex(dataDir, project);
   const previousDropped = await readDroppedRelationships(resolve(graphDir, "inference-dropped-relationships.json"));
 
-  return { parsed, inferred, dictionary, endpointIndex, previousDropped };
+  return { parsed, inferred, dictionary, blockedConceptKeys, endpointIndex, previousDropped };
+}
+
+function requireResolveConfig(config: PipelineConfig | undefined): PipelineConfig {
+  if (!config) {
+    throw new Error("resolve-graph requires pipeline config unless explicit curation is provided.");
+  }
+  return config;
 }
 
 /**

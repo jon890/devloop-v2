@@ -189,10 +189,10 @@ Concept 이름 파편화가 관계형 질문의 연결을 끊는 **1번 위험**
 
 그래서 자동 병합을 하지 않는다. 고빈도 Concept 만 후보로 뽑아 사람이 확인한 뒤 판단으로 등록한다.
 
-## 판단 저장소 목표 설계 (관계형, 미구현)
+## 판단 저장소 (관계형)
 
-이 절은 ADR 0005가 채택한 목표 스키마이며 현재 코드에는 아직 구현되지 않았다.
-구현 후에는 사람이 내린 Concept 동일성 판단과 프로젝트·소스 등록을 담는다.
+이 절은 ADR 0005가 채택한 현재 스키마다.
+사람이 내린 Concept 동일성 판단과 프로젝트·소스 등록을 담는다.
 자동 생성되는 사전과 **분리해서** 둔다 — 섞으면 재생성이 판단을 지운다.
 결정 배경은 [ADR 0005](adr/0005-curation-in-relational-store.md) 다.
 
@@ -201,6 +201,14 @@ Concept 이름 파편화가 관계형 질문의 연결을 끊는 **1번 위험**
 | `project` | 프로젝트 등록 | `code` 유일 |
 | `source` | 프로젝트에 붙는 원천 (Dooray·GitHub) | `(kind, external_key)` 유일. 한 소스는 한 프로젝트에만 붙는다 |
 | `concept_decision` | 판단 한 건 | `(project_id, key_norm)` 유일 |
+
+컬럼 계약이다.
+
+| 표 | 컬럼 |
+| --- | --- |
+| `project` | `id serial primary key`<br>`code text not null unique`<br>`name text`<br>`created_at timestamptz not null default now()` |
+| `source` | `id serial primary key`<br>`project_id integer not null references project(id) on delete cascade`<br>`kind text not null check (kind in ('dooray', 'github'))`<br>`external_key text not null`<br>`created_at timestamptz not null default now()`<br>`unique (kind, external_key)` |
+| `concept_decision` | `id serial primary key`<br>`project_id integer not null references project(id) on delete cascade`<br>`key_raw text not null`<br>`key_norm text not null`<br>`kind text not null check (kind in ('merge_alias', 'block'))`<br>`canonical text`<br>`reason text not null`<br>`approved_at date`<br>`created_at timestamptz not null default now()`<br>`unique (project_id, key_norm)`<br>`check ((kind = 'merge_alias') = (canonical is not null))` |
 
 `concept_decision` 의 종류는 두 가지다.
 

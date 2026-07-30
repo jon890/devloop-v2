@@ -75,7 +75,7 @@ test("해결되지 않은 강화 키의 사전 canonical 충돌은 조치를 안
         { canonical: "Unapproved Key", kind: "tech", aliases: [] },
         { canonical: "Unapproved-Key", kind: "tech", aliases: [] },
       ]),
-    /Merge the entries in the concept dictionary or add a canonical override/,
+    /Merge the entries in the concept dictionary or add a registry block/,
   );
 });
 
@@ -110,8 +110,9 @@ test("buildLoadSummary 는 unknownConcepts 를 정렬된 객체로 낸다 (튜�
   assert.deepEqual(summary.loaded, { nodes: 2, relationships: 0 });
 });
 
-test("부당 병합 denylist는 API 경로와 일반 이름을 분리한다", () => {
-  const aliasMap = buildConceptAliasMap([{ canonical: "analysis", kind: "code-ref", aliases: [] }]);
+test("registry block 은 API 경로와 일반 이름을 분리한다", () => {
+  const blockedConceptKeys = new Set(["analysis"]);
+  const aliasMap = buildConceptAliasMap([{ canonical: "analysis", kind: "code-ref", aliases: [] }], blockedConceptKeys);
   const graph = normalizeGraph(
     [
       {
@@ -129,12 +130,14 @@ test("부당 병합 denylist는 API 경로와 일반 이름을 분리한다", ()
     aliasMap,
     undefined,
     ["inferred.jsonl", "inferred.jsonl"],
+    blockedConceptKeys,
   );
 
   assert.deepEqual(graph.nodes.map((node) => node.key).sort(), ["/analysis", "analysis"]);
 });
 
-test("사전 밖 Concept에도 부당 병합 denylist를 적용한다", () => {
+test("사전 밖 Concept에도 registry block 을 적용한다", () => {
+  const blockedConceptKeys = new Set(["analysis", "cloudtoastcom"]);
   const graph = normalizeGraph(
     [
       {
@@ -162,6 +165,7 @@ test("사전 밖 Concept에도 부당 병합 denylist를 적용한다", () => {
     new Map(),
     undefined,
     ["inferred.jsonl", "inferred.jsonl", "inferred.jsonl", "inferred.jsonl"],
+    blockedConceptKeys,
   );
 
   assert.deepEqual(graph.nodes.map((node) => node.key).sort(), ["*.cloud.toast.com", "/analysis", "analysis", "cloud.toast.com"]);

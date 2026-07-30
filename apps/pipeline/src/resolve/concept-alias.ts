@@ -1,26 +1,17 @@
-import { INFERRED_GRAPH_FILE, PARSED_GRAPH_FILE, type ConceptDictionary, type ConceptEntry } from "@devloop/shared";
-import { CONCEPT_KEY_CANONICAL_OVERRIDES, CONCEPT_KEY_MERGE_DENYLIST } from "./concept-alias.const";
+import {
+  conceptLookupKeys,
+  INFERRED_GRAPH_FILE,
+  normalizeConceptKey,
+  normalizeText,
+  PARSED_GRAPH_FILE,
+  type ConceptDictionary,
+  type ConceptEntry,
+} from "@devloop/shared";
 
 export type ConceptSource = "llm" | "structural";
+export { normalizeConceptKey, normalizeText } from "@devloop/shared";
 
-export function normalizeText(value: string): string {
-  return value.trim().replace(/\s+/g, " ").toLowerCase();
-}
-
-export function normalizeConceptKey(value: string): string {
-  return value.toLowerCase().replace(/[^a-z0-9가-힣]/g, "");
-}
-
-function conceptLookupKeys(value: string): string[] {
-  const normalized = normalizeText(value);
-  const conceptKey = normalizeConceptKey(value);
-  if (!conceptKey || CONCEPT_KEY_MERGE_DENYLIST.has(conceptKey)) {
-    return [normalized];
-  }
-  return [...new Set([normalized, conceptKey])];
-}
-
-export function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string, ConceptEntry> {
+export function buildConceptAliasMap(dictionary: ConceptDictionary, blockedConceptKeys: ReadonlySet<string> = new Set()): Map<string, ConceptEntry> {
   const aliases = new Map<string, ConceptEntry>();
   const conceptKeyOwners = new Map<string, Map<string, ConceptEntry>>();
   for (const entry of dictionary) {
@@ -41,7 +32,7 @@ export function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string,
   }
 
   for (const [conceptKey, ownersByCanonical] of conceptKeyOwners) {
-    if (CONCEPT_KEY_MERGE_DENYLIST.has(conceptKey)) {
+    if (blockedConceptKeys.has(conceptKey)) {
       continue;
     }
     const owners = [...ownersByCanonical.values()];
@@ -55,12 +46,7 @@ export function buildConceptAliasMap(dictionary: ConceptDictionary): Map<string,
       continue;
     }
 
-    const canonical = CONCEPT_KEY_CANONICAL_OVERRIDES.get(conceptKey);
-    const selected = owners.find((entry) => entry.canonical === canonical);
-    if (!selected) {
-      throw conceptDictionaryConflict(conceptKey, owners);
-    }
-    aliases.set(conceptKey, selected);
+    throw conceptDictionaryConflict(conceptKey, owners);
   }
   return aliases;
 }
@@ -69,12 +55,16 @@ function conceptDictionaryConflict(key: string, owners: readonly ConceptEntry[])
   return new Error(
     `Concept key "${key}" has conflicting canonical entries: ` +
       `${owners.map((entry) => entry.canonical).join(", ")}. ` +
-      "Merge the entries in the concept dictionary or add a canonical override.",
+      "Merge the entries in the concept dictionary or add a registry block.",
   );
 }
 
-export function conceptEntry(value: string, aliasMap: ReadonlyMap<string, ConceptEntry>): ConceptEntry | undefined {
-  return conceptLookupKeys(value)
+export function conceptEntry(
+  value: string,
+  aliasMap: ReadonlyMap<string, ConceptEntry>,
+  blockedConceptKeys: ReadonlySet<string> = new Set(),
+): ConceptEntry | undefined {
+  return conceptLookupKeys(value, blockedConceptKeys)
     .map((key) => aliasMap.get(key))
     .find((candidate): candidate is ConceptEntry => candidate !== undefined);
 }

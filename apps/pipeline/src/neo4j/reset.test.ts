@@ -19,6 +19,9 @@ const TEST_CONFIG = {
     user: "neo4j",
     password: "devloop-password",
   },
+  registry: {
+    databaseUrl: undefined,
+  },
   llm: {
     provider: "codex" as const,
     model: undefined,

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { EndpointIndex } from "../infer/llm-relationship-sanitizer";
+import { composeConceptDictionary, loadConceptDictionary } from "../concepts/dictionary";
 import { readResolveInput, writeResolved, writeResolveReport } from "./io";
 import { resolveGraph } from "./resolve";
 import type { ResolveResult } from "./resolve.schema";
@@ -45,7 +46,7 @@ test("parsed.jsonl 과 inferred.jsonl 을 파일명으로 명시해 읽는다 �
     // jsonl 확장자를 가진 무관한 파일도 훑지 않아야 한다.
     await writeFile(join(dataDir, "graph", project, "garbage.jsonl"), "not json\n", "utf8");
 
-    const input = await readResolveInput(dataDir, project);
+    const input = await readResolveInput(dataDir, project, undefined, { merges: [], blocks: [] });
 
     assert.deepEqual(
       input.parsed.map((record) => record.value),
@@ -62,7 +63,7 @@ test("parsed.jsonl 이 없으면 즉시 실패한다", async () => {
   const dataDir = await makeDataDir(project);
   try {
     await writeRawProject(dataDir, project);
-    await assert.rejects(readResolveInput(dataDir, project), /parsed\.jsonl 이 없습니다/);
+    await assert.rejects(readResolveInput(dataDir, project, undefined, { merges: [], blocks: [] }), /parsed\.jsonl 이 없습니다/);
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
@@ -75,7 +76,7 @@ test("inferred.jsonl 이 없으면 경고하고 빈 배열로 진행한다", asy
     await writeParsed(dataDir, project, [TASK_483]);
     await writeRawProject(dataDir, project);
 
-    const input = await readResolveInput(dataDir, project);
+    const input = await readResolveInput(dataDir, project, undefined, { merges: [], blocks: [] });
 
     assert.equal(input.inferred.length, 0);
     assert.equal(input.parsed.length, 1);
@@ -94,7 +95,7 @@ test("raw 문서(data/raw/<project>)가 없어도 io.ts 는 예외를 던지지 
     await writeParsed(dataDir, project, [TASK_483]);
     // raw/ 디렉터리를 아예 만들지 않는다.
 
-    const input = await readResolveInput(dataDir, project);
+    const input = await readResolveInput(dataDir, project, undefined, { merges: [], blocks: [] });
 
     assert.equal(input.endpointIndex.taskNumbers.size, 0);
     assert.equal(input.endpointIndex.wikiPageIds.size, 0);
@@ -216,6 +217,36 @@ test("writeResolveReport 는 droppedRelationships 를 파일에 그대로 담는
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
+});
+
+test("composeConceptDictionary 는 판단 alias 를 canonical 에 흡수하고 결정적 순서로 낸다", () => {
+  const composed = composeConceptDictionary(
+    [
+      { canonical: "Gateway", kind: "component", aliases: [] },
+      { canonical: "Legacy Gateway", kind: "component", aliases: ["Gateway"] },
+      { canonical: "OCR API Gateway", kind: "component", aliases: ["API Gateway"] },
+      { canonical: "Document.Console", kind: "component", aliases: [] },
+    ],
+    {
+      merges: [{ canonical: "OCR API Gateway", aliases: ["gateway", "Gateway"], reason: "human judgment" }],
+      blocks: [{ key: "Document.Console", reason: "separate product" }],
+    },
+  );
+
+  assert.equal(composed.decisionCount, 3);
+  assert.deepEqual([...composed.blockedConceptKeys], ["documentconsole"]);
+  assert.deepEqual([...composed.judgedAliasKeys], ["gateway"]);
+  assert.deepEqual(composed.dictionary, [
+    { canonical: "Document.Console", kind: "component", aliases: [] },
+    { canonical: "Legacy Gateway", kind: "component", aliases: [] },
+    { canonical: "OCR API Gateway", kind: "component", aliases: ["API Gateway", "Gateway", "gateway"] },
+  ]);
+});
+
+test("loadConceptDictionary 는 판단을 생략하면 실패한다", async () => {
+  const loadWithoutCuration = loadConceptDictionary as unknown as (dataDir: string, project: string) => Promise<unknown>;
+
+  await assert.rejects(() => loadWithoutCuration("/tmp", "sample"), /requires explicit curation/);
 });
 
 // 회귀 테스트 — (type, startKey, endKey) 가 같고 properties 만 다른 관계 2건은 relationshipTieBreakKey

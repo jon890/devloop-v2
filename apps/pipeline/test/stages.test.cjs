@@ -9,12 +9,15 @@ const { ConceptDictionarySchema, OntologyNodeSchema, OntologyRelationshipSchema 
 const { ClaudeCliAdapter } = require('../dist/llm/claude-cli.adapter');
 const { CodexCliAdapter } = require('../dist/llm/codex-cli.adapter');
 const { LlmResultSchema } = require('../dist/llm/llm-cli');
-const { seedConcepts } = require('../dist/concepts/concept-seeder');
+const { removeConflictingAliases, seedConcepts } = require('../dist/concepts/concept-seeder');
+const { normalizeConceptKey } = require('@devloop/shared');
 const { LlmNodeSchema, LlmRelationshipSchema } = require('../dist/infer/llm-extraction.schema');
-const { extractLlm } = require('../dist/infer/llm-extractor');
+const { extractLlm: extractLlmWithRegistry } = require('../dist/infer/llm-extractor');
 const { sanitizeLlmGraphFile } = require('../dist/infer/llm-relationship-sanitizer');
 const { extractStructural } = require('../dist/parse/structural-extractor');
 const { resolvePipelineDataRoot } = require('../dist/main');
+
+const extractLlm = (options) => extractLlmWithRegistry({ ...options, curation: { merges: [], blocks: [] } });
 
 async function fixtureDataRoot() {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'wp2-extract-test-'));
@@ -246,13 +249,14 @@ test('태그 차원·위키 영문 기술어·업무 prefix로 중복 없는 Con
     { canonical: 'OCR.API', kind: 'tech', aliases: ['API', 'legacy-api', 'shared-alias'] },
     { canonical: 'OCR.API', kind: 'tech', aliases: ['legacy-api-2'] },
     { canonical: 'OCR.Console', kind: 'component', aliases: ['Console', 'shared-alias'] },
+    { canonical: 'DocumentIdCardAuthenticityService:82', kind: 'code-ref', aliases: [] },
   ]));
 
-  const result = await seedConcepts({ dataRoot, project: 'tc-ocr' });
+  const result = await seedConcepts({ dataRoot, project: 'tc-ocr', curation: { merges: [], blocks: [] } });
   const concepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(result.outputPath, 'utf8')));
   const byCanonical = new Map(concepts.map((entry) => [entry.canonical, entry]));
 
-  assert.ok(concepts.some((entry) => entry.canonical === 'OCR API'));
+  assert.equal(concepts.some((entry) => entry.canonical === 'OCR API'), false);
   assert.equal(byCanonical.has('아키텍처'), false);
   assert.equal(byCanonical.has('모델까지'), false);
   assert.deepEqual(byCanonical.get('장애'), { canonical: '장애', kind: 'type', aliases: ['0: 장애'] });
@@ -268,21 +272,137 @@ test('태그 차원·위키 영문 기술어·업무 prefix로 중복 없는 Con
   });
   assert.deepEqual(byCanonical.get('OCR.API'), {
     canonical: 'OCR.API',
-    kind: 'component',
-    aliases: ['legacy-api', 'legacy-api-2'],
+    kind: 'tech',
+    aliases: ['OCR API', 'legacy-api', 'legacy-api-2'],
   });
   assert.ok(byCanonical.has('Log & Crash'));
   assert.ok(byCanonical.has('NHN Container Service'));
   assert.ok(byCanonical.has('X-Request-Id'));
   assert.equal(concepts.filter((entry) => entry.canonical === 'OCR.API').length, 1);
-  assert.equal(byCanonical.has('감싸나'), false);
+  assert.equal(byCanonical.has('감싸나'), true);
+  assert.equal(byCanonical.has('DocumentIdCardAuthenticityService:82'), true);
   assert.deepEqual(byCanonical.get('배포 Main'), { canonical: '배포 Main', kind: 'component', aliases: [] });
   assert.equal(concepts.some((entry) => /^[012]:\s/.test(entry.canonical)), false);
 });
 
+test('판단 alias 는 seed-concepts 재생성 후 canonical 로 되살아나지 않고 alias 로 남는다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  await writeFile(path.join(dataRoot, 'raw', 'tc-ocr', 'wiki', '203.json'), JSON.stringify({
+    pageId: 203,
+    subject: 'Gateway / OCR API Gateway',
+    parentId: 0,
+    body: { content: '' },
+  }));
+
+  const result = await seedConcepts({
+    dataRoot,
+    project: 'tc-ocr',
+    curation: {
+      merges: [{ canonical: 'OCR API Gateway', aliases: ['Gateway'], reason: 'human judgment' }],
+      blocks: [],
+    },
+  });
+  const concepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(result.outputPath, 'utf8')));
+  const byCanonical = new Map(concepts.map((entry) => [entry.canonical, entry]));
+
+  assert.equal(byCanonical.has('Gateway'), false);
+  assert.ok(byCanonical.get('OCR API Gateway').aliases.includes('Gateway'));
+});
+
+test('판단 alias 는 의도된 canonical 만 소유한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  const outputPath = path.join(dataRoot, 'concepts', 'tc-ocr.json');
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, JSON.stringify([
+    { canonical: 'Legacy Gateway', kind: 'component', aliases: ['Gateway'] },
+  ]));
+
+  const result = await seedConcepts({
+    dataRoot,
+    project: 'tc-ocr',
+    curation: {
+      merges: [{ canonical: 'OCR API Gateway', aliases: ['Gateway'], reason: 'human judgment' }],
+      blocks: [],
+    },
+  });
+  const concepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(result.outputPath, 'utf8')));
+  const byCanonical = new Map(concepts.map((entry) => [entry.canonical, entry]));
+
+  assert.deepEqual(byCanonical.get('Legacy Gateway').aliases, []);
+  assert.ok(byCanonical.get('OCR API Gateway').aliases.includes('Gateway'));
+});
+
+test('seed-concepts 는 설정과 명시적 판단이 모두 없으면 실패한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  await assert.rejects(() => seedConcepts({ dataRoot, project: 'tc-ocr' }), /requires pipeline config/);
+});
+
+test('seed-concepts 는 대소문자만 다른 원천 표기보다 기존 canonical 을 유지한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  await writeFile(path.join(dataRoot, 'raw', 'tc-ocr', 'wiki', '203.json'), JSON.stringify({
+    pageId: 203,
+    subject: 'OCR.DOC',
+    parentId: 0,
+    body: { content: '' },
+  }));
+  const postPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts', '102.json');
+  const post = JSON.parse(await readFile(postPath, 'utf8'));
+  post.post.subject = '[OCR.\bAdmin] control character variant';
+  await writeFile(postPath, JSON.stringify(post));
+  const outputPath = path.join(dataRoot, 'concepts', 'tc-ocr.json');
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, JSON.stringify([
+    { canonical: 'OCR.Doc', kind: 'component', aliases: [] },
+    { canonical: 'OCR.Admin', kind: 'component', aliases: [] },
+  ]));
+
+  const result = await seedConcepts({ dataRoot, project: 'tc-ocr', curation: { merges: [], blocks: [] } });
+  const concepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(result.outputPath, 'utf8')));
+
+  assert.equal(concepts.some((entry) => entry.canonical === 'OCR.Doc'), true);
+  assert.equal(concepts.some((entry) => entry.canonical === 'OCR.DOC'), false);
+  assert.equal(concepts.some((entry) => entry.canonical === 'OCR.Admin'), true);
+  assert.equal(concepts.some((entry) => entry.canonical === 'OCR.\bAdmin'), false);
+});
+
+test('기존 canonical 이 없는 정규화 충돌은 입력 순서와 무관하게 canonical 과 kind 를 결정한다', async () => {
+  const firstRoot = await fixtureDataRoot();
+  const secondRoot = await fixtureDataRoot();
+  const tagCandidates = [
+    ['tag-type', '0: OCR.DOC'],
+    ['tag-component', '2: OCR.DOC'],
+    ['tag-case', 'OCR.Doc'],
+  ];
+  await writeFile(path.join(firstRoot, 'raw', 'tc-ocr', 'tags.json'), JSON.stringify(Object.fromEntries(tagCandidates)));
+  await writeFile(path.join(secondRoot, 'raw', 'tc-ocr', 'tags.json'), JSON.stringify(Object.fromEntries([...tagCandidates].reverse())));
+
+  const first = await seedConcepts({ dataRoot: firstRoot, project: 'tc-ocr', curation: { merges: [], blocks: [] } });
+  const second = await seedConcepts({ dataRoot: secondRoot, project: 'tc-ocr', curation: { merges: [], blocks: [] } });
+  const firstConcepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(first.outputPath, 'utf8')));
+  const secondConcepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(second.outputPath, 'utf8')));
+  const firstWinner = firstConcepts.find((entry) => normalizeConceptKey(entry.canonical) === normalizeConceptKey('OCR.DOC'));
+  const secondWinner = secondConcepts.find((entry) => normalizeConceptKey(entry.canonical) === normalizeConceptKey('OCR.DOC'));
+
+  assert.deepEqual(firstWinner, secondWinner);
+  assert.equal(firstWinner.canonical, 'OCR.DOC');
+  assert.equal(firstWinner.kind, 'component');
+});
+
+test('removeConflictingAliases 는 판단 alias 를 의도된 canonical 에만 보존한다', () => {
+  const entries = removeConflictingAliases(
+    [
+      { canonical: 'Legacy Gateway', kind: 'component', aliases: ['Gateway'] },
+      { canonical: 'OCR API Gateway', kind: 'component', aliases: ['Gateway'] },
+    ],
+    new Map([[normalizeConceptKey('Gateway'), normalizeConceptKey('OCR API Gateway')]]),
+  );
+  assert.deepEqual(entries.find((entry) => entry.canonical === 'Legacy Gateway').aliases, []);
+  assert.deepEqual(entries.find((entry) => entry.canonical === 'OCR API Gateway').aliases, ['Gateway']);
+});
+
 test('fixture 문서 5건을 문서당 1회, 동시 4개 이하로 LLM 추출하고 캐시한다', async () => {
   const dataRoot = await fixtureDataRoot();
-  await seedConcepts({ dataRoot, project: 'tc-ocr' });
+  await seedConcepts({ dataRoot, project: 'tc-ocr', curation: { merges: [], blocks: [] } });
   let calls = 0;
   let active = 0;
   let maximumActive = 0;

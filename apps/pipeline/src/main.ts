@@ -9,6 +9,9 @@ import { seedConcepts } from "./concepts/concept-seeder";
 import { extractLlm } from "./infer/llm-extractor";
 import { extractStructural } from "./parse/structural-extractor";
 import { ClaudeCliAdapter, CodexCliAdapter, type LlmCli } from "./llm";
+import { runExportCuration } from "./registry/export-curation";
+import { runImportCuration } from "./registry/import-curation";
+import { runRegisterProject } from "./registry/register-project";
 
 function llmAdapter(provider: PipelineConfig["llm"]["provider"]): LlmCli {
   if (provider === "codex") return new CodexCliAdapter();
@@ -17,6 +20,7 @@ function llmAdapter(provider: PipelineConfig["llm"]["provider"]): LlmCli {
 }
 
 const KNOWN_STAGES = ["fetch-dooray", "seed-concepts", "parse-structure", "infer-knowledge", "all"];
+const REGISTRY_COMMANDS = ["register-project", "import-curation", "export-curation"];
 
 async function bootstrap(): Promise<void> {
   const options = parsePipelineOptions(process.argv.slice(2));
@@ -28,8 +32,20 @@ async function bootstrap(): Promise<void> {
   const dataRoot = resolvePipelineDataRoot();
   const stage = options.stage ?? "all";
   try {
+    if (stage === "register-project") {
+      await runRegisterProject(process.argv.slice(3), config);
+      return;
+    }
+    if (stage === "import-curation") {
+      process.exitCode = await runImportCuration(process.argv.slice(3), config);
+      return;
+    }
+    if (stage === "export-curation") {
+      await runExportCuration(process.argv.slice(3), config);
+      return;
+    }
     if (!KNOWN_STAGES.includes(stage)) {
-      throw new Error(`Unknown pipeline stage: ${stage}`);
+      throw new Error(`Unknown pipeline stage: ${stage}. Registry commands: ${REGISTRY_COMMANDS.join(", ")}.`);
     }
     if (stage === "fetch-dooray" || stage === "all") {
       const result = await app.get(IngestService).ingest({

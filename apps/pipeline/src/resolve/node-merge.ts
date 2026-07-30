@@ -6,7 +6,7 @@ import {
   type OntologyNode,
   type OntologyRelationship,
 } from "@devloop/shared";
-import { CONCEPT_KEY_MERGE_DENYLIST, CONCEPT_LABEL } from "./concept-alias.const";
+import { CONCEPT_LABEL } from "./concept-alias.const";
 import { conceptEntry, conceptSource, normalizeConceptKey, normalizeText, type ConceptSource } from "./concept-alias";
 
 export interface NodeRef {
@@ -19,11 +19,12 @@ export function buildUnmatchedConceptRepresentatives(
   inputRelationships: readonly OntologyRelationship[],
   aliasMap: ReadonlyMap<string, ConceptEntry>,
   nodeSources?: readonly string[],
+  blockedConceptKeys: ReadonlySet<string> = new Set(),
 ): Map<string, string> {
   const groups = new Map<string, Map<string, { occurrences: number; referenceKey: string }>>();
 
   inputNodes.forEach((node, index) => {
-    addUnmatchedConceptCandidate(groups, node, aliasMap, nodeSources?.[index] ?? PARSED_GRAPH_FILE);
+    addUnmatchedConceptCandidate(groups, node, aliasMap, nodeSources?.[index] ?? PARSED_GRAPH_FILE, blockedConceptKeys);
   });
 
   const referenceCounts = conceptReferenceCounts(inputRelationships);
@@ -35,8 +36,9 @@ function addUnmatchedConceptCandidate(
   node: OntologyNode,
   aliasMap: ReadonlyMap<string, ConceptEntry>,
   sourceFile: string,
+  blockedConceptKeys: ReadonlySet<string>,
 ): void {
-  if (node.label !== CONCEPT_LABEL || conceptEntry(node.key, aliasMap)) {
+  if (node.label !== CONCEPT_LABEL || conceptEntry(node.key, aliasMap, blockedConceptKeys)) {
     return;
   }
   const source = conceptSource(sourceFile);
@@ -45,7 +47,7 @@ function addUnmatchedConceptCandidate(
   }
 
   const key = normalizeConceptKey(node.key);
-  if (!key || CONCEPT_KEY_MERGE_DENYLIST.has(key)) {
+  if (!key || blockedConceptKeys.has(key)) {
     return;
   }
   const displayName = normalizeText(node.key);
@@ -101,13 +103,14 @@ export function normalizeNode(
   unmatchedRepresentatives: ReadonlyMap<string, string>,
   unknownConcepts: Map<string, number>,
   sourceFile: string,
+  blockedConceptKeys: ReadonlySet<string> = new Set(),
 ): OntologyNode {
   if (node.label !== CONCEPT_LABEL) {
     return normalizeNonConceptNode(node);
   }
 
   const normalized = normalizeText(node.key);
-  const entry = conceptEntry(node.key, aliasMap);
+  const entry = conceptEntry(node.key, aliasMap, blockedConceptKeys);
   const source = conceptSource(sourceFile);
   if (!entry) {
     return normalizeUnmatchedConceptNode(node, normalized, source, unmatchedRepresentatives, unknownConcepts);

@@ -123,7 +123,7 @@ fetch-dooray → seed-concepts → parse-structure → infer-knowledge → sync-
 | 2 | `normalizeConceptKey` | 구두점(`.`·`-`·`_`) | 1,028 → 993종 |
 
 - 2단계는 Concept 별칭 경로에만 적용된다. `normalizeText` 는 참조 해석(`addEndpointAlias`·`resolveEndpoint`)에도 쓰이므로 함부로 바꾸면 관계가 깨진다
-- `CONCEPT_KEY_MERGE_DENYLIST` 에 부당 병합 2건을 차단해 뒀다 (`/analysis` 대 `analysis`, `cloud.toast.com` 대 `*.cloud.toast.com`)
+- 관계형 판단 저장소의 `block` 판단이 부당 병합을 차단한다 (`/analysis` 대 `analysis`, `cloud.toast.com` 대 `*.cloud.toast.com`)
 - 사전 중복 항목이 있으면 강화 키가 충돌해 적재가 예외로 멈춘다. override 표로 덮지 말고 **사전을 통합**하는 것이 옳다
 
 ### 앵커 선정이 취약하다
@@ -216,6 +216,26 @@ gold 는 필수(`required`)와 보강(`supporting`)으로 나눠 적는다.
 - 모델 — 추출 `gpt-5.5`, 질의 `gpt-5.6-terra` (벤치마크로 확정)
 - 테스트는 데모 데이터가 아니라 실제 Dooray·GHE 데이터로 한다
 
+### 작업이 끝나면 띄운 것을 반드시 정리한다
+
+검증용으로 띄운 컨테이너·프로세스를 남겨 두면 **다음에 무엇이 살아 있는지 헷갈린다.**
+어느 인스턴스에 붙었는지 모르는 상태가 이 저장소에서 사고로 이어진 적이 있다.
+
+작업(plan 머지 또는 검증 종료) 직후 순서다.
+
+```bash
+# cwd: 저장소 루트
+docker compose --profile test down                 # 테스트 컨테이너 제거 (stop 이 아니라 down)
+docker ps --format '{{.Names}} {{.Ports}}'         # 남은 것 확인
+lsof -nP -iTCP:3000 -iTCP:5173 -sTCP:LISTEN        # dev 서버 확인
+```
+
+- **테스트 인스턴스는 `down` 으로 제거한다.** `Exited` 상태로 남기면 "정리했다" 와 구분되지 않는다
+- **개발 인스턴스(Neo4j 7687·Postgres 15434)는 유지한다.** 운영 데이터가 들어 있다
+- **작업이 코드를 바꿨으면 dev 서버(API 3000·web 5173)를 재시작한다.**
+  낡은 프로세스가 새 계약을 만족하지 못해 화면이 비는 사고가 실제로 났다
+- 정리 후 무엇을 남겼고 무엇을 지웠는지 보고에 적는다
+
 ### 워크트리는 저장소 안 `worktrees/` 에 만든다
 
 `worktrees/<slug>` 에 만든다. `~/orca/workspaces/` 아래에 만들지 않는다.
@@ -265,7 +285,20 @@ prettier 를 도입하기로 했으므로, 포맷 통일은 **기능 변경과 �
 아무 테스트도 돌지 않았는데 성공으로 보인다. 실제로 머지 직전에 이것에 걸렸다.
 
 - api 는 `test:unit` 을 쓴다. 통과 표시가 아니라 **테스트 개수**를 확인하라
-- 현재 개수 — api 51, pipeline 91 (2026-07-30 기준). 줄었으면 무언가 실행되지 않는 것이다
+- 현재 개수 — api 51, pipeline 137 (2026-07-30 기준). 줄었으면 무언가 실행되지 않는 것이다
+
+**pipeline 테스트 5건은 조건부다.** `curation.test.ts` 가 테스트 Postgres(15435)와
+`REGISTRY_DATABASE_URL` 이 없으면 건너뛴다. 그냥 돌리면 132 통과·5 건너뜀이 나오는데
+**초록으로 보이므로 알아채기 어렵다.** 판단 저장소를 손댔으면 아래로 확인하라.
+
+```bash
+# cwd: 저장소 루트
+docker compose --profile test up -d postgres-test
+REGISTRY_DATABASE_URL=postgresql://devloop:devloop-test-password@localhost:15435/devloop_registry \
+  pnpm --filter pipeline test
+```
+
+`skipped 0` 이어야 한다. 건너뜀이 남으면 그 5건은 검증되지 않은 것이다.
 
 **가장 나쁜 함정 — e2e 는 오래 깨져 있었고 아무도 몰랐다.**
 
@@ -337,34 +370,36 @@ S2 판정식을 적재기 정규화 함수와 같게 만들면, 적재기가 보
 | 스키마 맵 표본 페이징 | **머지 완료** (`ef0c5a5`).<br>정렬은 키 속성 뒤 `elementId` 로 동순위를 깬다<br>limit 상한 100, offset 상한 `MAX_SAFE_INTEGER` |
 | 파이프라인 단계 이름·모듈 배치 | **머지 완료** (`ffefdae`). 1단계 |
 | 파이프라인 2단계 — `sync-neo4j` 분해 | **완료**. `resolve-graph`·`reset-neo4j` 신설, `sync.ts` 875 → 303줄.<br>죽은 마이그레이션 2개는 분리가 아니라 삭제했다 — 적재기가 그 상태를 만들지 않는다 |
-| 사전 별칭 보강 (2층) | **5쌍 승인됨. 등록 대기.** 기다리던 `resolve-graph` dry-run 이 생겨 전제는 충족됐다 |
+| 사전 별칭 보강 (2층) | **완료.** 후보 5쌍을 승인해 병합 별칭 6개를 판단 저장소에 등록하고, `resolve-graph` 비교로 그 흡수 대상 6종만 합쳐지는지 확인했다.<br>`gateway api`·`nat gateway` 는 별개로 남았다. 그래프 재적재는 사용자 판단 대상으로 남겨 뒀다 |
 | gold 3문항 (A-06·A-10·H-12) | **`supporting` 하향으로 결정.** 미실행 |
 | gold H-17 | **별칭·추출 프롬프트 둘 다로 결정.** 미실행. 프롬프트 변경은 LLM 537회 |
 | A-14 인수 기준 | **문구 변경으로 결정.** "FAIL 전환 0개" → "원인이 가짜 엣지 제거임을 증명". 미실행 |
 | GitHub Enterprise 통합 | **보류**. Phase 1(staging·초기화)만 남았다 |
 | 노드 속성 키 순서 한계 | **후속으로 미룸.**<br>현재 계약(같은 입력이면 같은 바이트)은 지켜진다. 더 강한 계약(키 순서가 달라도 논리적으로 같은 JSON 이면 같은 바이트)은 아직 아니다<br>`mergeNode`(`node-merge.ts:179-182`)의 얕은 병합 때문에 속성 삽입 순서가 다르면 바이트가 달라질 수 있다<br>다만 사전만 바꾸는 의도된 경로에서는 레코드 순회 순서가 고정돼 있고(`resolve.ts:27-32`·`:128-135`) 강화 키 그룹이 전체가 함께 매칭·미매칭되어 지금은 드러나지 않는다 |
 
-### 별칭 등록 전제가 충족됐다 — 등록만 남았다
+### 별칭 등록 효과를 적재 없이 확인했다
 
-승인된 5쌍은 `eval/reports/2026-07-28-concept-alias-candidates.md` 에 있다. 아직 등록하지 않았다.
+`eval/reports/2026-07-28-concept-alias-candidates.md` 의 후보 5쌍을 승인했고,
+여기서 나온 병합 별칭 6개를 관계형 판단 저장소에 등록했다.
+주입 데이터는 조직 내부 이름과 업무 번호를 담으므로 저장소 밖에 보관한다.
 
-등록을 미뤄 온 이유는 효과를 미리 볼 수 없었기 때문이다. 정규화가 `sync-neo4j` 안에 묶여 있어
-적재 없이 확인할 방법이 없었고, 틀리면 그래프를 다시 비워야 했다.
-
-**2단계가 끝나 그 제약이 사라졌다.** 이제 사전을 고치기 전후로 `resolve-graph` 를 돌려
-`resolved.jsonl` 을 `cmp` 하면 무엇이 합쳐지는지 적재 없이 볼 수 있다.
+판단 주입 전후로 `resolve-graph` 를 실행해 사라진 Concept 이 흡수 대상 6종과 정확히 일치하고,
+관계 끝점이 세 표준어로 옮겨지는 것을 확인했다.
+판단을 반영한 뒤 `seed-concepts` 를 다시 실행해도 `resolved.jsonl` 바이트가 같았다.
 
 ```bash
 # cwd: 저장소 루트
-D=$(pwd)/apps/pipeline/data
-pnpm --filter pipeline resolve-graph --project tc-ocr --data-dir "$D" --out /tmp/before.jsonl
-# 사전 수정
+D="$(pwd)/apps/pipeline/data"
 pnpm --filter pipeline resolve-graph --project tc-ocr --data-dir "$D" --out /tmp/after.jsonl
-cmp /tmp/before.jsonl /tmp/after.jsonl
+pnpm --filter pipeline seed-concepts --project tc-ocr
+pnpm --filter pipeline resolve-graph --project tc-ocr --data-dir "$D" --out /tmp/after2.jsonl
+cmp /tmp/after.jsonl /tmp/after2.jsonl
 ```
 
 **`gateway api`(쿠버네티스 표준 Gateway API)와 `nat gateway` 는 병합 대상이 아니다.**
 `api gateway` 와 토큰 집합이 같지만 다른 개체다. 토큰 일치만으로 자동 병합하면 안 되는 실측 사례다.
+그래프 초기화와 재적재는 하지 않았다.
+파일 비교로 효과를 확인한 뒤 되돌리기 어려운 작업은 사용자 판단 대상으로 남겼다.
 
 ### 다음 개선의 단위는 문항이 아니라 노드다
 
