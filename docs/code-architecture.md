@@ -56,9 +56,10 @@ flowchart LR
 
 `apps/*` 끼리는 서로 의존하지 않는다. 공유가 필요하면 `packages/shared` 로 올린다.
 
-ADR 0005가 채택한 판단 저장소 패키지와 명령은 아직 구현되지 않았다.
-구현할 때는 웹이 import하는 `packages/shared`에 Node 전용 저장소 클라이언트를 넣지 않고,
-별도 패키지로 경계를 둔다.
+ADR 0005가 채택한 판단 저장소는 `packages/registry`가 소유한다.
+스키마·repository·service는 이 패키지에 두고, 파이프라인의
+`register-project`·`import-curation`·`export-curation` 명령이 진입점을 제공한다.
+웹이 import하는 `packages/shared`에는 Node 전용 저장소 클라이언트를 넣지 않는다.
 
 **`packages/shared` 를 고치면 의존 앱을 다시 빌드해야 한다.**
 `pnpm --filter api test:unit` 은 shared 를 재빌드하지 않는다.
