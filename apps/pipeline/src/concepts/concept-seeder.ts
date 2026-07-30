@@ -126,6 +126,38 @@ function mergeConcept(target: Map<string, ConceptEntry>, entry: ConceptEntry): v
   });
 }
 
+function compareCanonicalCodePoint(left: string, right: string): number {
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
+function canonicalWinners(
+  existingConcepts: readonly ConceptEntry[],
+  generatedConcepts: readonly ConceptEntry[],
+  blockedConceptKeys: ReadonlySet<string>,
+): Map<string, string> {
+  const winners = new Map<string, string>();
+
+  // Existing spellings win. Without one, code-point order makes a fresh seed
+  // deterministic regardless of the order in which raw sources are visited.
+  for (const entries of [existingConcepts, generatedConcepts]) {
+    for (const entry of [...entries].sort((left, right) => compareCanonicalCodePoint(left.canonical, right.canonical))) {
+      const conceptKey = normalizeConceptKey(entry.canonical);
+      if (!conceptKey || blockedConceptKeys.has(conceptKey) || winners.has(conceptKey)) continue;
+      winners.set(conceptKey, entry.canonical);
+    }
+  }
+
+  return winners;
+}
+
+function preferCanonical(entry: ConceptEntry, canonicalByKey: ReadonlyMap<string, string>, blockedConceptKeys: ReadonlySet<string>): ConceptEntry {
+  const conceptKey = normalizeConceptKey(entry.canonical);
+  if (!conceptKey || blockedConceptKeys.has(conceptKey)) return entry;
+  const canonical = canonicalByKey.get(conceptKey);
+  return canonical ? { ...entry, canonical } : entry;
+}
+
 function tagConcept(name: string): ConceptEntry {
   const match = name.match(/^([012]):\s*(.+)$/);
   const canonical = match?.[2]?.trim() ?? name;
@@ -142,19 +174,21 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
   const concepts = new Map<string, ConceptEntry>();
   const existingConcepts = await readExisting(outputPath);
   const curation = options.curation ?? (await readConceptCuration(options.config, options.project, "seed-concepts"));
+  const blockedConceptKeys = new Set(curation.blocks.map((block) => normalizeConceptKey(block.key)).filter(Boolean));
   const judgedAliasKeys = judgedAliasKeySet(curation);
   const decisionCount = curation.merges.reduce((sum, merge) => sum + merge.aliases.length, 0) + curation.blocks.length;
+  const generatedConcepts: ConceptEntry[] = [];
   console.log(`판단 ${decisionCount}건 적용`);
 
   for (const name of Object.values(raw.tags)) {
-    mergeConcept(concepts, tagConcept(name));
+    generatedConcepts.push(tagConcept(name));
   }
 
   for (const document of raw.posts) {
     const subject = firstString(document.post, ["subject", "title"]);
     const prefix = subject ? titlePrefix(subject) : undefined;
     if (!prefix) continue;
-    mergeConcept(concepts, {
+    generatedConcepts.push({
       canonical: prefix,
       kind: "component",
       aliases: [],
@@ -165,12 +199,17 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
     const subject = firstString(wiki, ["subject", "title"]);
     if (!subject) continue;
     for (const concept of titleConcepts(subject, judgedAliasKeys)) {
-      mergeConcept(concepts, { canonical: concept, kind: inferKind(concept, subject), aliases: [] });
+      generatedConcepts.push({ canonical: concept, kind: inferKind(concept, subject), aliases: [] });
     }
   }
 
+  const canonicalByKey = canonicalWinners(existingConcepts, generatedConcepts, blockedConceptKeys);
+  for (const generated of generatedConcepts) {
+    mergeConcept(concepts, preferCanonical(generated, canonicalByKey, blockedConceptKeys));
+  }
+
   for (const existing of existingConcepts) {
-    mergeConcept(concepts, existing);
+    mergeConcept(concepts, preferCanonical(existing, canonicalByKey, blockedConceptKeys));
   }
 
   const withoutConflicts = removeConflictingAliases([...concepts.values()], judgedAliasKeys).sort((left, right) =>
