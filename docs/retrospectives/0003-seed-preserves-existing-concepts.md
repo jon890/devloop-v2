@@ -12,7 +12,7 @@ promotion: 승격 안 함
 
 ## 관찰
 
-실제 판단 5쌍을 적용한 뒤 `seed-concepts` 와 `resolve-graph` 를 연속 실행하자 두 문제가 드러났다.
+승인한 후보 5쌍에서 나온 병합 별칭 6개를 적용한 뒤 `seed-concepts` 와 `resolve-graph` 를 연속 실행하자 두 문제가 드러났다.
 
 - `OCR.Doc` 와 `OCR.DOC` 같은 표기가 정규화 키에서 충돌했다.
 - 원천 시드에서 다시 발견되지 않은 `DocumentIdCardAuthenticityService:82`가 사전에서 사라져 해석이 실패했다.
@@ -43,7 +43,7 @@ promotion: 승격 안 함
 
 - 기존 표준어·종류 우선, 신규 표준어·종류의 결정적 승자, 구조 전용 항목 보존 회귀 테스트가 통과했다.
 - 코드포인트 비교와 기존 항목 보존 가드를 각각 무력화했을 때 회귀 테스트가 실패했고 원복 뒤 통과했다.
-- 실제 판단 5쌍으로 `seed-concepts` 를 다시 실행한 뒤 `resolve-graph` 산출물이 재생성 전과 바이트 단위로 같았다.
+- 승인한 후보 5쌍의 병합 별칭 6개로 `seed-concepts` 를 다시 실행한 뒤 `resolve-graph` 산출물이 재생성 전과 바이트 단위로 같았다.
 - 두 산출물의 SHA-256은 `ac86b2d97a30f99efbf60ec6fbe3b62d57a482cf4277758eabaaac5d59fdb10f`으로 같았다.
 
 ## 배운 점
