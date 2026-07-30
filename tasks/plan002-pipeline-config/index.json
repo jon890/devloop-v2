@@ -1,0 +1,30 @@
+{
+  "name": "plan002-pipeline-config",
+  "description": "파이프라인 환경변수를 검증된 설정 객체로 모으고 필수 값 부재를 기동 실패로 만든다",
+  "status": "pending",
+  "created_at": "2026-07-30",
+  "total_phases": 3,
+  "phases": [
+    {
+      "number": 1,
+      "file": "phase-01.md",
+      "title": "설정 모듈을 만들고 .env 를 읽는다",
+      "execution_profile": "standard",
+      "status": "pending"
+    },
+    {
+      "number": 2,
+      "file": "phase-02.md",
+      "title": "Neo4j 변수를 이관하고 URI 를 필수로 만든다",
+      "execution_profile": "standard",
+      "status": "pending"
+    },
+    {
+      "number": 3,
+      "file": "phase-03.md",
+      "title": "LLM 과 데이터 디렉터리 변수를 이관한다",
+      "execution_profile": "standard",
+      "status": "pending"
+    }
+  ]
+}
