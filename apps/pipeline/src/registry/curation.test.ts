@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -184,9 +185,117 @@ test(
   },
 );
 
+test(
+  "registry migration 은 check·FK·cascade 제약을 적용한다",
+  { skip: hasTestDatabase ? false : "REGISTRY_DATABASE_URL on port 15435 is required" },
+  async () => {
+    await withTestRegistry("migration-constraints", async ({ db, pool, code }) => {
+      const project = await selectProjectByCode(db, code);
+      assert.ok(project);
+
+      await assert.rejects(
+        () =>
+          pool.query(
+            "insert into concept_decision (project_id, key_raw, key_norm, kind, canonical, reason) values ($1, $2, $3, $4, $5, $6)",
+            [project.id, "invalid-kind", "invalidkind", "unknown", null, "check constraint"],
+          ),
+        /concept_decision_kind_check/,
+      );
+      await assert.rejects(
+        () =>
+          pool.query(
+            "insert into concept_decision (project_id, key_raw, key_norm, kind, canonical, reason) values ($1, $2, $3, $4, $5, $6)",
+            [project.id, "missing-canonical", "missingcanonical", "merge_alias", null, "check constraint"],
+          ),
+        /concept_decision_canonical_check/,
+      );
+      await assert.rejects(
+        () => pool.query("insert into source (project_id, kind, external_key) values ($1, $2, $3)", [project.id, "jira", `${code}-jira`]),
+        /source_kind_check/,
+      );
+      await assert.rejects(
+        () =>
+          pool.query("insert into concept_decision (project_id, key_raw, key_norm, kind, canonical, reason) values ($1, $2, $3, $4, $5, $6)", [
+            2_147_483_647,
+            "orphan",
+            "orphan",
+            "block",
+            null,
+            "foreign key",
+          ]),
+        /concept_decision_project_id_project_id_fk/,
+      );
+
+      await upsertCuration(db, code, {
+        project: code,
+        merges: [],
+        blocks: [{ key: "gateway api", reason: "cascade 확인" }],
+      });
+      await pool.query("delete from project where id = $1", [project.id]);
+
+      assert.equal((await pool.query("select count(*)::int as count from source where project_id = $1", [project.id])).rows[0].count, 0);
+      assert.equal((await pool.query("select count(*)::int as count from concept_decision where project_id = $1", [project.id])).rows[0].count, 0);
+    });
+  },
+);
+
+test(
+  "import-curation CLI 는 replace 삽입 실패를 롤백하고 종료 코드 1을 반환한다",
+  { skip: hasTestDatabase ? false : "REGISTRY_DATABASE_URL on port 15435 is required" },
+  async () => {
+    await withTestRegistry("cli-rollback", async ({ db, code }) => {
+      await upsertCuration(db, code, {
+        project: code,
+        merges: [],
+        blocks: [{ key: "gateway api", reason: "기존 차단" }],
+      });
+      const directory = await mkdtemp(join(tmpdir(), "devloop-curation-cli-"));
+      try {
+        const inputPath = join(directory, "invalid-date.json");
+        await writeFile(
+          inputPath,
+          `${JSON.stringify({
+            project: code,
+            merges: [
+              {
+                canonical: "OCR API Gateway",
+                aliases: ["Gateway"],
+                reason: "존재하지 않는 승인일",
+                approvedAt: "2026-02-30",
+              },
+            ],
+            blocks: [],
+          })}\n`,
+          "utf8",
+        );
+
+        const result = spawnSync(process.execPath, [join(__dirname, "import-curation.js"), "--project", code, "--file", inputPath, "--replace"], {
+          encoding: "utf8",
+          env: { ...process.env, REGISTRY_DATABASE_URL: databaseUrl },
+          timeout: 30_000,
+        });
+
+        assert.equal(result.status, 1, result.stderr || result.stdout);
+        assert.match(result.stderr, /date|time|range/i);
+        assert.deepEqual(await readCuration(db, code), {
+          project: code,
+          merges: [],
+          blocks: [{ key: "gateway api", reason: "기존 차단" }],
+        });
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    });
+  },
+);
+
 async function withTestRegistry(
   name: string,
-  run: (context: { db: ReturnType<typeof createRegistryDb>; code: string }) => Promise<void>,
+  run: (context: {
+    db: ReturnType<typeof createRegistryDb>;
+    pool: ReturnType<typeof createRegistryPool>;
+    code: string;
+  }) => Promise<void>,
 ): Promise<void> {
   if (!databaseUrl) throw new Error("REGISTRY_DATABASE_URL is required.");
   const pool = createRegistryPool(databaseUrl);
@@ -195,7 +304,7 @@ async function withTestRegistry(
   try {
     await migrateRegistryDb(pool);
     await registerProject(db, { code, name: code, sourceKind: "dooray", sourceKey: code });
-    await run({ db, code });
+    await run({ db, pool, code });
   } finally {
     await pool.query("delete from project where code = $1", [code]);
     await pool.end();
