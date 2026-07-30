@@ -1,11 +1,31 @@
 # 데이터 스키마
 
 - 상태: 기준선 (2026-07-29 작성)
-- 원천: 깊이 인터뷰 8라운드(`~/personal/.omc/specs/deep-interview-dooray-knowledge-graph.md`),
-  `docs/PLAN.md` 의 공유 계약, 운영 그래프 실측
+- 원천: 깊이 인터뷰 8라운드(`~/personal/.omc/specs/deep-interview-dooray-knowledge-graph.md`), 운영 그래프 실측
 
 이 문서는 **저장 모델의 필드·키·제약·삭제 규칙과 구조화 형식**을 소유한다.
 계약의 실행 소스는 `packages/shared/src/ontology/` 이고 이 문서와 1:1 로 맞춘다.
+
+## 원천 데이터
+
+첫 대상 프로젝트(`tc-ocr`) 실측이다 (2026-07-22).
+
+| 항목 | 실측값 |
+| --- | --- |
+| 업무 | 490건 (closed 442 / backlog 38 / working 7 / registered 3) |
+| 위키 | 47건. 트리 구조라 `--parent` BFS 순회가 필요하다 |
+| 댓글 | 업무당 수 건에서 수십 건 |
+| 본문 | `text/x-markdown`. 업무 간 참조가 본문·댓글에 섞여 있다 |
+
+**태그가 3차원 체계**이고 그것이 그대로 Concept 노드의 근거가 된다.
+
+| 차원 | 값 |
+| --- | --- |
+| `0:` 유형 | Bug, Dev, Main, Survey, 배포, 장애 |
+| `1:` 제품 | General, IDCard, CreditCard, DocumentAI, CarPlate, Business, Common |
+| `2:` 컴포넌트 | API, Console, Admin, Env, Meter, Model, DOC, 성능테스트 |
+
+업무당 태그는 평균 3개다. 이 값들은 프로젝트 고유이므로 다른 프로젝트를 색인하면 사전이 새로 시드된다.
 
 ## 온톨로지가 수렴한 과정
 
@@ -167,7 +187,38 @@ Concept 이름 파편화가 관계형 질문의 연결을 끊는 **1번 위험**
 부분포함으로 탐지하면 1,247쌍이 나오지만 **대부분 오탐**이다.
 `Document` 가 `Document.Console` 에 포함되지만 둘은 별개 개체다.
 
-그래서 자동 병합을 하지 않는다. 고빈도 Concept 만 후보로 뽑아 사람이 확인한 뒤 사전 별칭으로 등록한다.
+그래서 자동 병합을 하지 않는다. 고빈도 Concept 만 후보로 뽑아 사람이 확인한 뒤 판단으로 등록한다.
+
+## 판단 저장소 (관계형)
+
+사람이 내린 Concept 동일성 판단과 프로젝트·소스 등록을 담는다.
+자동 생성되는 사전과 **분리해서** 둔다 — 섞으면 재생성이 판단을 지운다.
+결정 배경은 [ADR 0005](adr/0005-curation-in-relational-store.md) 다.
+
+| 표 | 소유 | 키·제약 |
+| --- | --- | --- |
+| `project` | 프로젝트 등록 | `code` 유일 |
+| `source` | 프로젝트에 붙는 원천 (Dooray·GitHub) | `(kind, external_key)` 유일. 한 소스는 한 프로젝트에만 붙는다 |
+| `concept_decision` | 판단 한 건 | `(project_id, key_norm)` 유일 |
+
+`concept_decision` 의 종류는 두 가지다.
+
+- `merge_alias` — 이 표기는 `canonical` 과 같은 개체다
+- `block` — 이 표기는 자동 병합 대상이 아니다
+
+설계 근거 네 가지다.
+
+- **`(project_id, key_norm)` 유일성이 이 표의 존재 이유다.**
+  "한 표기는 최대 하나의 판단에만 지배된다" 를 뜻한다.
+  지금 이 위반이 **적재 도중 예외**로 드러나는데, 제약으로 옮기면 등록이 거부된다
+- **제약을 정규화된 키에 건다.** 충돌은 원문이 아니라 정규화된 형태에서 일어난다.
+  원문은 사람이 읽기 위해 함께 보관한다
+- **별칭 1:N 을 배열 컬럼으로 넣지 않는다.** 별칭 하나가 행 하나이고 `canonical` 로 묶인다
+- **판단은 프로젝트에 붙인다.** 소스 단위로 쪼개면 같은 표기가 한 소스에서는 합쳐지고
+  다른 소스에서는 안 합쳐져 그래프가 자기모순이 된다
+
+삭제는 `project` 에서 하위로 흐른다 (`on delete cascade`).
+소스나 판단만 지워도 그래프는 변하지 않는다 — 반영은 재적재로만 일어난다.
 
 ## 삭제 규칙
 

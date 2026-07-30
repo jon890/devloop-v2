@@ -8,6 +8,7 @@
 | [0002](0002-llm-via-subscription-cli.md) | LLM 을 구독 CLI 로만 호출한다 | 채택 |
 | [0003](0003-fail-fast-config.md) | 필수 설정이 없으면 기동을 실패시킨다 | 채택 |
 | [0004](0004-resolve-as-inspection-stage.md) | 정규화를 순수 함수로 떼고 그 산출물은 조사 전용으로 둔다 | 채택 |
+| [0005](0005-curation-in-relational-store.md) | 사람이 내린 Concept 판단을 관계형 저장소에 둔다 | 채택 |
 
 새 ADR 은 다음 번호로 파일을 만들고 이 표 **끝에 행을 추가**한다.
 기존 행을 재배열하거나 중간에 끼워 넣지 않는다 — 여러 작업이 병행될 때 병합이 깔끔해진다.

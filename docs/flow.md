@@ -38,22 +38,35 @@ flowchart TD
 
 ## 단계별 계약
 
-| 단계 | 입력 | 출력 | 재실행 비용 |
-| --- | --- | --- | --- |
-| `fetch-dooray` | 외부 API | `data/raw/` | 네트워크. 원본 API 가 살아 있어야 한다 |
-| `seed-concepts` | `data/raw/` | `data/concepts/` | 공짜 |
-| `parse-structure` | `data/raw/` | `graph/parsed.jsonl` | **공짜** (수 초) |
-| `infer-knowledge` | `data/raw/` | `graph/inferred.jsonl` | **문서 수만큼 LLM 호출** |
-| `sync-neo4j` | 위 셋 | Neo4j | 되돌리기 어렵다 |
+| 단계 | 입력 | 출력 | 재실행 비용 | 판단 저장소 |
+| --- | --- | --- | --- | --- |
+| `fetch-dooray` | 외부 API | `data/raw/` | 네트워크. 원본 API 가 살아 있어야 한다 | 안 쓴다 |
+| `seed-concepts` | `data/raw/` 와 판단 | `data/concepts/` | 공짜 | 읽는다 |
+| `parse-structure` | `data/raw/` | `graph/parsed.jsonl` | **공짜** (수 초) | 안 쓴다 |
+| `infer-knowledge` | `data/raw/` 와 사전 | `graph/inferred.jsonl` | **문서 수만큼 LLM 호출** | 읽는다 |
+| `sync-neo4j` | 위 셋 | Neo4j | 되돌리기 어렵다 | 읽는다 |
 
 체인 밖 명령이다. 파이프라인을 흘리지 않고 상태를 조작하거나 관찰한다.
 
 | 명령 | 성격 |
 | --- | --- |
-| `resolve-graph` | 정규화 결과를 파일로 내놓는다 (읽기 전용, 조사용) |
+| `resolve-graph` | 정규화 결과를 파일로 내놓는다 (읽기 전용, 조사용). 판단을 읽는다 |
 | `apply-schema` | Neo4j 제약·인덱스 적용 |
 | `reset-neo4j` | 그래프 전체 삭제. `NEO4J_URI`·`--force` 필수, 운영 포트(`7687`)는 `--allow-production` 도 필요 |
 | `audit-concepts` | Concept 정규화 감사 (읽기 전용) |
+| `migrate-registry` | 판단 저장소 스키마 적용 |
+| `import-curation` | 판단 주입. 기본은 병합, `--replace` 는 프로젝트 단위 트랜잭션 교체 |
+| `export-curation` | 판단 덤프. 같은 상태면 같은 바이트가 나온다 |
+
+### 판단 저장소를 쓰는 단계와 안 쓰는 단계
+
+표준 사전을 읽는 단계만 저장소를 요구한다.
+수집과 구조 파싱은 저장소를 건드리지 않아 오프라인 성질을 유지한다.
+
+**접속 정보가 없거나 접속에 실패하면 즉시 실패한다.**
+판단을 조용히 빼고 진행하면 잘못된 그래프가 만들어지고, 그 잘못이 숫자에 드러나지 않는다.
+반면 판단이 **0건인 것은 정상**이다 — 새 프로젝트는 판단이 없다.
+0건임을 출력해 "없다" 와 "못 읽었다" 를 구분한다.
 
 ### 두 호출 경로가 같은 순수 함수를 공유한다
 
@@ -79,6 +92,15 @@ tie-break 는 파일에 실제로 쓰는 직렬화 바이트(`JSON.stringify` �
 
 이 차이가 이름에 드러나야 한다. 이전 이름(`extract:structural`·`extract:llm`)은 둘 다 `extract:` 라서
 비용 차이를 숨겼다.
+
+추출 시간 추정이다. 관리 대상은 비용이 아니라 **시간**이다 ([ADR 0002](adr/0002-llm-via-subscription-cli.md)).
+
+| 조건 | 시간 |
+| --- | --- |
+| 537문서 순차 (호출당 20~40초) | 3~6시간 |
+| 동시 실행 4 | 약 1~1.5시간 |
+
+캐시가 있어 중단 후 재실행은 남은 문서만 처리한다. rate limit 에 닿으면 백오프로 감속한다.
 
 ## 질의응답 흐름
 
