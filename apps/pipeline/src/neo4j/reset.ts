@@ -2,7 +2,7 @@ import "reflect-metadata";
 import neo4j, { type Driver } from "neo4j-driver";
 import { DEFAULT_PROJECT, readFlag } from "../cli-options";
 import { type PipelineConfig, withPipelineConfig } from "../config";
-import { neo4jCredentials } from "./neo4j-config";
+import { neo4jCredentials, requireNeo4jConfig } from "./neo4j-config";
 
 /** 운영 개발 DB 포트. `test/helpers/e2e-env.js` 의 `PRODUCTION_BOLT_PORT` 와 같은 값이다. */
 export const PRODUCTION_BOLT_PORT = "7687";
@@ -107,11 +107,12 @@ async function countGraph(driver: Driver): Promise<{ nodes: number; relationship
 export async function resetNeo4j(options: ResetOptions): Promise<void> {
   assertForce(options);
 
-  const uri = options.config.neo4j.uri;
+  const dbConfig = requireNeo4jConfig(options.config, "reset-neo4j");
+  const uri = dbConfig.neo4j.uri;
   assertNeo4jUriProvided(uri);
   assertProductionAllowed(uri, options.allowProduction);
 
-  const { user, password } = neo4jCredentials(options.config);
+  const { user, password } = neo4jCredentials(dbConfig);
   const driver: Driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
 
   const loggedUri = maskNeo4jUri(uri);

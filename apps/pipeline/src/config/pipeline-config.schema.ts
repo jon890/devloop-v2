@@ -9,34 +9,33 @@ import {
 } from "./pipeline-config.const";
 
 /**
- * 빈 문자열은 "값 없음"으로 취급한다. `.env` 에 `KEY=` 로 남은 줄이 기본값을 건너뛰지 않게 한다.
+ * 숫자 설정에서만 `KEY=` 를 기본값으로 본다. 공백 문자열은 잘못된 값으로 남겨 검증 오류를 낸다.
  */
-function emptyToUndefined(value: unknown): unknown {
-  return typeof value === "string" && value.trim() === "" ? undefined : value;
+function emptyStringToUndefined(value: unknown): unknown {
+  return value === "" ? undefined : value;
 }
 
-const requiredText = z.preprocess(emptyToUndefined, z.string().trim().min(1));
-const optionalText = z.preprocess(emptyToUndefined, z.string().trim().min(1).optional());
+const optionalRawText = z.string().optional();
 
 /**
  * 원시 환경변수 계약.
- * `NEO4J_URI` 는 필수다. 대상 DB 를 명시하지 않은 기본 적재가 운영 포트로 흘러간 사고를 막는다.
+ * `NEO4J_URI` 는 전역 기동 조건이 아니다. DB 명령 진입점에서만 명령 이름과 함께 필수 검사를 수행한다.
  */
 export const PipelineEnvSchema = z.object({
-  NEO4J_URI: requiredText,
+  NEO4J_URI: optionalRawText,
   NEO4J_AUTH: z.string().default(DEFAULT_NEO4J_AUTH),
-  NEO4J_USER: optionalText,
-  NEO4J_PASSWORD: optionalText,
-  LLM_PROVIDER: z.preprocess(emptyToUndefined, z.enum(LLM_PROVIDERS).default(DEFAULT_LLM_PROVIDER)),
-  LLM_MODEL: optionalText,
-  LLM_REASONING_EFFORT: z.preprocess(emptyToUndefined, z.enum(LLM_REASONING_EFFORTS).optional()),
-  LLM_CONCURRENCY: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().default(DEFAULT_LLM_CONCURRENCY)),
-  LLM_TIMEOUT_MS: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().default(DEFAULT_LLM_TIMEOUT_MS)),
-  PIPELINE_DATA_DIR: optionalText,
+  NEO4J_USER: optionalRawText,
+  NEO4J_PASSWORD: optionalRawText,
+  LLM_PROVIDER: z.enum(LLM_PROVIDERS).default(DEFAULT_LLM_PROVIDER),
+  LLM_MODEL: optionalRawText,
+  LLM_REASONING_EFFORT: z.enum(LLM_REASONING_EFFORTS).optional(),
+  LLM_CONCURRENCY: z.preprocess(emptyStringToUndefined, z.coerce.number().int().positive().default(DEFAULT_LLM_CONCURRENCY)),
+  LLM_TIMEOUT_MS: z.preprocess(emptyStringToUndefined, z.coerce.number().int().positive().default(DEFAULT_LLM_TIMEOUT_MS)),
+  PIPELINE_DATA_DIR: optionalRawText,
 });
 
 export interface PipelineConfig {
-  neo4j: { uri: string; user: string; password: string };
+  neo4j: { uri?: string; user: string; password: string };
   llm: {
     provider: (typeof LLM_PROVIDERS)[number];
     model?: string;

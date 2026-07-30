@@ -42,11 +42,10 @@ test("NEO4J_URI 가 있으면 설정으로 파싱된다", () => {
   });
 });
 
-test("NEO4J_URI 가 없으면 변수 이름을 드러내며 실패한다", () => {
-  assert.throws(
-    () => validatePipelineConfig(validEnv({ NEO4J_URI: undefined })),
-    (error: Error) => error.message.includes("파이프라인 환경설정 검증 실패") && error.message.includes("NEO4J_URI"),
-  );
+test("NEO4J_URI 가 없어도 전역 설정 파싱은 성공한다", () => {
+  const config = validatePipelineConfig(validEnv({ NEO4J_URI: undefined })).pipeline;
+
+  assert.equal(config.neo4j.uri, undefined);
 });
 
 test("알 수 없는 환경변수는 PipelineConfig 로 새지 않는다", () => {
@@ -93,11 +92,39 @@ test("LLM_PROVIDER 오타와 잘못된 effort는 거부한다", () => {
   assert.throws(() => validatePipelineConfig(validEnv({ LLM_REASONING_EFFORT: "extreme" })), /LLM_REASONING_EFFORT/);
 });
 
+test("빈 LLM_PROVIDER 와 빈 LLM_REASONING_EFFORT 는 기본값으로 바꾸지 않고 거부한다", () => {
+  assert.throws(() => validatePipelineConfig(validEnv({ LLM_PROVIDER: "" })), /LLM_PROVIDER/);
+  assert.throws(() => validatePipelineConfig(validEnv({ LLM_REASONING_EFFORT: "" })), /LLM_REASONING_EFFORT/);
+});
+
 test("LLM_CONCURRENCY 와 LLM_TIMEOUT_MS 는 양의 정수여야 한다", () => {
-  for (const value of ["0", "-1", "1.5", "not-a-number"]) {
+  for (const value of ["0", "-1", "1.5", "not-a-number", " "]) {
     assert.throws(() => validatePipelineConfig(validEnv({ LLM_CONCURRENCY: value })), /LLM_CONCURRENCY/);
     assert.throws(() => validatePipelineConfig(validEnv({ LLM_TIMEOUT_MS: value })), /LLM_TIMEOUT_MS/);
   }
+});
+
+test("빈 LLM_CONCURRENCY 와 LLM_TIMEOUT_MS 는 기본값을 쓴다", () => {
+  const config = validatePipelineConfig(validEnv({ LLM_CONCURRENCY: "", LLM_TIMEOUT_MS: "" })).pipeline;
+
+  assert.equal(config.llm.concurrency, 4);
+  assert.equal(config.llm.timeoutMs, 120_000);
+});
+
+test("문자열 설정은 공백과 빈 문자열을 원문 그대로 보존한다", () => {
+  const config = validatePipelineConfig(
+    validEnv({
+      NEO4J_USER: " user ",
+      NEO4J_PASSWORD: " password ",
+      LLM_MODEL: "",
+      PIPELINE_DATA_DIR: " ",
+    }),
+  ).pipeline;
+
+  assert.equal(config.neo4j.user, " user ");
+  assert.equal(config.neo4j.password, " password ");
+  assert.equal(config.llm.model, "");
+  assert.equal(config.pipelineDataDir, " ");
 });
 
 test("Neo4j 자격증명은 NEO4J_AUTH 기본값을 쓴다", () => {
@@ -163,7 +190,7 @@ test("프로세스 환경이 .env 보다 우선한다", async () => {
   }
 });
 
-test(".env 가 없어도 프로세스 환경에 필수 값이 있으면 기동한다", async () => {
+test(".env 가 없어도 프로세스 환경에 NEO4J_URI 가 있으면 설정에 반영된다", async () => {
   const missingEnvPath = resolve(tmpdir(), `devloop-missing-${process.pid}-${Date.now()}.env`);
   await withEnv("NEO4J_URI", "bolt://process-only:7690", () =>
     withConfigService(missingEnvPath, (service) => {
@@ -172,10 +199,12 @@ test(".env 가 없어도 프로세스 환경에 필수 값이 있으면 기동�
   );
 });
 
-test(".env 가 없고 프로세스 환경에도 NEO4J_URI 가 없으면 기동이 실패한다", async () => {
+test(".env 가 없고 프로세스 환경에도 NEO4J_URI 가 없어도 기동한다", async () => {
   const missingEnvPath = resolve(tmpdir(), `devloop-missing-${process.pid}-${Date.now()}-required.env`);
   await withEnv("NEO4J_URI", undefined, async () => {
-    await assert.rejects(() => withConfigService(missingEnvPath, () => undefined), /NEO4J_URI/);
+    await withConfigService(missingEnvPath, (service) => {
+      assert.equal(service.get<PipelineConfig>("pipeline")?.neo4j.uri, undefined);
+    });
   });
 });
 

@@ -25,7 +25,7 @@ async function bootstrap(): Promise<void> {
     logger: ["error", "warn"],
   });
   const config = app.get<PipelineConfig>(PIPELINE_CONFIG);
-  const dataRoot = path.resolve(config.pipelineDataDir ?? path.resolve(__dirname, "../data"));
+  const dataRoot = resolvePipelineDataRoot();
   const stage = options.stage ?? "all";
   try {
     if (!KNOWN_STAGES.includes(stage)) {
@@ -84,7 +84,13 @@ async function bootstrap(): Promise<void> {
   }
 }
 
-void bootstrap().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
+export function resolvePipelineDataRoot(): string {
+  return path.resolve(__dirname, "../data");
+}
+
+if (require.main === module) {
+  void bootstrap().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}

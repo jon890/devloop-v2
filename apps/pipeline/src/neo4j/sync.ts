@@ -17,7 +17,7 @@ import { normalizedKey } from "../resolve/node-merge";
 import { resolveGraph } from "../resolve/resolve";
 import type { ResolveResult } from "../resolve/resolve.schema";
 import { RELATIONSHIP_IDENTITY_PROPERTIES } from "./sync.const";
-import { neo4jCredentials } from "./neo4j-config";
+import { neo4jCredentials, requireNeo4jConfig } from "./neo4j-config";
 
 export interface LoadOptions {
   project: string;
@@ -267,6 +267,7 @@ export function buildLoadSummary(options: Pick<LoadOptions, "project" | "dataDir
 }
 
 export async function loadGraph(options: LoadOptions): Promise<void> {
+  requireNeo4jConfig(options.config, "sync-neo4j");
   const resolved = await prepareLoadGraph(options);
   await writeGraphToNeo4j(options, resolved, (stats) => {
     console.log(JSON.stringify(buildLoadSummary(options, resolved, stats), null, 2));
@@ -286,8 +287,9 @@ async function writeGraphToNeo4j(
   nodes: Record<string, number>;
   relationships: Record<string, number>;
 }> {
-  const uri = options.config.neo4j.uri;
-  const { user, password } = neo4jCredentials(options.config);
+  const dbConfig = requireNeo4jConfig(options.config, "sync-neo4j");
+  const uri = dbConfig.neo4j.uri;
+  const { user, password } = neo4jCredentials(dbConfig);
   const driver: Driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
   const session = driver.session({ database: "neo4j" });
 

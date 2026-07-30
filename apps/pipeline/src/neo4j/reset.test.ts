@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { auditConcepts } from "../concepts/audit";
+import { applySchema } from "./apply-schema";
 import {
   assertForce,
   assertNeo4jUriProvided,
@@ -9,6 +11,7 @@ import {
   PRODUCTION_BOLT_PORT,
   resetNeo4j,
 } from "./reset";
+import { loadGraph } from "./sync";
 
 const TEST_CONFIG = {
   neo4j: {
@@ -36,6 +39,16 @@ function configWithUri(uri: string) {
   };
 }
 
+function configWithoutUri() {
+  return {
+    ...TEST_CONFIG,
+    neo4j: {
+      ...TEST_CONFIG.neo4j,
+      uri: undefined,
+    },
+  };
+}
+
 /**
  * `resetNeo4j` 가 세 가드(`assertForce`·`assertNeo4jUriProvided`·`assertProductionAllowed`)를
  * 실제로 호출하는지 검증한다. 가드 함수 자체를 직접 부르는 단위 테스트만으로는 부족하다 —
@@ -56,6 +69,19 @@ test("resetNeo4j 는 assertForce 를 호출한다 — force 없이 실행하면 
 
 test("resetNeo4j 는 assertNeo4jUriProvided 를 호출한다 — NEO4J_URI 가 없으면 DB 접속 전에 거부한다", async () => {
   await assert.rejects(() => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: true, config: configWithUri("") }), /NEO4J_URI/);
+});
+
+test("네 Neo4j 진입점은 NEO4J_URI 가 없으면 DB 작업 전에 명령 이름과 함께 거부한다", async () => {
+  await assert.rejects(
+    () => loadGraph({ project: "tc-ocr", dataDir: "/tmp/devloop-do-not-read", config: configWithoutUri() }),
+    /sync-neo4j.*NEO4J_URI/,
+  );
+  await assert.rejects(() => applySchema(configWithoutUri()), /apply-schema.*NEO4J_URI/);
+  await assert.rejects(() => auditConcepts(configWithoutUri()), /audit-concepts.*NEO4J_URI/);
+  await assert.rejects(
+    () => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: true, config: configWithoutUri() }),
+    /reset-neo4j.*NEO4J_URI/,
+  );
 });
 
 test("resetNeo4j 는 assertProductionAllowed 를 호출한다 — 운영 포트면 --allow-production 없이 DB 접속 전에 거부한다", async () => {

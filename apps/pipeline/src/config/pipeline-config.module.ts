@@ -6,7 +6,7 @@ import { validatePipelineConfig, type PipelineConfig } from "./pipeline-config.s
 
 /**
  * 저장소 루트 `.env` 를 읽어 검증한 뒤 PIPELINE_CONFIG 로 제공한다.
- * 현재 스키마는 비어 있고, 다음 phase 들이 값을 하나씩 추가한다.
+ * 전역 설정은 비DB 명령 기동도 통과해야 하므로, DB 전용 필수값은 각 Neo4j 진입점에서 검사한다.
  */
 @Global()
 @Module({
