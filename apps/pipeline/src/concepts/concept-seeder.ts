@@ -173,7 +173,7 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
   const outputPath = path.join(options.dataRoot, "concepts", `${options.project}.json`);
   const concepts = new Map<string, ConceptEntry>();
   const existingConcepts = await readExisting(outputPath);
-  const curation = options.curation ?? (await readConceptCuration(options.config, options.project, "seed-concepts"));
+  const curation = options.curation ?? (await readConceptCuration(requireSeedConfig(options.config), options.project, "seed-concepts"));
   const blockedConceptKeys = new Set(curation.blocks.map((block) => normalizeConceptKey(block.key)).filter(Boolean));
   const judgedAliasKeys = judgedAliasKeySet(curation);
   const decisionCount = curation.merges.reduce((sum, merge) => sum + merge.aliases.length, 0) + curation.blocks.length;
@@ -221,6 +221,13 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
   return { outputPath, concepts: result };
+}
+
+function requireSeedConfig(config: PipelineConfig | undefined): PipelineConfig {
+  if (!config) {
+    throw new Error("seed-concepts requires pipeline config unless explicit curation is provided.");
+  }
+  return config;
 }
 
 function judgedAliasKeySet(curation: ConceptCuration): Set<string> {

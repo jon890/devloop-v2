@@ -1,4 +1,4 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import type { RegistryExecutor } from "./curation.repo";
 import { project, source } from "./schema";
 
@@ -25,7 +25,7 @@ export async function selectProjectByCode(db: RegistryExecutor, code: string): P
   return rows[0];
 }
 
-export async function registerProject(
+export async function registerProjectRows(
   db: RegistryExecutor,
   input: { code: string; name: string; sourceKind?: SourceKind; sourceKey?: string },
 ): Promise<RegisteredProject> {
@@ -47,6 +47,16 @@ export async function registerProject(
       .onConflictDoNothing()
       .returning({ id: source.id });
     sourceCreated = insertedSources.length > 0;
+    if (!sourceCreated) {
+      const existingSources = await db
+        .select({ projectId: source.projectId })
+        .from(source)
+        .where(and(eq(source.kind, input.sourceKind), eq(source.externalKey, input.sourceKey)))
+        .limit(1);
+      if (existingSources[0]?.projectId !== projectRow.id) {
+        throw new Error(`Source ${input.sourceKind}:${input.sourceKey} is already registered to another project.`);
+      }
+    }
   }
 
   return { project: projectRow, projectCreated: insertedProjects.length > 0, sourceCreated };

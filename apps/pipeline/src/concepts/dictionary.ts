@@ -24,10 +24,7 @@ export interface CuratedConceptDictionary {
   decisionCount: number;
 }
 
-export async function readConceptCuration(config: PipelineConfig | undefined, project: string, command: string): Promise<ConceptCuration> {
-  if (!config) {
-    return { merges: [], blocks: [] };
-  }
+export async function readConceptCuration(config: PipelineConfig, project: string, command: string): Promise<ConceptCuration> {
   const curation = await withRegistryDb(config, command, ({ db }) => readCuration(db, project));
   return { merges: curation.merges, blocks: curation.blocks };
 }

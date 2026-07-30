@@ -12,10 +12,12 @@ const { LlmResultSchema } = require('../dist/llm/llm-cli');
 const { removeConflictingAliases, seedConcepts } = require('../dist/concepts/concept-seeder');
 const { normalizeConceptKey } = require('@devloop/shared');
 const { LlmNodeSchema, LlmRelationshipSchema } = require('../dist/infer/llm-extraction.schema');
-const { extractLlm } = require('../dist/infer/llm-extractor');
+const { extractLlm: extractLlmWithRegistry } = require('../dist/infer/llm-extractor');
 const { sanitizeLlmGraphFile } = require('../dist/infer/llm-relationship-sanitizer');
 const { extractStructural } = require('../dist/parse/structural-extractor');
 const { resolvePipelineDataRoot } = require('../dist/main');
+
+const extractLlm = (options) => extractLlmWithRegistry({ ...options, curation: { merges: [], blocks: [] } });
 
 async function fixtureDataRoot() {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'wp2-extract-test-'));
@@ -250,7 +252,7 @@ test('태그 차원·위키 영문 기술어·업무 prefix로 중복 없는 Con
     { canonical: 'DocumentIdCardAuthenticityService:82', kind: 'code-ref', aliases: [] },
   ]));
 
-  const result = await seedConcepts({ dataRoot, project: 'tc-ocr' });
+  const result = await seedConcepts({ dataRoot, project: 'tc-ocr', curation: { merges: [], blocks: [] } });
   const concepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(result.outputPath, 'utf8')));
   const byCanonical = new Map(concepts.map((entry) => [entry.canonical, entry]));
 
@@ -305,6 +307,11 @@ test('판단 alias 는 seed-concepts 재생성 후 canonical 로 되살아나지
 
   assert.equal(byCanonical.has('Gateway'), false);
   assert.ok(byCanonical.get('OCR API Gateway').aliases.includes('Gateway'));
+});
+
+test('seed-concepts 는 설정과 명시적 판단이 모두 없으면 실패한다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  await assert.rejects(() => seedConcepts({ dataRoot, project: 'tc-ocr' }), /requires pipeline config/);
 });
 
 test('seed-concepts 는 대소문자만 다른 원천 표기보다 기존 canonical 을 유지한다', async () => {
@@ -364,7 +371,7 @@ test('removeConflictingAliases 는 판단 alias 를 다른 canonical 과 겹쳐�
 
 test('fixture 문서 5건을 문서당 1회, 동시 4개 이하로 LLM 추출하고 캐시한다', async () => {
   const dataRoot = await fixtureDataRoot();
-  await seedConcepts({ dataRoot, project: 'tc-ocr' });
+  await seedConcepts({ dataRoot, project: 'tc-ocr', curation: { merges: [], blocks: [] } });
   let calls = 0;
   let active = 0;
   let maximumActive = 0;

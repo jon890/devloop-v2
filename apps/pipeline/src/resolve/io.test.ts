@@ -46,7 +46,7 @@ test("parsed.jsonl 과 inferred.jsonl 을 파일명으로 명시해 읽는다 �
     // jsonl 확장자를 가진 무관한 파일도 훑지 않아야 한다.
     await writeFile(join(dataDir, "graph", project, "garbage.jsonl"), "not json\n", "utf8");
 
-    const input = await readResolveInput(dataDir, project);
+    const input = await readResolveInput(dataDir, project, undefined, { merges: [], blocks: [] });
 
     assert.deepEqual(
       input.parsed.map((record) => record.value),
@@ -63,7 +63,7 @@ test("parsed.jsonl 이 없으면 즉시 실패한다", async () => {
   const dataDir = await makeDataDir(project);
   try {
     await writeRawProject(dataDir, project);
-    await assert.rejects(readResolveInput(dataDir, project), /parsed\.jsonl 이 없습니다/);
+    await assert.rejects(readResolveInput(dataDir, project, undefined, { merges: [], blocks: [] }), /parsed\.jsonl 이 없습니다/);
   } finally {
     await rm(dataDir, { recursive: true, force: true });
   }
@@ -76,7 +76,7 @@ test("inferred.jsonl 이 없으면 경고하고 빈 배열로 진행한다", asy
     await writeParsed(dataDir, project, [TASK_483]);
     await writeRawProject(dataDir, project);
 
-    const input = await readResolveInput(dataDir, project);
+    const input = await readResolveInput(dataDir, project, undefined, { merges: [], blocks: [] });
 
     assert.equal(input.inferred.length, 0);
     assert.equal(input.parsed.length, 1);
@@ -95,7 +95,7 @@ test("raw 문서(data/raw/<project>)가 없어도 io.ts 는 예외를 던지지 
     await writeParsed(dataDir, project, [TASK_483]);
     // raw/ 디렉터리를 아예 만들지 않는다.
 
-    const input = await readResolveInput(dataDir, project);
+    const input = await readResolveInput(dataDir, project, undefined, { merges: [], blocks: [] });
 
     assert.equal(input.endpointIndex.taskNumbers.size, 0);
     assert.equal(input.endpointIndex.wikiPageIds.size, 0);

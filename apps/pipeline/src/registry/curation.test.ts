@@ -12,6 +12,7 @@ import {
   readCuration,
   registerProject,
   replaceCuration,
+  selectProjectByCode,
   upsertCuration,
   type Curation,
 } from "@devloop/registry";
@@ -66,6 +67,21 @@ test("curation schema 는 reason 없는 판단을 거부하고 exportedAt 봉투
 
 const databaseUrl = process.env.REGISTRY_DATABASE_URL;
 const hasTestDatabase = databaseUrl?.includes("localhost:15435/") || databaseUrl?.includes("127.0.0.1:15435/");
+
+test(
+  "register-project 는 다른 프로젝트가 소유한 source 를 거부하고 프로젝트 생성을 롤백한다",
+  { skip: hasTestDatabase ? false : "REGISTRY_DATABASE_URL on port 15435 is required" },
+  async () => {
+    await withTestRegistry("source-owner", async ({ db, code }) => {
+      const otherCode = `${code}_other`;
+      await assert.rejects(
+        () => registerProject(db, { code: otherCode, name: otherCode, sourceKind: "dooray", sourceKey: code }),
+        /already registered to another project/,
+      );
+      assert.equal(await selectProjectByCode(db, otherCode), undefined);
+    });
+  },
+);
 
 test(
   "curation service 는 중복 alias 를 행별 rejected 로 남기고 나머지를 적용한다",

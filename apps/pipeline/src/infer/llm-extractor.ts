@@ -3,7 +3,7 @@ import path from "node:path";
 import { INFERRED_GRAPH_FILE, type ConceptDictionary } from "@devloop/shared";
 import { LlmReasoningEffortSchema, type LlmCli, type LlmReasoningEffort } from "../llm";
 import type { PipelineConfig } from "../config";
-import { loadConceptDictionary, readConceptCuration } from "../concepts/dictionary";
+import { loadConceptDictionary, readConceptCuration, type ConceptCuration } from "../concepts/dictionary";
 import { buildExtractionPrompt, buildJsonRepairPrompt, EXTRACTION_PROMPT_VERSION, type ExtractionPromptDocument } from "./extraction-prompt";
 import { LlmExtractionSchema, type LlmExtraction } from "./llm-extraction.schema";
 import { sanitizeLlmExtractions, type DroppedRelationshipsReport } from "./llm-relationship-sanitizer";
@@ -22,6 +22,7 @@ export interface LlmExtractionOptions {
   dataRoot: string;
   project: string;
   config?: PipelineConfig;
+  curation?: ConceptCuration;
   model: string;
   effort?: LlmReasoningEffort;
   llm: LlmCli;
@@ -333,7 +334,7 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
   }
   const [allDocuments, concepts] = await Promise.all([
     buildLlmDocuments(options.dataRoot, options.project),
-    readCuratedConceptDictionary(options.dataRoot, options.project, options.config),
+    readCuratedConceptDictionary(options.dataRoot, options.project, options.config, options.curation),
   ]);
   const docFilter = options.docFilter?.length ? new Set(options.docFilter) : undefined;
   const documents = docFilter ? allDocuments.filter((document) => docFilter.has(document.sourceDocId)) : allDocuments;
@@ -376,7 +377,19 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
   };
 }
 
-async function readCuratedConceptDictionary(dataRoot: string, project: string, config: PipelineConfig | undefined): Promise<ConceptDictionary> {
-  const curation = await readConceptCuration(config, project, "infer-knowledge");
+async function readCuratedConceptDictionary(
+  dataRoot: string,
+  project: string,
+  config: PipelineConfig | undefined,
+  explicitCuration: ConceptCuration | undefined,
+): Promise<ConceptDictionary> {
+  const curation = explicitCuration ?? (await readConceptCuration(requireInferenceConfig(config), project, "infer-knowledge"));
   return (await loadConceptDictionary(dataRoot, project, curation)).dictionary;
+}
+
+function requireInferenceConfig(config: PipelineConfig | undefined): PipelineConfig {
+  if (!config) {
+    throw new Error("infer-knowledge requires pipeline config unless explicit curation is provided.");
+  }
+  return config;
 }
