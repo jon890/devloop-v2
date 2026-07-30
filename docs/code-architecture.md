@@ -11,7 +11,7 @@
 | --- | --- |
 | 언어 | TypeScript 단일. 파이프라인·API 는 NestJS, 프론트는 React 와 Vite |
 | 지식그래프 | Neo4j (docker-compose) |
-| 판단 저장소 | Postgres 채택, 아직 미구현 ([ADR 0005](adr/0005-curation-in-relational-store.md)) |
+| 판단 저장소 | Postgres. `packages/registry`가 스키마·repository·service를 소유한다 ([ADR 0005](adr/0005-curation-in-relational-store.md)) |
 | LLM | 구독 계정 CLI 만 쓴다. 종량제 API 는 금지다 ([ADR 0002](adr/0002-llm-via-subscription-cli.md)) |
 | 원천 접근 | 기존 `dooray-cli` 를 자식 프로세스로 호출해 재사용한다. 인증을 다시 구현하지 않는다 |
 | 실행 환경 | 로컬 개발 기계 |
