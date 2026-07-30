@@ -60,6 +60,14 @@
   `/tmp` 또는 사용자가 지정한 저장소 밖 경로에 두고 그 경로를 보고에 적어라
 - `reason` 은 리포트의 근거를 옮긴다. 비워 두면 스키마가 거부한다
 
+주입 전에 프로젝트와 소스를 멱등 등록한다.
+
+```bash
+# cwd: 저장소 루트
+pnpm --filter pipeline register-project --code tc-ocr --name tc-ocr \
+  --source-kind dooray --source-key tc-ocr
+```
+
 ### 2. dry-run 으로 먼저 본다
 
 ```bash

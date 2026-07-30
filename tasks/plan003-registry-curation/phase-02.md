@@ -88,7 +88,22 @@ Phase 03 이 `packages/shared` 로 옮긴다. 이 phase 에서 먼저 필요하�
 **Phase 03 의 이동을 이 phase 로 끌어와 수행하고 그 사실을 보고하라.**
 복제본을 만들면 두 정규화가 갈려 판단이 조용히 어긋난다.
 
-### 4. `import-curation` 명령
+### 4. 프로젝트 등록과 `import-curation` 명령
+
+판단을 넣기 전에 프로젝트와 선택적 소스를 명시적으로 등록한다.
+
+```bash
+pnpm --filter pipeline register-project --code <code> --name <name> \
+  [--source-kind dooray|github] [--source-key <external-key>]
+```
+
+- 프로젝트 코드를 코드나 기본값에 박지 않고 인자로만 받는다
+- `project.code` 와 `source(kind, external_key)` 유일 제약을 이용해 멱등하게 만든다.
+  두 번째 실행은 "이미 등록됨" 을 출력하고 성공한다
+- `--source-kind` 와 `--source-key` 는 함께 주거나 함께 생략한다. 한쪽만 주면 거부한다
+- 접속 대상을 출력할 때 비밀번호는 가리고 host·port 는 남긴다
+- `import-curation` 은 없는 프로젝트를 자동 생성하지 않는다.
+  실패하고 등록된 프로젝트 목록을 출력해 코드 오타를 드러낸다
 
 ```
 pnpm --filter pipeline import-curation --project <code> --file <절대경로> [--replace] [--dry-run]
@@ -126,6 +141,7 @@ pnpm --filter pipeline export-curation --project <code> --out <절대경로>
 | `packages/registry/src/project.repo.ts` | 신규 |
 | `apps/pipeline/src/registry/import-curation.ts` | 신규 |
 | `apps/pipeline/src/registry/export-curation.ts` | 신규 |
+| `apps/pipeline/src/registry/register-project.ts` | 신규 |
 | `apps/pipeline/src/main.ts` | 수정 — 명령 분기 |
 | `apps/pipeline/package.json` | 수정 — 스크립트 |
 | 테스트 | 추가 |
@@ -150,6 +166,9 @@ Phase 01 결과보다도 줄지 않아야 한다.
 ```bash
 # cwd: 저장소 루트
 export NEO4J_URI=bolt://localhost:7690   # plan002 이후 필수값이라 설정만 통과시키려면 필요
+export REGISTRY_DATABASE_URL=postgresql://devloop:devloop-test-password@localhost:15435/devloop_registry
+docker compose --profile test up -d postgres-test
+pnpm --filter pipeline register-project --code tc-ocr --name tc-ocr --source-kind dooray --source-key tc-ocr
 pnpm --filter pipeline export-curation --project tc-ocr --out /tmp/c1.json
 pnpm --filter pipeline import-curation --project tc-ocr --file /tmp/c1.json --replace
 pnpm --filter pipeline export-curation --project tc-ocr --out /tmp/c2.json

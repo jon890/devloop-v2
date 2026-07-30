@@ -41,6 +41,17 @@ base 브랜치에 그 디렉터리가 없으면 멈추고 조정자에게 알려
 | `postgres` | `15434` → 5432 | 볼륨 유지 |
 | `postgres-test` | `15435` → 5432 | `profiles: ["test"]`, `tmpfs`, `healthcheck` |
 
+두 서비스의 접속 계약은 다음과 같다.
+
+| 대상 | DB | 사용자 | 비밀번호 |
+| --- | --- | --- | --- |
+| 개발 | `devloop_registry` | `devloop` | `devloop-password` |
+| 테스트 | `devloop_registry` | `devloop` | `devloop-test-password` |
+
+개발 URL은 `postgresql://devloop:devloop-password@localhost:15434/devloop_registry`,
+테스트 URL은 `postgresql://devloop:devloop-test-password@localhost:15435/devloop_registry` 다.
+비밀번호를 다르게 두어 잘못된 대상 연결이 인증 실패로 드러나게 한다.
+
 포트는 실측으로 비어 있는 값을 골랐다. **5432·15432·15433 은 다른 프로젝트가 쓴다.**
 띄우기 전에 다시 확인하고, 점유돼 있으면 임의로 바꾸지 말고 조정자에게 알려라.
 
