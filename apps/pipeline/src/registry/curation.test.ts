@@ -17,7 +17,7 @@ import {
   type Curation,
 } from "@devloop/registry";
 import { parseExportCurationArgs } from "./export-curation";
-import { parseImportCurationArgs } from "./import-curation";
+import { parseImportCurationArgs, runImportCurationCli } from "./import-curation";
 import { parseRegisterProjectArgs } from "./register-project";
 
 test("register-project 는 source kind/key 를 함께 받거나 함께 거부한다", () => {
@@ -63,6 +63,19 @@ test("curation schema 는 reason 없는 판단을 거부하고 exportedAt 봉투
       }),
     /exportedAt/,
   );
+});
+
+test("import-curation CLI 는 실행자 실패를 종료 코드 1로 전파한다", async () => {
+  const errors: string[] = [];
+  const exitCode = await runImportCurationCli(
+    async () => {
+      throw new Error("replace rollback failed");
+    },
+    (message) => errors.push(message),
+  );
+
+  assert.equal(exitCode, 1);
+  assert.deepEqual(errors, ["replace rollback failed"]);
 });
 
 const databaseUrl = process.env.REGISTRY_DATABASE_URL;

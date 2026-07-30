@@ -21,10 +21,10 @@ export function parseImportCurationArgs(args: readonly string[]): ImportCuration
   };
 }
 
-export async function runImportCuration(args: readonly string[], config: PipelineConfig): Promise<void> {
+export async function runImportCuration(args: readonly string[], config: PipelineConfig): Promise<number> {
   const options = parseImportCurationArgs(args);
   const input = CurationSchema.parse(JSON.parse(await readFile(options.file, "utf8")));
-  await withRegistryDb(config, "import-curation", async ({ db }) => {
+  return withRegistryDb(config, "import-curation", async ({ db }) => {
     try {
       const result = options.dryRun
         ? await previewCurationWrite(db, options.project, input, options.replace ? "replace" : "upsert")
@@ -45,16 +45,30 @@ export async function runImportCuration(args: readonly string[], config: Pipelin
             2,
           ),
         );
-        process.exitCode = 1;
-        return;
+        return 1;
       }
       throw error;
     }
+    return 0;
   });
 }
 
+export async function runImportCurationCli(
+  run: () => Promise<number>,
+  logError: (message: string) => void = (message) => console.error(message),
+): Promise<number> {
+  try {
+    return await run();
+  } catch (error) {
+    logError(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
+}
+
 if (require.main === module) {
-  void withPipelineConfig((config) => runImportCuration(process.argv.slice(2), config)).catch((error) => {
+  void withPipelineConfig(async (config) => {
+    process.exitCode = await runImportCurationCli(() => runImportCuration(process.argv.slice(2), config));
+  }).catch((error) => {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;
   });

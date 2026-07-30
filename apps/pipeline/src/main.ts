@@ -37,7 +37,7 @@ async function bootstrap(): Promise<void> {
       return;
     }
     if (stage === "import-curation") {
-      await runImportCuration(process.argv.slice(3), config);
+      process.exitCode = await runImportCuration(process.argv.slice(3), config);
       return;
     }
     if (stage === "export-curation") {
