@@ -70,10 +70,50 @@ Node 전용 코드가 브라우저 번들로 끌려간다. 이것이 별도 패�
 `client.ts` 는 **설정을 검증하지 않는다.** 검증된 값을 인자로 받는다 —
 검증은 `apps/pipeline/src/config/` 의 책임이다.
 
+Postgres 접속 환경변수는 `REGISTRY_DATABASE_URL` 하나로 확정한다.
+
+- 코드 기본값을 두지 않는다. `.env` 는 개발 포트 `15434` 를 공급하고,
+  검증은 환경변수를 인라인으로 덮어 테스트 포트 `15435` 를 쓴다
+- 전역 기동 조건으로 만들지 않고 registry 를 쓰는 진입점에서만 명령 이름과 함께 필수 검사한다
+- 로그에는 userinfo 를 가린 URL만 출력하고 host·port 는 남긴다
+
 ### 3. `schema.ts` — 표 3개
 
-정확한 컬럼·키·제약은 `docs/data-schema.md` 의 "판단 저장소" 절이 소유한다.
-그 문서를 읽고 1:1 로 옮겨라. 어긋나면 **문서를 고치지 말고 보고하라.**
+정확한 컬럼·키·제약은 아래 계약으로 확정한다.
+구현과 같은 커밋에서 `docs/data-schema.md` 의 "판단 저장소" 절에도 이 컬럼 계약을 추가해
+문서와 코드를 1:1 로 맞춘다. 기존 표 3개 요약과 설계 근거는 다시 쓰지 않는다.
+
+```sql
+create table project (
+  id          serial      primary key,
+  code        text        not null unique,
+  name        text,
+  created_at  timestamptz not null default now()
+);
+
+create table source (
+  id           serial      primary key,
+  project_id   integer     not null references project(id) on delete cascade,
+  kind         text        not null check (kind in ('dooray', 'github')),
+  external_key text        not null,
+  created_at   timestamptz not null default now(),
+  unique (kind, external_key)
+);
+
+create table concept_decision (
+  id          serial      primary key,
+  project_id  integer     not null references project(id) on delete cascade,
+  key_raw     text        not null,
+  key_norm    text        not null,
+  kind        text        not null check (kind in ('merge_alias', 'block')),
+  canonical   text,
+  reason      text        not null,
+  approved_at date,
+  created_at  timestamptz not null default now(),
+  unique (project_id, key_norm),
+  check ((kind = 'merge_alias') = (canonical is not null))
+);
+```
 
 특히 지켜야 할 것 세 가지다.
 
@@ -123,7 +163,8 @@ pnpm --filter pipeline test
 pnpm format:check
 ```
 
-`pnpm --filter api test` 는 쓰지 마라 — exit 0 으로 조용히 통과한다. 테스트 **개수**를 확인하라.
+`pnpm --filter api test` 는 쓰지 마라 — exit 0 으로 조용히 통과한다.
+테스트 **개수**는 api 51 불변, pipeline 120 에서 증가했는지 확인하라.
 
 ### 마이그레이션 적용 확인
 
@@ -168,5 +209,5 @@ pnpm migrate-registry          # 적용 건수 0
 
 - `15434` 또는 `15435` 가 점유돼 있으면 `PHASE_BLOCKED: 포트 점유` 를 출력하고
   **임의로 다른 포트를 고르지 말고** 조정자에게 알린다
-- `docs/data-schema.md` 의 스키마 서술과 구현이 어긋나면
+- 위 확정 스키마와 구현이 어긋나면
   `PHASE_BLOCKED: 문서와 스키마 불일치` 를 출력하고 문서를 고치지 않는다

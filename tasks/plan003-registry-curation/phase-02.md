@@ -74,9 +74,14 @@ export function replaceCuration(db: NodePgDatabase, project: string, input: Cura
 - `replaceCuration` 은 삭제와 삽입이 **한 원자 단위**여야 하므로 트랜잭션으로 감싼다
 - `readCuration` 은 **트랜잭션을 감싸지 마라.** 읽기 전용이다.
   습관적으로 감싸면 무엇이 원자 단위인지가 흐려진다
-- 제약 위반은 **그 행만** `rejected` 에 이유와 함께 담고 나머지는 적용한다.
-  전체를 조용히 되돌리지 마라 — 어느 판단이 왜 거부됐는지가 사용자에게 필요한 정보다
-- 없는 프로젝트를 지정하면 실패하고 **등록된 프로젝트 목록을 함께 출력**한다
+- 입력 검증 실패는 쓰기 전에 행별 `rejected` 로 걸러낸다.
+  `reason` 누락, 입력 안의 `key_norm` 중복, 같은 별칭이 두 canonical 에 붙은 경우가 여기에 해당한다
+- 없는 프로젝트는 쓰기 전에 실패하고 **등록된 프로젝트 목록을 함께 출력**한다
+- 사전 검증을 통과한 행의 `delete`·`insert` 또는 upsert 전체는 한 트랜잭션으로 적용한다
+- 사전 검증을 통과했는데 unique·check 같은 DB 제약이 실패하면 버그나 경쟁 상태로 보고
+  **전체 롤백하며 명령을 0이 아닌 종료 코드로 끝낸다**
+- 트랜잭션이 성공해도 `rejected` 는 결과에 포함한다.
+  어느 판단이 왜 빠졌는지가 다음 행동을 결정한다
 
 `key_norm` 계산이 필요하다. `normalizeConceptKey` 를 **복제하지 마라** —
 Phase 03 이 `packages/shared` 로 옮긴다. 이 phase 에서 먼저 필요하면
@@ -137,7 +142,8 @@ pnpm --filter pipeline test
 pnpm format:check
 ```
 
-테스트 **개수**를 확인하라. api 51 불변, pipeline 은 Phase 01 결과에서 늘어야 한다.
+테스트 **개수**를 확인하라. api 51 불변, pipeline 은 120 에서 늘어야 하며
+Phase 01 결과보다도 줄지 않아야 한다.
 
 ### 왕복 동등성 (이 phase 의 핵심 통과 조건)
 
