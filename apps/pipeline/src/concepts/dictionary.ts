@@ -29,11 +29,7 @@ export async function readConceptCuration(config: PipelineConfig, project: strin
   return { merges: curation.merges, blocks: curation.blocks };
 }
 
-export async function loadConceptDictionary(
-  dataDir: string,
-  project: string,
-  curation: ConceptCuration,
-): Promise<CuratedConceptDictionary> {
+export async function loadConceptDictionary(dataDir: string, project: string, curation: ConceptCuration): Promise<CuratedConceptDictionary> {
   const generated = await readGeneratedConceptDictionary(dataDir, project);
   return composeConceptDictionary(generated, curation);
 }

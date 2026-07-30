@@ -195,18 +195,26 @@ test(
 
       await assert.rejects(
         () =>
-          pool.query(
-            "insert into concept_decision (project_id, key_raw, key_norm, kind, canonical, reason) values ($1, $2, $3, $4, $5, $6)",
-            [project.id, "invalid-kind", "invalidkind", "unknown", null, "check constraint"],
-          ),
+          pool.query("insert into concept_decision (project_id, key_raw, key_norm, kind, canonical, reason) values ($1, $2, $3, $4, $5, $6)", [
+            project.id,
+            "invalid-kind",
+            "invalidkind",
+            "unknown",
+            null,
+            "check constraint",
+          ]),
         /concept_decision_kind_check/,
       );
       await assert.rejects(
         () =>
-          pool.query(
-            "insert into concept_decision (project_id, key_raw, key_norm, kind, canonical, reason) values ($1, $2, $3, $4, $5, $6)",
-            [project.id, "missing-canonical", "missingcanonical", "merge_alias", null, "check constraint"],
-          ),
+          pool.query("insert into concept_decision (project_id, key_raw, key_norm, kind, canonical, reason) values ($1, $2, $3, $4, $5, $6)", [
+            project.id,
+            "missing-canonical",
+            "missingcanonical",
+            "merge_alias",
+            null,
+            "check constraint",
+          ]),
         /concept_decision_canonical_check/,
       );
       await assert.rejects(
@@ -291,11 +299,7 @@ test(
 
 async function withTestRegistry(
   name: string,
-  run: (context: {
-    db: ReturnType<typeof createRegistryDb>;
-    pool: ReturnType<typeof createRegistryPool>;
-    code: string;
-  }) => Promise<void>,
+  run: (context: { db: ReturnType<typeof createRegistryDb>; pool: ReturnType<typeof createRegistryPool>; code: string }) => Promise<void>,
 ): Promise<void> {
   if (!databaseUrl) throw new Error("REGISTRY_DATABASE_URL is required.");
   const pool = createRegistryPool(databaseUrl);

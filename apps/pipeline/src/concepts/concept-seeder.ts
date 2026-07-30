@@ -152,8 +152,7 @@ function canonicalWinners(
   // makes a fresh seed deterministic regardless of raw source traversal order.
   for (const entries of [existingConcepts, generatedConcepts]) {
     for (const entry of [...entries].sort(
-      (left, right) =>
-        compareCanonicalCodePoint(left.canonical, right.canonical) || compareCanonicalCodePoint(left.kind, right.kind),
+      (left, right) => compareCanonicalCodePoint(left.canonical, right.canonical) || compareCanonicalCodePoint(left.kind, right.kind),
     )) {
       const conceptKey = normalizeConceptKey(entry.canonical);
       if (!conceptKey || blockedConceptKeys.has(conceptKey) || winners.has(conceptKey)) continue;
@@ -164,11 +163,7 @@ function canonicalWinners(
   return winners;
 }
 
-function preferWinner(
-  entry: ConceptEntry,
-  winnerByKey: ReadonlyMap<string, ConceptWinner>,
-  blockedConceptKeys: ReadonlySet<string>,
-): ConceptEntry {
+function preferWinner(entry: ConceptEntry, winnerByKey: ReadonlyMap<string, ConceptWinner>, blockedConceptKeys: ReadonlySet<string>): ConceptEntry {
   const conceptKey = normalizeConceptKey(entry.canonical);
   if (!conceptKey || blockedConceptKeys.has(conceptKey)) return entry;
   const winner = winnerByKey.get(conceptKey);
