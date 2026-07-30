@@ -38,10 +38,10 @@ flowchart TD
 
 ## 단계별 계약
 
-| 단계 | 입력 | 출력 | 재실행 비용 | 판단 저장소 |
+| 단계 | 입력 | 출력 | 재실행 비용 | Concept 사전 |
 | --- | --- | --- | --- | --- |
 | `fetch-dooray` | 외부 API | `data/raw/` | 네트워크. 원본 API 가 살아 있어야 한다 | 안 쓴다 |
-| `seed-concepts` | `data/raw/` 와 판단 | `data/concepts/` | 공짜 | 읽는다 |
+| `seed-concepts` | `data/raw/` 와 공용 표준어 | `data/concepts/` | 공짜 | 만든다 |
 | `parse-structure` | `data/raw/` | `graph/parsed.jsonl` | **공짜** (수 초) | 안 쓴다 |
 | `infer-knowledge` | `data/raw/` 와 사전 | `graph/inferred.jsonl` | **문서 수만큼 LLM 호출** | 읽는다 |
 | `sync-neo4j` | 위 셋과 `NEO4J_URI` | Neo4j | 되돌리기 어렵다 | 읽는다 |
@@ -50,23 +50,18 @@ flowchart TD
 
 | 명령 | 성격 |
 | --- | --- |
-| `resolve-graph` | 정규화 결과를 파일로 내놓는다 (읽기 전용, 조사용). 판단을 읽는다 |
+| `resolve-graph` | 정규화 결과를 파일로 내놓는다 (읽기 전용, 조사용). Concept 사전을 읽는다 |
 | `apply-schema` | Neo4j 제약·인덱스 적용. `NEO4J_URI` 필수 |
 | `reset-neo4j` | 그래프 전체 삭제. `NEO4J_URI`·`--force` 필수, 운영 포트(`7687`)는 `--allow-production` 도 필요 |
 | `audit-concepts` | Concept 정규화 감사 (읽기 전용). `NEO4J_URI` 필수 |
-| `migrate-registry` | 판단 저장소 스키마 적용 |
-| `import-curation` | 판단 주입. 기본은 병합, `--replace` 는 프로젝트 단위 트랜잭션 교체 |
-| `export-curation` | 판단 덤프. 같은 상태면 같은 바이트가 나온다 |
 
-### 판단 저장소를 쓰는 단계와 안 쓰는 단계
+ADR 0005의 판단 저장소 명령은 아직 구현되지 않아 현재 실행 흐름에는 포함하지 않는다.
 
-표준 사전을 읽는 단계만 저장소를 요구한다.
-수집과 구조 파싱은 저장소를 건드리지 않아 오프라인 성질을 유지한다.
+### 판단 저장소는 아직 실행 경로에 없다
 
-**접속 정보가 없거나 접속에 실패하면 즉시 실패한다.**
-판단을 조용히 빼고 진행하면 잘못된 그래프가 만들어지고, 그 잘못이 숫자에 드러나지 않는다.
-반면 판단이 **0건인 것은 정상**이다 — 새 프로젝트는 판단이 없다.
-0건임을 출력해 "없다" 와 "못 읽었다" 를 구분한다.
+현재 단계들은 파일로 만든 Concept 사전을 읽는다.
+ADR 0005의 판단 저장소를 구현할 때도 수집과 구조 파싱은 저장소를 건드리지 않아 오프라인 성질을 유지한다.
+표준 사전을 읽는 단계만 판단 저장소 조회를 추가한다.
 
 ### 두 호출 경로가 같은 순수 함수를 공유한다
 
