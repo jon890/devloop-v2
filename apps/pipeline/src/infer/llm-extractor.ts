@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { CORE_CONCEPTS, ConceptDictionarySchema, INFERRED_GRAPH_FILE, type ConceptDictionary } from "@devloop/shared";
 import { LlmReasoningEffortSchema, type LlmCli, type LlmReasoningEffort } from "../llm";
+import type { PipelineConfig } from "../config";
 import { buildExtractionPrompt, buildJsonRepairPrompt, EXTRACTION_PROMPT_VERSION, type ExtractionPromptDocument } from "./extraction-prompt";
 import { LlmExtractionSchema, type LlmExtraction } from "./llm-extraction.schema";
 import { sanitizeLlmExtractions, type DroppedRelationshipsReport } from "./llm-relationship-sanitizer";
@@ -19,6 +20,7 @@ interface CacheEnvelope {
 export interface LlmExtractionOptions {
   dataRoot: string;
   project: string;
+  config?: PipelineConfig;
   model: string;
   effort?: LlmReasoningEffort;
   llm: LlmCli;

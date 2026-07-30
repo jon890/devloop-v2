@@ -1,7 +1,7 @@
 # Phase 01 — 설정 모듈을 만들고 `.env` 를 읽는다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

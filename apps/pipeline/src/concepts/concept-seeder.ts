@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ConceptDictionarySchema, type ConceptDictionary, type ConceptEntry, type ConceptKind } from "@devloop/shared";
+import type { PipelineConfig } from "../config";
 import { firstString, readRawProject } from "../raw-reader";
 
 const TAG_KINDS: Record<string, ConceptKind> = {
@@ -14,6 +15,7 @@ const ENGLISH_TITLE_TOKEN = /[A-Za-z][A-Za-z0-9.&_-]+/g;
 export interface ConceptSeedOptions {
   dataRoot: string;
   project: string;
+  config?: PipelineConfig;
 }
 
 export interface ConceptSeedResult {

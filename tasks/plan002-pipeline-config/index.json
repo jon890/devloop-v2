@@ -10,7 +10,7 @@
       "file": "phase-01.md",
       "title": "설정 모듈을 만들고 .env 를 읽는다",
       "execution_profile": "standard",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "number": 2,

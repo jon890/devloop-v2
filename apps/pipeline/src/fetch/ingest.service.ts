@@ -12,11 +12,13 @@ import {
 } from "@devloop/shared";
 import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
+import type { PipelineConfig } from "../config";
 import { DoorayExecutor } from "./dooray-executor";
 import { DEFAULT_RETRY_DELAYS_MS, DOORAY_EXECUTOR } from "./ingest.const";
 
 export interface IngestOptions {
   project: string;
+  config?: PipelineConfig;
   limit?: number;
   dataRoot?: string;
   retryDelaysMs?: readonly number[];

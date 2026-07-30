@@ -3,6 +3,7 @@ import { NestFactory } from "@nestjs/core";
 import path from "node:path";
 import { AppModule } from "./app.module";
 import { parsePipelineOptions } from "./cli-options";
+import { PIPELINE_CONFIG, type PipelineConfig } from "./config";
 import { IngestService } from "./fetch/ingest.service";
 import { seedConcepts } from "./concepts/concept-seeder";
 import { extractLlm } from "./infer/llm-extractor";
@@ -30,6 +31,7 @@ async function bootstrap(): Promise<void> {
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: ["error", "warn"],
   });
+  const config = app.get<PipelineConfig>(PIPELINE_CONFIG);
   const dataRoot = path.resolve(__dirname, "../data");
   const stage = options.stage ?? "all";
   try {
@@ -39,6 +41,7 @@ async function bootstrap(): Promise<void> {
     if (stage === "fetch-dooray" || stage === "all") {
       const result = await app.get(IngestService).ingest({
         project: options.project,
+        config,
         limit: options.limit,
       });
       const { posts, wiki, tags, members } = result.stats;
@@ -55,11 +58,11 @@ async function bootstrap(): Promise<void> {
       if (stage === "fetch-dooray") return;
     }
     if (stage === "seed-concepts" || stage === "all") {
-      const result = await seedConcepts({ dataRoot, project: options.project });
+      const result = await seedConcepts({ dataRoot, project: options.project, config });
       console.log(`Concept seed complete: project=${options.project} concepts=${result.concepts.length} output=${result.outputPath}`);
     }
     if (stage === "parse-structure" || stage === "all") {
-      const result = await extractStructural({ dataRoot, project: options.project });
+      const result = await extractStructural({ dataRoot, project: options.project, config });
       console.log(`Structural extraction complete: nodes=${result.nodes} relationships=${result.relationships} output=${result.outputPath}`);
     }
     if (stage === "infer-knowledge" || stage === "all") {
@@ -68,6 +71,7 @@ async function bootstrap(): Promise<void> {
       const result = await extractLlm({
         dataRoot,
         project: options.project,
+        config,
         model,
         llm: llmAdapter(),
         concurrency: positiveInteger(process.env.LLM_CONCURRENCY, 4),
