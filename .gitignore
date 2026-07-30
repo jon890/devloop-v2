@@ -18,6 +18,9 @@ apps/pipeline/data/cache/*
 !apps/pipeline/data/cache/.gitkeep
 data/
 
+# 워크트리 — 저장소 안에 두므로 반드시 무시한다 (CLAUDE.md 참조)
+worktrees/
+
 # 로그·임시
 *.log
 .DS_Store
