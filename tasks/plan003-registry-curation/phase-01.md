@@ -1,7 +1,7 @@
 # Phase 01 — Postgres 와 registry 패키지 골격을 세운다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

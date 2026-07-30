@@ -1,7 +1,7 @@
 # Phase 02 — repository 와 service 계층을 만들고 주고받기 명령을 붙인다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

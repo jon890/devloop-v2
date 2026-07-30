@@ -75,6 +75,17 @@ ADR 0005가 채택한 판단 저장소는 `packages/registry`가 소유한다.
 | `concept/` | Concept 표준 사전 코어 (도메인 무관 기술 용어) |
 | `raw/` | 원본 문서 스키마 |
 
+## packages/registry
+
+Postgres 판단 저장소의 스키마와 읽기·쓰기 계층을 소유한다.
+파이프라인은 이 패키지의 공개 함수만 사용하며 SQL과 Drizzle 구현을 직접 알지 않는다.
+
+### repository 는 트랜잭션을 열지 않는다
+
+repository는 행 단위 조회·삽입·삭제만 수행하고, 전달받은 `RegistryExecutor`를 그대로 사용한다.
+여러 쓰기를 원자적으로 묶는 경계는 service가 소유한다.
+따라서 `curation.service.ts`와 `project.service.ts`만 트랜잭션을 열며 `*.repo.ts`는 열지 않는다.
+
 ## apps/pipeline
 
 단계별 디렉터리다. 디렉터리 이름이 CLI 단계 이름과 대응한다.
@@ -116,8 +127,8 @@ ADR 0005가 채택한 판단 저장소는 `packages/registry`가 소유한다.
 
 - **적재가 추출 산출물을 덮어썼다** — 적재 중 관계 정리기가 `inferred.jsonl` 을 `writeFile` 했다.
   정리가 순수 함수로 메모리에서 돌게 되어 파일 출력은 `resolve-graph` 단독 실행 때만 일어난다
-- **사전 로딩이 두 곳에 각자 있었다** — 적재 쪽 구현이 `resolve/io.ts` 한 곳으로 모였다.
-  `infer` 쪽(`readProjectConcepts`)은 중복 canonical 처리가 달라 아직 남아 있다
+- **사전 로딩이 두 곳에 각자 있었다** — 생성 사전과 판단 합성을 `concepts/dictionary.ts`로 모았다.
+  `infer`와 `resolve/io.ts`가 같은 로더를 사용한다
 
 정규화가 적재에 묶여 있어 **별칭을 바꿨을 때 효과를 적재 없이 볼 수 없었다.**
 적재기가 MERGE 전용이라 틀리면 그래프를 초기화해야 했다.
