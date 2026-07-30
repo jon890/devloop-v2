@@ -1,5 +1,7 @@
+import "reflect-metadata";
 import neo4j, { type Driver } from "neo4j-driver";
 import { DEFAULT_PROJECT, readFlag } from "../cli-options";
+import { type PipelineConfig, withPipelineConfig } from "../config";
 import { neo4jCredentials } from "./neo4j-config";
 
 /** 운영 개발 DB 포트. `test/helpers/e2e-env.js` 의 `PRODUCTION_BOLT_PORT` 와 같은 값이다. */
@@ -36,9 +38,10 @@ interface ResetOptions {
   force: boolean;
   /** 운영 포트(7687)를 대상으로 허용할지. `--force` 와 별개 플래그로 둬 "삭제 의도"와 "운영 대상 의도"를 분리한다. */
   allowProduction: boolean;
+  config: PipelineConfig;
 }
 
-export function parseResetArgs(args: readonly string[]): ResetOptions {
+export function parseResetArgs(args: readonly string[]): Omit<ResetOptions, "config"> {
   const project = readFlag(args, "--project") ?? DEFAULT_PROJECT;
   const force = args.includes("--force");
   const allowProduction = args.includes("--allow-production");
@@ -81,7 +84,7 @@ export function assertProductionAllowed(uri: string, allowProduction: boolean): 
   }
 }
 
-export function assertForce(options: ResetOptions): void {
+export function assertForce(options: Pick<ResetOptions, "force">): void {
   if (!options.force) {
     throw new Error("reset-neo4j 는 --force 없이 실행할 수 없습니다. 전체 그래프를 삭제하는 명령입니다.");
   }
@@ -104,11 +107,11 @@ async function countGraph(driver: Driver): Promise<{ nodes: number; relationship
 export async function resetNeo4j(options: ResetOptions): Promise<void> {
   assertForce(options);
 
-  const uri = process.env.NEO4J_URI;
+  const uri = options.config.neo4j.uri;
   assertNeo4jUriProvided(uri);
   assertProductionAllowed(uri, options.allowProduction);
 
-  const { user, password } = neo4jCredentials();
+  const { user, password } = neo4jCredentials(options.config);
   const driver: Driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
 
   const loggedUri = maskNeo4jUri(uri);
@@ -134,7 +137,8 @@ export async function resetNeo4j(options: ResetOptions): Promise<void> {
 }
 
 if (require.main === module) {
-  void resetNeo4j(parseResetArgs(process.argv.slice(2))).catch((error) => {
+  const options = parseResetArgs(process.argv.slice(2));
+  void withPipelineConfig((config) => resetNeo4j({ ...options, config })).catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

@@ -29,6 +29,7 @@ const KNOWN_STAGES = ["fetch-dooray", "seed-concepts", "parse-structure", "infer
 async function bootstrap(): Promise<void> {
   const options = parsePipelineOptions(process.argv.slice(2));
   const app = await NestFactory.createApplicationContext(AppModule, {
+    abortOnError: false,
     logger: ["error", "warn"],
   });
   const config = app.get<PipelineConfig>(PIPELINE_CONFIG);

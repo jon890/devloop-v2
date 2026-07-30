@@ -8,3 +8,5 @@ export const PIPELINE_CONFIG = Symbol("PIPELINE_CONFIG");
  * src/config 와 dist/config 모두 루트에서 네 단계 아래라 같은 상대 경로가 성립한다.
  */
 export const ROOT_ENV_PATH = resolve(__dirname, "../../../..", ".env");
+
+export const DEFAULT_NEO4J_AUTH = "neo4j/devloop-password";

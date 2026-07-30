@@ -1,7 +1,7 @@
 # Phase 02 — Neo4j 변수를 이관하고 URI 를 필수로 만든다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

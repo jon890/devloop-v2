@@ -1,5 +1,6 @@
 import { Global, Module } from "@nestjs/common";
 import { ConfigModule, ConfigService } from "@nestjs/config";
+import { NestFactory } from "@nestjs/core";
 import { PIPELINE_CONFIG, ROOT_ENV_PATH } from "./pipeline-config.const";
 import { validatePipelineConfig, type PipelineConfig } from "./pipeline-config.schema";
 
@@ -26,3 +27,15 @@ import { validatePipelineConfig, type PipelineConfig } from "./pipeline-config.s
   exports: [PIPELINE_CONFIG],
 })
 export class PipelineConfigModule {}
+
+export async function withPipelineConfig<T>(run: (config: PipelineConfig) => Promise<T>): Promise<T> {
+  const app = await NestFactory.createApplicationContext(PipelineConfigModule, {
+    abortOnError: false,
+    logger: ["error", "warn"],
+  });
+  try {
+    return await run(app.get<PipelineConfig>(PIPELINE_CONFIG));
+  } finally {
+    await app.close();
+  }
+}

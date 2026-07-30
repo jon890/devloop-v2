@@ -17,7 +17,7 @@
       "file": "phase-02.md",
       "title": "Neo4j 변수를 이관하고 URI 를 필수로 만든다",
       "execution_profile": "standard",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "number": 3,

@@ -44,16 +44,16 @@ flowchart TD
 | `seed-concepts` | `data/raw/` 와 판단 | `data/concepts/` | 공짜 | 읽는다 |
 | `parse-structure` | `data/raw/` | `graph/parsed.jsonl` | **공짜** (수 초) | 안 쓴다 |
 | `infer-knowledge` | `data/raw/` 와 사전 | `graph/inferred.jsonl` | **문서 수만큼 LLM 호출** | 읽는다 |
-| `sync-neo4j` | 위 셋 | Neo4j | 되돌리기 어렵다 | 읽는다 |
+| `sync-neo4j` | 위 셋과 `NEO4J_URI` | Neo4j | 되돌리기 어렵다 | 읽는다 |
 
 체인 밖 명령이다. 파이프라인을 흘리지 않고 상태를 조작하거나 관찰한다.
 
 | 명령 | 성격 |
 | --- | --- |
 | `resolve-graph` | 정규화 결과를 파일로 내놓는다 (읽기 전용, 조사용). 판단을 읽는다 |
-| `apply-schema` | Neo4j 제약·인덱스 적용 |
+| `apply-schema` | Neo4j 제약·인덱스 적용. `NEO4J_URI` 필수 |
 | `reset-neo4j` | 그래프 전체 삭제. `NEO4J_URI`·`--force` 필수, 운영 포트(`7687`)는 `--allow-production` 도 필요 |
-| `audit-concepts` | Concept 정규화 감사 (읽기 전용) |
+| `audit-concepts` | Concept 정규화 감사 (읽기 전용). `NEO4J_URI` 필수 |
 | `migrate-registry` | 판단 저장소 스키마 적용 |
 | `import-curation` | 판단 주입. 기본은 병합, `--replace` 는 프로젝트 단위 트랜잭션 교체 |
 | `export-curation` | 판단 덤프. 같은 상태면 같은 바이트가 나온다 |
@@ -154,7 +154,7 @@ LLM 추출은 비결정적이라 일부 실패가 정상 범위다.
 | 상황 | 방법 |
 | --- | --- |
 | 파일 산출물을 다시 만들고 싶다 | 해당 단계만 다시 돌린다. 앞 단계 산출물은 그대로 쓴다 |
-| 그래프 노드를 줄이고 싶다 | 같은 `NEO4J_URI`로 `reset-neo4j --force` → `apply-schema` → `sync-neo4j`. **세 명령 모두 같은 URI 를 가리켜야 한다** — 뒤 두 명령은 인라인 지정이 없으면 기본값 `7687`로 붙는다. **초기화 없이는 줄지 않는다** |
+| 그래프 노드를 줄이고 싶다 | 같은 `NEO4J_URI`로 `reset-neo4j --force` → `apply-schema` → `sync-neo4j`. **세 명령 모두 같은 URI 를 가리켜야 한다** — 인라인 지정은 첫 명령에만 적용되므로 `export NEO4J_URI=...` 로 셸에 남긴다. **초기화 없이는 줄지 않는다** |
 | 추출 결과를 갱신하고 싶다 | 프롬프트를 고치면 `promptVersion` 을 올려야 캐시가 무효화된다 |
 
 ## 상태가 아닌 것

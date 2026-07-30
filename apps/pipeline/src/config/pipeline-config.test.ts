@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -8,14 +9,85 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import { PIPELINE_CONFIG, ROOT_ENV_PATH, validatePipelineConfig, type PipelineConfig } from ".";
 
-test("빈 스키마로 시작한다 — 알 수 없는 환경변수는 PipelineConfig 로 새지 않는다", () => {
+function validEnv(overrides: Record<string, string | undefined> = {}): Record<string, string> {
+  const env: Record<string, string | undefined> = {
+    NEO4J_URI: "bolt://localhost:7690",
+    ...overrides,
+  };
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) delete env[key];
+  }
+  return env as Record<string, string>;
+}
+
+test("NEO4J_URI 가 있으면 설정으로 파싱된다", () => {
+  const validated = validatePipelineConfig(validEnv());
+
+  assert.deepEqual(validated, {
+    pipeline: {
+      neo4j: {
+        uri: "bolt://localhost:7690",
+        user: "neo4j",
+        password: "devloop-password",
+      },
+    },
+  });
+});
+
+test("NEO4J_URI 가 없으면 변수 이름을 드러내며 실패한다", () => {
+  assert.throws(
+    () => validatePipelineConfig(validEnv({ NEO4J_URI: undefined })),
+    (error: Error) => error.message.includes("파이프라인 환경설정 검증 실패") && error.message.includes("NEO4J_URI"),
+  );
+});
+
+test("알 수 없는 환경변수는 PipelineConfig 로 새지 않는다", () => {
   const validated = validatePipelineConfig({
-    NEO4J_URI: "bolt://env-file:7687",
+    ...validEnv(),
     LLM_MODEL: "gpt-5.5",
     PIPELINE_DATA_DIR: "/tmp/devloop-data",
   });
 
-  assert.deepEqual(validated, { pipeline: {} });
+  assert.deepEqual(Object.keys(validated.pipeline).sort(), ["neo4j"]);
+  assert.deepEqual(Object.keys(validated.pipeline.neo4j).sort(), ["password", "uri", "user"]);
+});
+
+test("Neo4j 자격증명은 NEO4J_AUTH 기본값을 쓴다", () => {
+  const config = validatePipelineConfig(validEnv()).pipeline;
+
+  assert.equal(config.neo4j.user, "neo4j");
+  assert.equal(config.neo4j.password, "devloop-password");
+});
+
+test("Neo4j 자격증명은 NEO4J_AUTH 를 user/password 로 나눈다", () => {
+  const config = validatePipelineConfig(validEnv({ NEO4J_AUTH: "reader/secret" })).pipeline;
+
+  assert.equal(config.neo4j.user, "reader");
+  assert.equal(config.neo4j.password, "secret");
+});
+
+test("빈 NEO4J_AUTH 도 이전과 같이 빈 사용자와 기본 비밀번호로 해석한다", () => {
+  const config = validatePipelineConfig(validEnv({ NEO4J_AUTH: "" })).pipeline;
+
+  assert.equal(config.neo4j.user, "");
+  assert.equal(config.neo4j.password, "devloop-password");
+});
+
+test("NEO4J_USER 와 NEO4J_PASSWORD 쌍이 NEO4J_AUTH 보다 우선한다", () => {
+  const config = validatePipelineConfig(
+    validEnv({ NEO4J_AUTH: "auth-user/auth-password", NEO4J_USER: "pair-user", NEO4J_PASSWORD: "pair-password" }),
+  ).pipeline;
+
+  assert.equal(config.neo4j.user, "pair-user");
+  assert.equal(config.neo4j.password, "pair-password");
+});
+
+test("NEO4J_USER 와 NEO4J_PASSWORD 중 하나만 있으면 기존처럼 NEO4J_AUTH 로 돌아간다", () => {
+  const onlyUser = validatePipelineConfig(validEnv({ NEO4J_AUTH: "auth-user/auth-password", NEO4J_USER: "pair-user" })).pipeline;
+  const onlyPassword = validatePipelineConfig(validEnv({ NEO4J_AUTH: "auth-user/auth-password", NEO4J_PASSWORD: "pair-password" })).pipeline;
+
+  assert.deepEqual(onlyUser.neo4j, { uri: "bolt://localhost:7690", user: "auth-user", password: "auth-password" });
+  assert.deepEqual(onlyPassword.neo4j, { uri: "bolt://localhost:7690", user: "auth-user", password: "auth-password" });
 });
 
 test("ROOT_ENV_PATH 는 cwd 와 무관하게 저장소 루트 .env 를 가리킨다", () => {
@@ -25,56 +97,91 @@ test("ROOT_ENV_PATH 는 cwd 와 무관하게 저장소 루트 .env 를 가리킨
 test("프로세스 환경이 .env 보다 우선한다", async () => {
   const tempDir = await mkdtemp(resolve(tmpdir(), "pipeline-config-"));
   const envFilePath = resolve(tempDir, ".env");
-  const original = process.env.PIPELINE_CONFIG_PRIORITY_PROBE;
-  process.env.PIPELINE_CONFIG_PRIORITY_PROBE = "from-process";
+  const original = process.env.NEO4J_URI;
+  process.env.NEO4J_URI = "bolt://from-process:7690";
 
   try {
-    await writeFile(envFilePath, "PIPELINE_CONFIG_PRIORITY_PROBE=from-env-file\n", "utf8");
+    await writeFile(envFilePath, "NEO4J_URI=bolt://from-env-file:7690\n", "utf8");
     await withConfigService(envFilePath, (service) => {
-      assert.equal(service.get("PIPELINE_CONFIG_PRIORITY_PROBE"), "from-process");
+      assert.equal(service.get<PipelineConfig>("pipeline")?.neo4j.uri, "bolt://from-process:7690");
     });
   } finally {
     if (original === undefined) {
-      delete process.env.PIPELINE_CONFIG_PRIORITY_PROBE;
+      delete process.env.NEO4J_URI;
     } else {
-      process.env.PIPELINE_CONFIG_PRIORITY_PROBE = original;
+      process.env.NEO4J_URI = original;
     }
     await rm(tempDir, { recursive: true, force: true });
   }
 });
 
-test(".env 가 없어도 빈 설정 모듈은 기동한다", async () => {
+test(".env 가 없어도 프로세스 환경에 필수 값이 있으면 기동한다", async () => {
   const missingEnvPath = resolve(tmpdir(), `devloop-missing-${process.pid}-${Date.now()}.env`);
-  await withConfigService(missingEnvPath, (service) => {
-    assert.deepEqual(service.get<PipelineConfig>("pipeline"), {});
+  await withEnv("NEO4J_URI", "bolt://process-only:7690", () =>
+    withConfigService(missingEnvPath, (service) => {
+      assert.equal(service.get<PipelineConfig>("pipeline")?.neo4j.uri, "bolt://process-only:7690");
+    }),
+  );
+});
+
+test(".env 가 없고 프로세스 환경에도 NEO4J_URI 가 없으면 기동이 실패한다", async () => {
+  const missingEnvPath = resolve(tmpdir(), `devloop-missing-${process.pid}-${Date.now()}-required.env`);
+  await withEnv("NEO4J_URI", undefined, async () => {
+    await assert.rejects(() => withConfigService(missingEnvPath, () => undefined), /NEO4J_URI/);
   });
 });
 
-test("PIPELINE_CONFIG 토큰으로 빈 설정 객체를 주입한다", async () => {
-  @Module({
-    imports: [
-      ConfigModule.forRoot({
-        envFilePath: resolve(tmpdir(), `devloop-missing-${process.pid}-${Date.now()}-token.env`),
-        validate: validatePipelineConfig,
-      }),
-    ],
-    providers: [
-      {
-        provide: PIPELINE_CONFIG,
-        useFactory: (configService: ConfigService): PipelineConfig => configService.getOrThrow("pipeline"),
-        inject: [ConfigService],
-      },
-    ],
-  })
-  class TestModule {}
+test("PIPELINE_CONFIG 토큰으로 검증된 설정 객체를 주입한다", async () => {
+  await withEnv("NEO4J_URI", "bolt://localhost:7690", async () => {
+    @Module({
+      imports: [
+        ConfigModule.forRoot({
+          envFilePath: resolve(tmpdir(), `devloop-missing-${process.pid}-${Date.now()}-token.env`),
+          validate: validatePipelineConfig,
+        }),
+      ],
+      providers: [
+        {
+          provide: PIPELINE_CONFIG,
+          useFactory: (configService: ConfigService): PipelineConfig => configService.getOrThrow("pipeline"),
+          inject: [ConfigService],
+        },
+      ],
+    })
+    class TestModule {}
 
-  const app = await NestFactory.createApplicationContext(TestModule, { logger: false });
-  try {
-    assert.deepEqual(app.get<PipelineConfig>(PIPELINE_CONFIG), {});
-  } finally {
-    await app.close();
-  }
+    const app = await NestFactory.createApplicationContext(TestModule, { abortOnError: false, logger: false });
+    try {
+      assert.deepEqual(app.get<PipelineConfig>(PIPELINE_CONFIG), {
+        neo4j: {
+          uri: "bolt://localhost:7690",
+          user: "neo4j",
+          password: "devloop-password",
+        },
+      });
+    } finally {
+      await app.close();
+    }
+  });
 });
+
+async function withEnv<T>(name: string, value: string | undefined, run: () => Promise<T>): Promise<T> {
+  const original = process.env[name];
+  if (value === undefined) {
+    delete process.env[name];
+  } else {
+    process.env[name] = value;
+  }
+  try {
+    return await run();
+  } finally {
+    if (original === undefined) {
+      delete process.env[name];
+    } else {
+      process.env[name] = original;
+    }
+  }
+}
 
 async function withConfigService(envFilePath: string, assertion: (service: ConfigService) => void): Promise<void> {
   @Module({
@@ -87,7 +194,7 @@ async function withConfigService(envFilePath: string, assertion: (service: Confi
   })
   class TestModule {}
 
-  const app = await NestFactory.createApplicationContext(TestModule, { logger: false });
+  const app = await NestFactory.createApplicationContext(TestModule, { abortOnError: false, logger: false });
   try {
     assertion(app.get(ConfigService));
   } finally {
