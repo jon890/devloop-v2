@@ -170,7 +170,7 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
   }
 
   for (const existing of existingConcepts) {
-    if (concepts.has(existing.canonical)) mergeConcept(concepts, existing);
+    mergeConcept(concepts, existing);
   }
 
   const withoutConflicts = removeConflictingAliases([...concepts.values()], judgedAliasKeys).sort((left, right) =>

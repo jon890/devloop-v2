@@ -247,6 +247,7 @@ test('태그 차원·위키 영문 기술어·업무 prefix로 중복 없는 Con
     { canonical: 'OCR.API', kind: 'tech', aliases: ['API', 'legacy-api', 'shared-alias'] },
     { canonical: 'OCR.API', kind: 'tech', aliases: ['legacy-api-2'] },
     { canonical: 'OCR.Console', kind: 'component', aliases: ['Console', 'shared-alias'] },
+    { canonical: 'DocumentIdCardAuthenticityService:82', kind: 'code-ref', aliases: [] },
   ]));
 
   const result = await seedConcepts({ dataRoot, project: 'tc-ocr' });
@@ -276,7 +277,8 @@ test('태그 차원·위키 영문 기술어·업무 prefix로 중복 없는 Con
   assert.ok(byCanonical.has('NHN Container Service'));
   assert.ok(byCanonical.has('X-Request-Id'));
   assert.equal(concepts.filter((entry) => entry.canonical === 'OCR.API').length, 1);
-  assert.equal(byCanonical.has('감싸나'), false);
+  assert.equal(byCanonical.has('감싸나'), true);
+  assert.equal(byCanonical.has('DocumentIdCardAuthenticityService:82'), true);
   assert.deepEqual(byCanonical.get('배포 Main'), { canonical: '배포 Main', kind: 'component', aliases: [] });
   assert.equal(concepts.some((entry) => /^[012]:\s/.test(entry.canonical)), false);
 });
