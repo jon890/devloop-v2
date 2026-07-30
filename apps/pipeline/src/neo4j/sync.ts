@@ -1,3 +1,4 @@
+import "reflect-metadata";
 import { resolve } from "node:path";
 import neo4j, { type Driver, type Integer, type Session } from "neo4j-driver";
 import {
@@ -10,16 +11,18 @@ import {
   type RelationshipType,
 } from "@devloop/shared";
 import { DEFAULT_PROJECT, readDataDirFlag, readFlag } from "../cli-options";
+import { type PipelineConfig, withPipelineConfig } from "../config";
 import { readResolveInput } from "../resolve/io";
 import { normalizedKey } from "../resolve/node-merge";
 import { resolveGraph } from "../resolve/resolve";
 import type { ResolveResult } from "../resolve/resolve.schema";
 import { RELATIONSHIP_IDENTITY_PROPERTIES } from "./sync.const";
-import { neo4jCredentials } from "./neo4j-config";
+import { neo4jCredentials, requireNeo4jConfig } from "./neo4j-config";
 
 export interface LoadOptions {
   project: string;
   dataDir: string;
+  config: PipelineConfig;
 }
 
 export interface LoadStats {
@@ -46,9 +49,9 @@ interface RelationshipMergeScope {
 
 type DatabaseKey = string | Integer;
 
-function parseArgs(args: readonly string[]): LoadOptions {
+function parseArgs(args: readonly string[], config: PipelineConfig): Omit<LoadOptions, "config"> {
   const project = readFlag(args, "--project") ?? DEFAULT_PROJECT;
-  const dataDir = readDataDirFlag(args) ?? resolve(__dirname, "../../data");
+  const dataDir = readDataDirFlag(args, config) ?? resolve(__dirname, "../../data");
 
   return { project, dataDir: resolve(dataDir) };
 }
@@ -248,7 +251,7 @@ async function collectStats(session: Session): Promise<LoadStats> {
  * 떼어낸 순수 함수다 — `sync.test.ts` 가 이 함수만 호출해 출력 스키마(`unknownConcepts` 가
  * 객체 형태인지 등)를 DB 없이 고정한다.
  */
-export function buildLoadSummary(options: LoadOptions, resolved: ResolveResult, stats: LoadStats): unknown {
+export function buildLoadSummary(options: Pick<LoadOptions, "project" | "dataDir">, resolved: ResolveResult, stats: LoadStats): unknown {
   return {
     project: options.project,
     dataDir: options.dataDir,
@@ -263,7 +266,8 @@ export function buildLoadSummary(options: LoadOptions, resolved: ResolveResult, 
   };
 }
 
-async function loadGraph(options: LoadOptions): Promise<void> {
+export async function loadGraph(options: LoadOptions): Promise<void> {
+  requireNeo4jConfig(options.config, "sync-neo4j");
   const resolved = await prepareLoadGraph(options);
   await writeGraphToNeo4j(options, resolved, (stats) => {
     console.log(JSON.stringify(buildLoadSummary(options, resolved, stats), null, 2));
@@ -283,8 +287,9 @@ async function writeGraphToNeo4j(
   nodes: Record<string, number>;
   relationships: Record<string, number>;
 }> {
-  const uri = process.env.NEO4J_URI ?? "bolt://localhost:7687";
-  const { user, password } = neo4jCredentials();
+  const dbConfig = requireNeo4jConfig(options.config, "sync-neo4j");
+  const uri = dbConfig.neo4j.uri;
+  const { user, password } = neo4jCredentials(dbConfig);
   const driver: Driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
   const session = driver.session({ database: "neo4j" });
 
@@ -301,7 +306,7 @@ async function writeGraphToNeo4j(
 }
 
 if (require.main === module) {
-  void loadGraph(parseArgs(process.argv.slice(2))).catch((error) => {
+  void withPipelineConfig((config) => loadGraph({ ...parseArgs(process.argv.slice(2), config), config })).catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

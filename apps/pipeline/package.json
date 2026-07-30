@@ -16,11 +16,12 @@
     "seed-concepts": "pnpm build && node dist/main.js seed-concepts",
     "parse-structure": "pnpm build && node dist/main.js parse-structure",
     "infer-knowledge": "pnpm build && node dist/main.js infer-knowledge",
-    "test": "pnpm --filter @devloop/shared build && pnpm build && node --test dist/cli-options.test.js dist/fetch/*.test.js dist/infer/*.test.js dist/neo4j/*.test.js dist/resolve/*.test.js test/*.test.cjs"
+    "test": "pnpm --filter @devloop/shared build && pnpm build && node --test dist/cli-options.test.js dist/config/*.test.js dist/fetch/*.test.js dist/infer/*.test.js dist/llm/*.test.js dist/neo4j/*.test.js dist/resolve/*.test.js test/*.test.cjs"
   },
   "dependencies": {
     "@devloop/shared": "workspace:*",
     "@nestjs/common": "^11.1.0",
+    "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.0",
     "neo4j-driver": "^5.28.0",
     "reflect-metadata": "^0.2.2",

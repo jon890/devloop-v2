@@ -107,7 +107,7 @@ tie-break 는 그 레코드를 파일에 쓸 때 실제로 쓰는 `JSON.stringif
 
 그 자리에 **`reset-neo4j`** 를 만든다. 지금까지 손으로 하던 `DETACH DELETE` 절차에 이름을 준다.
 
-- `NEO4J_URI` 가 없으면 실행하지 않는다 (기본값을 두지 않는다) — 근거는 `docs/data-schema.md` 삭제 규칙
+- `NEO4J_URI` 가 없으면 실행하지 않는다 (기본값을 두지 않는다) — 근거는 `docs/data-schema.md` 대상 명시 규칙
 - `--force` 없이는 실행하지 않는다
 - 대상 포트가 운영(`7687`)이면 `--allow-production` 도 함께 줘야 한다
 - 대상 URI 와 현재 노드 수를 먼저 출력한다

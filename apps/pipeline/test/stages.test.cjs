@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const { chmod, cp, mkdir, mkdtemp, readFile, writeFile } = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
@@ -13,6 +14,7 @@ const { LlmNodeSchema, LlmRelationshipSchema } = require('../dist/infer/llm-extr
 const { extractLlm } = require('../dist/infer/llm-extractor');
 const { sanitizeLlmGraphFile } = require('../dist/infer/llm-relationship-sanitizer');
 const { extractStructural } = require('../dist/parse/structural-extractor');
+const { resolvePipelineDataRoot } = require('../dist/main');
 
 async function fixtureDataRoot() {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'wp2-extract-test-'));
@@ -623,12 +625,10 @@ process.stdin.on('end', () => process.stdout.write(JSON.stringify({ result: inpu
 `, 'utf8');
   await Promise.all([chmod(codexPath, 0o755), chmod(claudePath, 0o755)]);
   const previousPath = process.env.PATH;
-  const previousEffort = process.env.LLM_REASONING_EFFORT;
   process.env.PATH = `${temporary}:${previousPath}`;
   process.env.WP2_ARGS_FILE = argsFile;
-  process.env.LLM_REASONING_EFFORT = 'low';
   try {
-    const codex = LlmResultSchema.parse(await new CodexCliAdapter().complete('codex prompt', { model: 'codex-model' }));
+    const codex = LlmResultSchema.parse(await new CodexCliAdapter().complete('codex prompt', { model: 'codex-model', effort: 'low' }));
     assert.equal(codex.text, '{"nodes":[],"relationships":[]}');
     const codexArgs = JSON.parse(await readFile(argsFile, 'utf8'));
     assert.deepEqual(codexArgs.slice(0, 5), ['exec', '--sandbox', 'read-only', '--ephemeral', '--output-last-message']);
@@ -653,8 +653,56 @@ process.stdin.on('end', () => process.stdout.write(JSON.stringify({ result: inpu
     ]);
   } finally {
     process.env.PATH = previousPath;
-    if (previousEffort === undefined) delete process.env.LLM_REASONING_EFFORT;
-    else process.env.LLM_REASONING_EFFORT = previousEffort;
     delete process.env.WP2_ARGS_FILE;
   }
+});
+
+test('infer-knowledge 는 LLM_MODEL 이 없으면 LLM 호출 전에 거부한다', () => {
+  const result = spawnSync(process.execPath, [path.join(__dirname, '../dist/main.js'), 'infer-knowledge'], {
+    cwd: path.join(__dirname, '..'),
+    env: {
+      ...process.env,
+      NEO4J_URI: 'bolt://localhost:7690',
+      LLM_MODEL: '',
+    },
+    encoding: 'utf8',
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /LLM_MODEL is required for LLM extraction/);
+});
+
+test('main dataRoot 는 PIPELINE_DATA_DIR 를 확대 적용하지 않는다', () => {
+  const previous = process.env.PIPELINE_DATA_DIR;
+  process.env.PIPELINE_DATA_DIR = '/tmp/devloop-should-not-be-main-data-root';
+  try {
+    assert.equal(resolvePipelineDataRoot(), path.resolve(__dirname, '../data'));
+  } finally {
+    if (previous === undefined) delete process.env.PIPELINE_DATA_DIR;
+    else process.env.PIPELINE_DATA_DIR = previous;
+  }
+});
+
+test('main 비DB 진입은 NEO4J_URI 없이 설정 검증을 통과한다', () => {
+  const result = spawnSync(process.execPath, [path.join(__dirname, '../dist/main.js'), 'unknown-stage'], {
+    cwd: path.join(__dirname, '..'),
+    env: { ...process.env, NEO4J_URI: '' },
+    encoding: 'utf8',
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /Unknown pipeline stage: unknown-stage/);
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /NEO4J_URI/);
+});
+
+test('resolve-graph 는 NEO4J_URI 없이 설정 검증을 통과한다', () => {
+  const missingDataDir = path.join(os.tmpdir(), `devloop-missing-config-review-${process.pid}`);
+  const result = spawnSync(process.execPath, [path.join(__dirname, '../dist/resolve/cli.js'), '--data-dir', missingDataDir], {
+    cwd: path.join(__dirname, '..'),
+    env: { ...process.env, NEO4J_URI: '' },
+    encoding: 'utf8',
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.doesNotMatch(`${result.stdout}\n${result.stderr}`, /NEO4J_URI/);
 });

@@ -3,21 +3,14 @@ import { NestFactory } from "@nestjs/core";
 import path from "node:path";
 import { AppModule } from "./app.module";
 import { parsePipelineOptions } from "./cli-options";
+import { PIPELINE_CONFIG, type PipelineConfig } from "./config";
 import { IngestService } from "./fetch/ingest.service";
 import { seedConcepts } from "./concepts/concept-seeder";
 import { extractLlm } from "./infer/llm-extractor";
 import { extractStructural } from "./parse/structural-extractor";
 import { ClaudeCliAdapter, CodexCliAdapter, type LlmCli } from "./llm";
 
-function positiveInteger(value: string | undefined, fallback: number): number {
-  if (!value) return fallback;
-  const parsed = Number(value);
-  if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`Expected a positive integer, received: ${value}`);
-  return parsed;
-}
-
-function llmAdapter(): LlmCli {
-  const provider = process.env.LLM_PROVIDER ?? "codex";
+function llmAdapter(provider: PipelineConfig["llm"]["provider"]): LlmCli {
   if (provider === "codex") return new CodexCliAdapter();
   if (provider === "claude") return new ClaudeCliAdapter();
   throw new Error(`Unsupported LLM_PROVIDER=${provider}; expected codex or claude.`);
@@ -28,9 +21,11 @@ const KNOWN_STAGES = ["fetch-dooray", "seed-concepts", "parse-structure", "infer
 async function bootstrap(): Promise<void> {
   const options = parsePipelineOptions(process.argv.slice(2));
   const app = await NestFactory.createApplicationContext(AppModule, {
+    abortOnError: false,
     logger: ["error", "warn"],
   });
-  const dataRoot = path.resolve(__dirname, "../data");
+  const config = app.get<PipelineConfig>(PIPELINE_CONFIG);
+  const dataRoot = resolvePipelineDataRoot();
   const stage = options.stage ?? "all";
   try {
     if (!KNOWN_STAGES.includes(stage)) {
@@ -39,6 +34,7 @@ async function bootstrap(): Promise<void> {
     if (stage === "fetch-dooray" || stage === "all") {
       const result = await app.get(IngestService).ingest({
         project: options.project,
+        config,
         limit: options.limit,
       });
       const { posts, wiki, tags, members } = result.stats;
@@ -55,23 +51,24 @@ async function bootstrap(): Promise<void> {
       if (stage === "fetch-dooray") return;
     }
     if (stage === "seed-concepts" || stage === "all") {
-      const result = await seedConcepts({ dataRoot, project: options.project });
+      const result = await seedConcepts({ dataRoot, project: options.project, config });
       console.log(`Concept seed complete: project=${options.project} concepts=${result.concepts.length} output=${result.outputPath}`);
     }
     if (stage === "parse-structure" || stage === "all") {
-      const result = await extractStructural({ dataRoot, project: options.project });
+      const result = await extractStructural({ dataRoot, project: options.project, config });
       console.log(`Structural extraction complete: nodes=${result.nodes} relationships=${result.relationships} output=${result.outputPath}`);
     }
     if (stage === "infer-knowledge" || stage === "all") {
-      const model = process.env.LLM_MODEL;
+      const model = config.llm.model;
       if (!model) throw new Error("LLM_MODEL is required for LLM extraction.");
       const result = await extractLlm({
         dataRoot,
         project: options.project,
+        config,
         model,
-        llm: llmAdapter(),
-        concurrency: positiveInteger(process.env.LLM_CONCURRENCY, 4),
-        timeoutMs: positiveInteger(process.env.LLM_TIMEOUT_MS, 120_000),
+        llm: llmAdapter(config.llm.provider),
+        concurrency: config.llm.concurrency,
+        timeoutMs: config.llm.timeoutMs,
         docFilter: options.docs,
       });
       console.log(
@@ -87,7 +84,13 @@ async function bootstrap(): Promise<void> {
   }
 }
 
-void bootstrap().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
-});
+export function resolvePipelineDataRoot(): string {
+  return path.resolve(__dirname, "../data");
+}
+
+if (require.main === module) {
+  void bootstrap().catch((error: unknown) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  });
+}

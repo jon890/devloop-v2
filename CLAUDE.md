@@ -37,9 +37,7 @@ apps/pipeline/    ingest/  extract/  load/  llm/
 | `docs/code-architecture.md` | 모듈 책임·파일 배치·의존 방향 |
 | `docs/data-schema.md` | 노드·관계 계약, `jsonl` 형식, 삭제 규칙 |
 | `docs/adr/` | 코드로 자명하지 않은 장기 기술 결정 |
-| `docs/SPEC.md` | 확정 요구사항·인수 기준 |
-| `docs/PLAN.md` | 구현 계획·공유 계약 |
-| `docs/EVAL-RUBRIC.md` | 품질 판정 단일 소스 |
+| `docs/EVAL-RUBRIC.md` | 품질 판정 단일 소스. 평가 스킬 2종이 섹션 번호로 참조하므로 섹션 구조를 바꾸지 않는다 |
 
 주요 명령:
 

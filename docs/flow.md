@@ -38,22 +38,30 @@ flowchart TD
 
 ## 단계별 계약
 
-| 단계 | 입력 | 출력 | 재실행 비용 |
-| --- | --- | --- | --- |
-| `fetch-dooray` | 외부 API | `data/raw/` | 네트워크. 원본 API 가 살아 있어야 한다 |
-| `seed-concepts` | `data/raw/` | `data/concepts/` | 공짜 |
-| `parse-structure` | `data/raw/` | `graph/parsed.jsonl` | **공짜** (수 초) |
-| `infer-knowledge` | `data/raw/` | `graph/inferred.jsonl` | **문서 수만큼 LLM 호출** |
-| `sync-neo4j` | 위 셋 | Neo4j | 되돌리기 어렵다 |
+| 단계 | 입력 | 출력 | 재실행 비용 | Concept 사전 |
+| --- | --- | --- | --- | --- |
+| `fetch-dooray` | 외부 API | `data/raw/` | 네트워크. 원본 API 가 살아 있어야 한다 | 안 쓴다 |
+| `seed-concepts` | `data/raw/` 와 공용 표준어 | `data/concepts/` | 공짜 | 만든다 |
+| `parse-structure` | `data/raw/` | `graph/parsed.jsonl` | **공짜** (수 초) | 안 쓴다 |
+| `infer-knowledge` | `data/raw/` 와 사전 | `graph/inferred.jsonl` | **문서 수만큼 LLM 호출** | 읽는다 |
+| `sync-neo4j` | 위 셋과 `NEO4J_URI` | Neo4j | 되돌리기 어렵다 | 읽는다 |
 
 체인 밖 명령이다. 파이프라인을 흘리지 않고 상태를 조작하거나 관찰한다.
 
 | 명령 | 성격 |
 | --- | --- |
-| `resolve-graph` | 정규화 결과를 파일로 내놓는다 (읽기 전용, 조사용) |
-| `apply-schema` | Neo4j 제약·인덱스 적용 |
+| `resolve-graph` | 정규화 결과를 파일로 내놓는다 (읽기 전용, 조사용). Concept 사전을 읽는다 |
+| `apply-schema` | Neo4j 제약·인덱스 적용. `NEO4J_URI` 필수 |
 | `reset-neo4j` | 그래프 전체 삭제. `NEO4J_URI`·`--force` 필수, 운영 포트(`7687`)는 `--allow-production` 도 필요 |
-| `audit-concepts` | Concept 정규화 감사 (읽기 전용) |
+| `audit-concepts` | Concept 정규화 감사 (읽기 전용). `NEO4J_URI` 필수 |
+
+ADR 0005의 판단 저장소 명령은 아직 구현되지 않아 현재 실행 흐름에는 포함하지 않는다.
+
+### 판단 저장소는 아직 실행 경로에 없다
+
+현재 단계들은 파일로 만든 Concept 사전을 읽는다.
+ADR 0005의 판단 저장소를 구현할 때도 수집과 구조 파싱은 저장소를 건드리지 않아 오프라인 성질을 유지한다.
+표준 사전을 읽는 단계만 판단 저장소 조회를 추가한다.
 
 ### 두 호출 경로가 같은 순수 함수를 공유한다
 
@@ -79,6 +87,15 @@ tie-break 는 파일에 실제로 쓰는 직렬화 바이트(`JSON.stringify` �
 
 이 차이가 이름에 드러나야 한다. 이전 이름(`extract:structural`·`extract:llm`)은 둘 다 `extract:` 라서
 비용 차이를 숨겼다.
+
+추출 시간 추정이다. 관리 대상은 비용이 아니라 **시간**이다 ([ADR 0002](adr/0002-llm-via-subscription-cli.md)).
+
+| 조건 | 시간 |
+| --- | --- |
+| 537문서 순차 (호출당 20~40초) | 3~6시간 |
+| 동시 실행 4 | 약 1~1.5시간 |
+
+캐시가 있어 중단 후 재실행은 남은 문서만 처리한다. rate limit 에 닿으면 백오프로 감속한다.
 
 ## 질의응답 흐름
 
@@ -132,7 +149,7 @@ LLM 추출은 비결정적이라 일부 실패가 정상 범위다.
 | 상황 | 방법 |
 | --- | --- |
 | 파일 산출물을 다시 만들고 싶다 | 해당 단계만 다시 돌린다. 앞 단계 산출물은 그대로 쓴다 |
-| 그래프 노드를 줄이고 싶다 | 같은 `NEO4J_URI`로 `reset-neo4j --force` → `apply-schema` → `sync-neo4j`. **세 명령 모두 같은 URI 를 가리켜야 한다** — 뒤 두 명령은 인라인 지정이 없으면 기본값 `7687`로 붙는다. **초기화 없이는 줄지 않는다** |
+| 그래프 노드를 줄이고 싶다 | 같은 `NEO4J_URI`로 `reset-neo4j --force` → `apply-schema` → `sync-neo4j`. **세 명령 모두 같은 URI 를 가리켜야 한다** — 인라인 지정은 첫 명령에만 적용되므로 `export NEO4J_URI=...` 로 셸에 남긴다. **초기화 없이는 줄지 않는다** |
 | 추출 결과를 갱신하고 싶다 | 프롬프트를 고치면 `promptVersion` 을 올려야 캐시가 무효화된다 |
 
 ## 상태가 아닌 것

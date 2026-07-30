@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { auditConcepts } from "../concepts/audit";
+import { applySchema } from "./apply-schema";
 import {
   assertForce,
   assertNeo4jUriProvided,
@@ -9,6 +11,43 @@ import {
   PRODUCTION_BOLT_PORT,
   resetNeo4j,
 } from "./reset";
+import { loadGraph } from "./sync";
+
+const TEST_CONFIG = {
+  neo4j: {
+    uri: "bolt://invalid.invalid:7690",
+    user: "neo4j",
+    password: "devloop-password",
+  },
+  llm: {
+    provider: "codex" as const,
+    model: undefined,
+    reasoningEffort: undefined,
+    concurrency: 4,
+    timeoutMs: 120_000,
+  },
+  pipelineDataDir: undefined,
+};
+
+function configWithUri(uri: string) {
+  return {
+    ...TEST_CONFIG,
+    neo4j: {
+      ...TEST_CONFIG.neo4j,
+      uri,
+    },
+  };
+}
+
+function configWithoutUri() {
+  return {
+    ...TEST_CONFIG,
+    neo4j: {
+      ...TEST_CONFIG.neo4j,
+      uri: undefined,
+    },
+  };
+}
 
 /**
  * `resetNeo4j` 가 세 가드(`assertForce`·`assertNeo4jUriProvided`·`assertProductionAllowed`)를
@@ -21,37 +60,34 @@ import {
  * 실행되더라도(변이 검증 중 포함) DNS 해석 실패로 즉시 끊겨 실제 Neo4j(7687, 운영 DB)에
  * 연결·삭제가 일어나지 않는다.
  */
-function withEnv<T>(name: string, value: string | undefined, run: () => Promise<T>): Promise<T> {
-  const original = process.env[name];
-  if (value === undefined) {
-    delete process.env[name];
-  } else {
-    process.env[name] = value;
-  }
-  return run().finally(() => {
-    if (original === undefined) {
-      delete process.env[name];
-    } else {
-      process.env[name] = original;
-    }
-  });
-}
-
 test("resetNeo4j 는 assertForce 를 호출한다 — force 없이 실행하면 DB 접속 전에 거부한다", async () => {
-  await withEnv("NEO4J_URI", "bolt://invalid.invalid:7687", () =>
-    assert.rejects(() => resetNeo4j({ project: "tc-ocr", force: false, allowProduction: false }), /--force/),
+  await assert.rejects(
+    () => resetNeo4j({ project: "tc-ocr", force: false, allowProduction: false, config: configWithUri("bolt://invalid.invalid:7687") }),
+    /--force/,
   );
 });
 
 test("resetNeo4j 는 assertNeo4jUriProvided 를 호출한다 — NEO4J_URI 가 없으면 DB 접속 전에 거부한다", async () => {
-  await withEnv("NEO4J_URI", undefined, () =>
-    assert.rejects(() => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: true }), /NEO4J_URI/),
+  await assert.rejects(() => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: true, config: configWithUri("") }), /NEO4J_URI/);
+});
+
+test("네 Neo4j 진입점은 NEO4J_URI 가 없으면 DB 작업 전에 명령 이름과 함께 거부한다", async () => {
+  await assert.rejects(
+    () => loadGraph({ project: "tc-ocr", dataDir: "/tmp/devloop-do-not-read", config: configWithoutUri() }),
+    /sync-neo4j.*NEO4J_URI/,
+  );
+  await assert.rejects(() => applySchema(configWithoutUri()), /apply-schema.*NEO4J_URI/);
+  await assert.rejects(() => auditConcepts(configWithoutUri()), /audit-concepts.*NEO4J_URI/);
+  await assert.rejects(
+    () => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: true, config: configWithoutUri() }),
+    /reset-neo4j.*NEO4J_URI/,
   );
 });
 
 test("resetNeo4j 는 assertProductionAllowed 를 호출한다 — 운영 포트면 --allow-production 없이 DB 접속 전에 거부한다", async () => {
-  await withEnv("NEO4J_URI", "bolt://invalid.invalid:7687", () =>
-    assert.rejects(() => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: false }), /운영 포트/),
+  await assert.rejects(
+    () => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: false, config: configWithUri("bolt://invalid.invalid:7687") }),
+    /운영 포트/,
   );
 });
 
@@ -74,14 +110,16 @@ function assertPassedGuards(error: Error): boolean {
 test("resetNeo4j 는 --allow-production 이 있으면 운영 포트 가드를 통과해 드라이버 단계까지 간다", async () => {
   // 가드를 통과하면 다음 실패는 가드 에러(운영 포트·NEO4J_URI·--force)가 아니라
   // DNS 해석 실패(ENOTFOUND) 여야 한다 — 즉 이 실패가 "가드를 지나갔다"는 증거다.
-  await withEnv("NEO4J_URI", "bolt://invalid.invalid:7687", () =>
-    assert.rejects(() => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: true }), assertPassedGuards),
+  await assert.rejects(
+    () => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: true, config: configWithUri("bolt://invalid.invalid:7687") }),
+    assertPassedGuards,
   );
 });
 
 test("resetNeo4j 는 운영 포트가 아니면 --allow-production 없이도 드라이버 단계까지 간다", async () => {
-  await withEnv("NEO4J_URI", "bolt://invalid.invalid:7690", () =>
-    assert.rejects(() => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: false }), assertPassedGuards),
+  await assert.rejects(
+    () => resetNeo4j({ project: "tc-ocr", force: true, allowProduction: false, config: configWithUri("bolt://invalid.invalid:7690") }),
+    assertPassedGuards,
   );
 });
 

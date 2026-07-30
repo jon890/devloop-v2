@@ -8,9 +8,12 @@ Dooray 프로젝트(기본 tc-ocr)의 업무·위키를 수집해 고정 온톨�
 
 ## 문서
 
-- `docs/SPEC.md` — 확정 요구사항·인수 기준
-- `docs/PLAN.md` — 구현 계획 (phase·병렬 작업 패키지·공유 계약)
-- `docs/EVAL-RUBRIC.md` — 품질 기준 단일 소스 (온톨로지 정적 기준·채점표·통과선)
+- `docs/prd.md` — 제품 목표·사용자 가치·범위와 제외 범위
+- `docs/flow.md` — 단계 흐름·상태 전이·실패와 부분 성공
+- `docs/code-architecture.md` — 모듈 책임·파일 배치·의존 방향
+- `docs/data-schema.md` — 저장 계약 (노드·관계·`jsonl`·판단 저장소·삭제 규칙)
+- `docs/adr/` — 코드로 자명하지 않은 장기 기술 결정
+- `docs/EVAL-RUBRIC.md` — 품질 판정 단일 소스 (정적 기준·채점표·통과선)
 - `eval/questions-{human,ai}-<project>.json` — 평가 질문 gold 단일 소스 (기대 근거 포함)
 - `eval/` — 정적 점검 쿼리·평가 리포트
 - `.claude/skills/` — 평가 스킬 3종 (kg-eval-human, kg-eval-ai, kg-model-bench)
@@ -50,8 +53,8 @@ API e2e는 `pnpm --filter api test:e2e`로 실행하며, 테스트 전용 Neo4j 
 적재기(`sync-neo4j`)는 MERGE 전용이라 노드가 자동으로 줄지 않는다.
 정규화를 고쳐 노드가 합쳐지게 만들었어도, 그래프를 비우고 다시 적재해야 병합 효과가 보인다.
 
-`NEO4J_URI`는 인라인으로 주면 첫 줄에만 걸린다. `apply-schema`·`sync-neo4j`는 기본값
-`bolt://localhost:7687`로 붙으므로, 세 명령 모두에 같은 URI가 걸리도록 `export`로 셸에 남겨야 한다.
+`reset-neo4j`·`apply-schema`·`sync-neo4j` 는 `NEO4J_URI` 가 없으면 실행하지 않는다.
+인라인으로 주면 첫 줄에만 걸리므로, 세 명령 모두에 같은 URI가 걸리도록 `export`로 셸에 남겨야 한다.
 
 ```bash
 export NEO4J_URI=bolt://localhost:7690
@@ -60,8 +63,7 @@ pnpm apply-schema
 pnpm --filter pipeline sync-neo4j
 ```
 
-`reset-neo4j`는 `NEO4J_URI`가 없으면 실행하지 않는다 — 삭제 대상을 항상 명시하게 만든다.
-`--force` 없이도 실행을 거부하고, 대상 포트가 운영(`7687`)이면 `--allow-production`을 함께 줘야 한다.
+`reset-neo4j`는 `--force` 없이도 실행을 거부하고, 대상 포트가 운영(`7687`)이면 `--allow-production`을 함께 줘야 한다.
 산출물 `jsonl`이 `data/graph/`에 남아 있으므로 초기화 후 재적재로 항상 복원된다.
 
 ## 모델 구성

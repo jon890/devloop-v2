@@ -5,6 +5,17 @@
 이 문서는 **모듈 책임과 의존 방향**을 소유한다.
 단계 흐름은 `docs/flow.md`, 데이터 계약은 `docs/data-schema.md` 가 소유한다.
 
+## 스택 제약
+
+| 항목 | 제약 |
+| --- | --- |
+| 언어 | TypeScript 단일. 파이프라인·API 는 NestJS, 프론트는 React 와 Vite |
+| 지식그래프 | Neo4j (docker-compose) |
+| 판단 저장소 | Postgres 채택, 아직 미구현 ([ADR 0005](adr/0005-curation-in-relational-store.md)) |
+| LLM | 구독 계정 CLI 만 쓴다. 종량제 API 는 금지다 ([ADR 0002](adr/0002-llm-via-subscription-cli.md)) |
+| 원천 접근 | 기존 `dooray-cli` 를 자식 프로세스로 호출해 재사용한다. 인증을 다시 구현하지 않는다 |
+| 실행 환경 | 로컬 개발 기계 |
+
 ## 분할 기준
 
 두 기준을 **직교하게** 쓴다.
@@ -38,12 +49,16 @@ apps/web/            React 와 Vite UI
 
 ```mermaid
 flowchart LR
-    SHARED["packages/shared"] --> PIPE["apps/pipeline"]
+    SHARED --> PIPE["apps/pipeline"]
     SHARED --> API["apps/api"]
     SHARED --> WEB["apps/web"]
 ```
 
 `apps/*` 끼리는 서로 의존하지 않는다. 공유가 필요하면 `packages/shared` 로 올린다.
+
+ADR 0005가 채택한 판단 저장소 패키지와 명령은 아직 구현되지 않았다.
+구현할 때는 웹이 import하는 `packages/shared`에 Node 전용 저장소 클라이언트를 넣지 않고,
+별도 패키지로 경계를 둔다.
 
 **`packages/shared` 를 고치면 의존 앱을 다시 빌드해야 한다.**
 `pnpm --filter api test:unit` 은 shared 를 재빌드하지 않는다.
@@ -70,10 +85,19 @@ flowchart LR
 | `parse/` | `parse-structure` | 규칙 파싱. 정규식·필드 매핑만 쓴다 |
 | `infer/` | `infer-knowledge` | LLM 추출. 캐시·재시도·동시성·관계 검증 |
 | `neo4j/` | `sync-neo4j`·`apply-schema` | DB 를 건드리는 것만 모은다 |
+| `config/` | — | 환경변수 검증과 주입 |
 | `llm/` | — | LLM CLI 어댑터 (codex·claude) |
 | `raw-reader.ts` | — | 원본 읽기. `parse` 와 `infer` 가 함께 쓴다 |
 
 `raw-reader.ts` 가 루트에 있는 이유 — 두 단계가 공용으로 쓰므로 한쪽에 넣으면 의존이 역류한다.
+
+### 설정은 단계 함수에 인자로 내려간다
+
+파이프라인도 API 와 같이 검증된 설정 객체를 쓴다 ([ADR 0003](adr/0003-fail-fast-config.md)).
+`main.ts` 가 이미 Nest 애플리케이션 컨텍스트를 띄우므로 새 장치가 아니다.
+
+단계 명령들은 DI 밖 평범한 함수이므로 **설정을 인자로 받는다.**
+전역 접근을 남기면 어느 값이 어디서 쓰이는지 다시 흩어져 이관의 의미가 없다.
 
 ### `neo4j/sync.ts` 를 875줄에서 303줄로 줄였다
 

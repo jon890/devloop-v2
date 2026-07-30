@@ -1,7 +1,9 @@
+import "reflect-metadata";
 import neo4j, { type Driver } from "neo4j-driver";
+import { type PipelineConfig, withPipelineConfig } from "../config";
 import { normalizeConceptKey } from "../resolve/concept-alias";
 import { CONCEPT_KEY_MERGE_DENYLIST } from "../resolve/concept-alias.const";
-import { neo4jCredentials } from "../neo4j/neo4j-config";
+import { neo4jCredentials, requireNeo4jConfig } from "../neo4j/neo4j-config";
 
 interface ConceptSummary {
   name: string;
@@ -80,9 +82,10 @@ function printReport(concepts: readonly ConceptSummary[]): void {
   });
 }
 
-async function main(): Promise<void> {
-  const uri = process.env.NEO4J_URI ?? "bolt://localhost:7687";
-  const { user, password } = neo4jCredentials();
+export async function auditConcepts(config: PipelineConfig): Promise<void> {
+  const dbConfig = requireNeo4jConfig(config, "audit-concepts");
+  const uri = dbConfig.neo4j.uri;
+  const { user, password } = neo4jCredentials(dbConfig);
   const driver = neo4j.driver(uri, neo4j.auth.basic(user, password));
   try {
     printReport(await readConcepts(driver));
@@ -92,7 +95,7 @@ async function main(): Promise<void> {
 }
 
 if (require.main === module) {
-  void main().catch((error) => {
+  void withPipelineConfig((config) => auditConcepts(config)).catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

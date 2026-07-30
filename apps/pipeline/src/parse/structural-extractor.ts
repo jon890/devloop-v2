@@ -5,11 +5,13 @@ import type { ConceptKind, OntologyNode, OntologyRelationship, RawDoorayObject }
 import { GraphRecordSchema, nodeRef, type GraphRecord } from "./graph-record.schema";
 import { CODE_REFERENCE_PATTERN, TAG_DIMENSION_PATTERN } from "./structural-extractor.const";
 import { findTaskReferences } from "./task-reference";
+import type { PipelineConfig } from "../config";
 import { asRecordArray, firstString, readRawProject, textContent, valueAt } from "../raw-reader";
 
 export interface StructuralExtractionOptions {
   dataRoot: string;
   project: string;
+  config?: PipelineConfig;
 }
 
 export interface StructuralExtractionResult {

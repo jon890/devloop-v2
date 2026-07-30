@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { CORE_CONCEPTS, ConceptDictionarySchema, INFERRED_GRAPH_FILE, type ConceptDictionary } from "@devloop/shared";
 import { LlmReasoningEffortSchema, type LlmCli, type LlmReasoningEffort } from "../llm";
+import type { PipelineConfig } from "../config";
 import { buildExtractionPrompt, buildJsonRepairPrompt, EXTRACTION_PROMPT_VERSION, type ExtractionPromptDocument } from "./extraction-prompt";
 import { LlmExtractionSchema, type LlmExtraction } from "./llm-extraction.schema";
 import { sanitizeLlmExtractions, type DroppedRelationshipsReport } from "./llm-relationship-sanitizer";
@@ -19,6 +20,7 @@ interface CacheEnvelope {
 export interface LlmExtractionOptions {
   dataRoot: string;
   project: string;
+  config?: PipelineConfig;
   model: string;
   effort?: LlmReasoningEffort;
   llm: LlmCli;
@@ -348,7 +350,7 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
   const concurrency = options.concurrency ?? 4;
   const maxAttempts = options.maxAttempts ?? 3;
   const retryDelayMs = options.retryDelayMs ?? 1_000;
-  const effort = LlmReasoningEffortSchema.optional().parse(options.effort ?? process.env.LLM_REASONING_EFFORT);
+  const effort = LlmReasoningEffortSchema.optional().parse(options.effort ?? options.config?.llm.reasoningEffort);
   if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("concurrency must be a positive integer.");
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3) {
     throw new Error("maxAttempts must be an integer between 1 and 3.");
