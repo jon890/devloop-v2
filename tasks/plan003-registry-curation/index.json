@@ -1,0 +1,37 @@
+{
+  "name": "plan003-registry-curation",
+  "description": "사람이 내린 Concept 판단을 Postgres 로 옮겨 사전 재생성이 지우지 못하게 만든다",
+  "status": "pending",
+  "created_at": "2026-07-30",
+  "total_phases": 4,
+  "phases": [
+    {
+      "number": 1,
+      "file": "phase-01.md",
+      "title": "Postgres 와 registry 패키지 골격을 세운다",
+      "execution_profile": "standard",
+      "status": "pending"
+    },
+    {
+      "number": 2,
+      "file": "phase-02.md",
+      "title": "repository 와 service 계층을 만들고 주고받기 명령을 붙인다",
+      "execution_profile": "standard",
+      "status": "pending"
+    },
+    {
+      "number": 3,
+      "file": "phase-03.md",
+      "title": "사전 합성을 한 곳으로 모으고 재생성이 판단을 지우지 못하게 한다",
+      "execution_profile": "standard",
+      "status": "pending"
+    },
+    {
+      "number": 4,
+      "file": "phase-04.md",
+      "title": "승인된 판단을 주입하고 병합 효과를 적재 없이 확인한다",
+      "execution_profile": "standard",
+      "status": "pending"
+    }
+  ]
+}
