@@ -136,31 +136,43 @@ function compareCanonicalCodePoint(left: string, right: string): number {
   return left < right ? -1 : 1;
 }
 
+interface ConceptWinner {
+  canonical: string;
+  kind: ConceptKind;
+}
+
 function canonicalWinners(
   existingConcepts: readonly ConceptEntry[],
   generatedConcepts: readonly ConceptEntry[],
   blockedConceptKeys: ReadonlySet<string>,
-): Map<string, string> {
-  const winners = new Map<string, string>();
+): Map<string, ConceptWinner> {
+  const winners = new Map<string, ConceptWinner>();
 
-  // Existing spellings win. Without one, code-point order makes a fresh seed
-  // deterministic regardless of the order in which raw sources are visited.
+  // Existing entries win. Without one, code-point order of canonical and kind
+  // makes a fresh seed deterministic regardless of raw source traversal order.
   for (const entries of [existingConcepts, generatedConcepts]) {
-    for (const entry of [...entries].sort((left, right) => compareCanonicalCodePoint(left.canonical, right.canonical))) {
+    for (const entry of [...entries].sort(
+      (left, right) =>
+        compareCanonicalCodePoint(left.canonical, right.canonical) || compareCanonicalCodePoint(left.kind, right.kind),
+    )) {
       const conceptKey = normalizeConceptKey(entry.canonical);
       if (!conceptKey || blockedConceptKeys.has(conceptKey) || winners.has(conceptKey)) continue;
-      winners.set(conceptKey, entry.canonical);
+      winners.set(conceptKey, { canonical: entry.canonical, kind: entry.kind });
     }
   }
 
   return winners;
 }
 
-function preferCanonical(entry: ConceptEntry, canonicalByKey: ReadonlyMap<string, string>, blockedConceptKeys: ReadonlySet<string>): ConceptEntry {
+function preferWinner(
+  entry: ConceptEntry,
+  winnerByKey: ReadonlyMap<string, ConceptWinner>,
+  blockedConceptKeys: ReadonlySet<string>,
+): ConceptEntry {
   const conceptKey = normalizeConceptKey(entry.canonical);
   if (!conceptKey || blockedConceptKeys.has(conceptKey)) return entry;
-  const canonical = canonicalByKey.get(conceptKey);
-  return canonical ? { ...entry, canonical } : entry;
+  const winner = winnerByKey.get(conceptKey);
+  return winner ? { ...entry, canonical: winner.canonical, kind: winner.kind } : entry;
 }
 
 function tagConcept(name: string): ConceptEntry {
@@ -209,13 +221,13 @@ export async function seedConcepts(options: ConceptSeedOptions): Promise<Concept
     }
   }
 
-  const canonicalByKey = canonicalWinners(existingConcepts, generatedConcepts, blockedConceptKeys);
+  const winnerByKey = canonicalWinners(existingConcepts, generatedConcepts, blockedConceptKeys);
   for (const generated of generatedConcepts) {
-    mergeConcept(concepts, preferCanonical(generated, canonicalByKey, blockedConceptKeys));
+    mergeConcept(concepts, preferWinner(generated, winnerByKey, blockedConceptKeys));
   }
 
   for (const existing of existingConcepts) {
-    mergeConcept(concepts, preferCanonical(existing, canonicalByKey, blockedConceptKeys));
+    mergeConcept(concepts, preferWinner(existing, winnerByKey, blockedConceptKeys));
   }
 
   const withoutConflicts = removeConflictingAliases([...concepts.values()], judgedAliasOwners).sort((left, right) =>

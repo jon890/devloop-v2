@@ -272,7 +272,7 @@ test('태그 차원·위키 영문 기술어·업무 prefix로 중복 없는 Con
   });
   assert.deepEqual(byCanonical.get('OCR.API'), {
     canonical: 'OCR.API',
-    kind: 'component',
+    kind: 'tech',
     aliases: ['OCR API', 'legacy-api', 'legacy-api-2'],
   });
   assert.ok(byCanonical.has('Log & Crash'));
@@ -365,20 +365,27 @@ test('seed-concepts 는 대소문자만 다른 원천 표기보다 기존 canoni
   assert.equal(concepts.some((entry) => entry.canonical === 'OCR.\bAdmin'), false);
 });
 
-test('기존 canonical 이 없는 정규화 충돌은 코드포인트 순으로 결정한다', async () => {
-  const dataRoot = await fixtureDataRoot();
-  await writeFile(path.join(dataRoot, 'raw', 'tc-ocr', 'wiki', '203.json'), JSON.stringify({
-    pageId: 203,
-    subject: 'OCR.Doc / OCR.DOC',
-    parentId: 0,
-    body: { content: '' },
-  }));
+test('기존 canonical 이 없는 정규화 충돌은 입력 순서와 무관하게 canonical 과 kind 를 결정한다', async () => {
+  const firstRoot = await fixtureDataRoot();
+  const secondRoot = await fixtureDataRoot();
+  const tagCandidates = [
+    ['tag-type', '0: OCR.DOC'],
+    ['tag-component', '2: OCR.DOC'],
+    ['tag-case', 'OCR.Doc'],
+  ];
+  await writeFile(path.join(firstRoot, 'raw', 'tc-ocr', 'tags.json'), JSON.stringify(Object.fromEntries(tagCandidates)));
+  await writeFile(path.join(secondRoot, 'raw', 'tc-ocr', 'tags.json'), JSON.stringify(Object.fromEntries([...tagCandidates].reverse())));
 
-  const result = await seedConcepts({ dataRoot, project: 'tc-ocr', curation: { merges: [], blocks: [] } });
-  const concepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(result.outputPath, 'utf8')));
+  const first = await seedConcepts({ dataRoot: firstRoot, project: 'tc-ocr', curation: { merges: [], blocks: [] } });
+  const second = await seedConcepts({ dataRoot: secondRoot, project: 'tc-ocr', curation: { merges: [], blocks: [] } });
+  const firstConcepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(first.outputPath, 'utf8')));
+  const secondConcepts = ConceptDictionarySchema.parse(JSON.parse(await readFile(second.outputPath, 'utf8')));
+  const firstWinner = firstConcepts.find((entry) => normalizeConceptKey(entry.canonical) === normalizeConceptKey('OCR.DOC'));
+  const secondWinner = secondConcepts.find((entry) => normalizeConceptKey(entry.canonical) === normalizeConceptKey('OCR.DOC'));
 
-  assert.equal(concepts.some((entry) => entry.canonical === 'OCR.DOC'), true);
-  assert.equal(concepts.some((entry) => entry.canonical === 'OCR.Doc'), false);
+  assert.deepEqual(firstWinner, secondWinner);
+  assert.equal(firstWinner.canonical, 'OCR.DOC');
+  assert.equal(firstWinner.kind, 'component');
 });
 
 test('removeConflictingAliases 는 판단 alias 를 의도된 canonical 에만 보존한다', () => {
