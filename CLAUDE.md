@@ -225,12 +225,20 @@ gold 는 필수(`required`)와 보강(`supporting`)으로 나눠 적는다.
 
 ```bash
 # cwd: 저장소 루트
-docker compose --profile test down                 # 테스트 컨테이너 제거 (stop 이 아니라 down)
+docker compose rm -sf neo4j-test postgres-test     # 테스트 컨테이너만 지운다
 docker ps --format '{{.Names}} {{.Ports}}'         # 남은 것 확인
 lsof -nP -iTCP:3000 -iTCP:5173 -sTCP:LISTEN        # dev 서버 확인
 ```
 
-- **테스트 인스턴스는 `down` 으로 제거한다.** `Exited` 상태로 남기면 "정리했다" 와 구분되지 않는다
+**`docker compose --profile test down` 을 쓰지 마라.** `down` 은 프로필과 무관하게
+**compose 프로젝트 전체를 제거한다.** 실제로 그 명령으로 운영 Neo4j 컨테이너가 지워졌다
+(볼륨이 남아 재기동으로 복구했지만 `-v` 가 붙었으면 데이터를 잃었다).
+
+서비스 이름을 명시하는 `rm -sf <서비스>` 만 쓴다. 지울 대상을 손으로 적게 만드는 것이 요점이다.
+
+- **테스트 인스턴스는 제거한다.** `Exited` 상태로 남기면 "정리했다" 와 구분되지 않는다
+- **다른 워크트리에서 띄운 컨테이너는 compose 프로젝트가 다르다.** 저장소 루트에서
+  `docker compose` 로 지워지지 않는다. `docker rm -f <이름>` 으로 직접 지운다
 - **개발 인스턴스(Neo4j 7687·Postgres 15434)는 유지한다.** 운영 데이터가 들어 있다
 - **작업이 코드를 바꿨으면 dev 서버(API 3000·web 5173)를 재시작한다.**
   낡은 프로세스가 새 계약을 만족하지 못해 화면이 비는 사고가 실제로 났다
