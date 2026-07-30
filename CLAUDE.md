@@ -216,6 +216,27 @@ gold 는 필수(`required`)와 보강(`supporting`)으로 나눠 적는다.
 - 모델 — 추출 `gpt-5.5`, 질의 `gpt-5.6-terra` (벤치마크로 확정)
 - 테스트는 데모 데이터가 아니라 실제 Dooray·GHE 데이터로 한다
 
+### 워크트리는 이 프로젝트 폴더 옆에 만든다
+
+`~/personal/devloop-v2-<slug>` 형태로 만든다. `~/orca/workspaces/` 아래에 만들지 않는다.
+
+`~/.gitconfig` 의 조건부 규칙이 `~/personal/` 경로에만 개인 계정을 적용한다.
+그 밖에서 만든 체크아웃은 **직전에 활성이던 계정이 그대로 박힌다** —
+실제로 공개 저장소 첫 커밋에 사내 이메일이 들어가 GitHub 이 사내 계정으로 표시한 사고가 있었다.
+
+`orca worktree create` 는 경로를 지정할 수 없다. 그래서 두 단계로 만든다.
+
+```bash
+# cwd: 저장소 루트
+git worktree add ../devloop-v2-<slug> -b <branch> <base-branch>
+orca terminal create --worktree path:/Users/nhn/personal/devloop-v2-<slug> --command "codex"
+```
+
+**`.env` 와 `apps/pipeline/data` 를 복사하고 `pnpm install` 을 한 뒤 에이전트를 띄운다.**
+둘 다 gitignore 대상이라 복제되지 않고, 없으면 phase 가 `PHASE_BLOCKED` 로 멈춘다.
+
+커밋 전에 `git config user.email` 이 개인 주소인지 확인한다.
+
 ## 겪은 함정
 
 ### 부분 재측정으로 전체를 단정하지 마라
