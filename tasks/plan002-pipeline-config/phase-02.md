@@ -41,13 +41,17 @@
 
 | 값 | 필수 | 기본값 |
 | --- | --- | --- |
-| `NEO4J_URI` | **필수** | 두지 않는다 |
+| `NEO4J_URI` | **Neo4j 명령에서 필수** | 두지 않는다 |
 | `NEO4J_AUTH` | 선택 | `neo4j/devloop-password` |
 | `NEO4J_USER` | 선택 | 없음 |
 | `NEO4J_PASSWORD` | 선택 | 없음 |
 
 `NEO4J_AUTH` 와 `NEO4J_USER`·`NEO4J_PASSWORD` 의 우선순위는 **현재 동작을 그대로 유지한다**
 (`neo4j-config.ts` 를 읽고 어느 쪽이 이기는지 확인해 그대로 옮겨라). 이 우선순위를 바꾸지 마라.
+
+파이프라인 설정 객체는 비DB 명령도 함께 쓰므로 원시 스키마에서 `NEO4J_URI` 부재를 허용한다.
+대신 `sync-neo4j`·`apply-schema`·`audit-concepts`·`reset-neo4j` 네 진입점이 같은 가드로
+부재를 거부한다. 그래야 `parse-structure`·`resolve-graph`까지 DB 설정 때문에 막히지 않는다.
 
 ### 2. 일곱 곳을 설정 인자로 바꾼다
 
@@ -110,7 +114,7 @@ pnpm format:check
 
 ### 필수화 가드 테스트 (필수)
 
-- `NEO4J_URI` 가 없으면 기동이 실패하고 **변수 이름이 메시지에 나온다**
+- `NEO4J_URI` 가 없으면 네 Neo4j 명령이 DB 작업 전에 실패하고 **변수 이름이 메시지에 나온다**
 - 자격증명 우선순위(`NEO4J_AUTH` 대 `NEO4J_USER`·`NEO4J_PASSWORD`)가 이전과 같다
 - **변이 검증** — 필수 판정을 무력화했을 때 그 테스트가 실제로 실패하는지 확인하고 원복한다.
   `git status` 가 깨끗한지 보여라
