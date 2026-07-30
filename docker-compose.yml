@@ -25,7 +25,35 @@ services:
       timeout: 5s
       retries: 30
       start_period: 10s
+  postgres:
+    image: postgres:17
+    ports:
+      - "15434:5432"
+    environment:
+      POSTGRES_DB: devloop_registry
+      POSTGRES_USER: devloop
+      POSTGRES_PASSWORD: devloop-password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+  postgres-test:
+    image: postgres:17
+    profiles: ["test"]
+    ports:
+      - "15435:5432"
+    environment:
+      POSTGRES_DB: devloop_registry
+      POSTGRES_USER: devloop
+      POSTGRES_PASSWORD: devloop-test-password
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U devloop -d devloop_registry"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
 
 volumes:
   neo4j-data:
   neo4j-logs:
+  postgres-data:

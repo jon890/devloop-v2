@@ -26,6 +26,7 @@ export const PipelineEnvSchema = z.object({
   NEO4J_AUTH: z.string().default(DEFAULT_NEO4J_AUTH),
   NEO4J_USER: optionalRawText,
   NEO4J_PASSWORD: optionalRawText,
+  REGISTRY_DATABASE_URL: optionalRawText,
   LLM_PROVIDER: z.enum(LLM_PROVIDERS).default(DEFAULT_LLM_PROVIDER),
   LLM_MODEL: optionalRawText,
   LLM_REASONING_EFFORT: z.enum(LLM_REASONING_EFFORTS).optional(),
@@ -36,6 +37,7 @@ export const PipelineEnvSchema = z.object({
 
 export interface PipelineConfig {
   neo4j: { uri?: string; user: string; password: string };
+  registry: { databaseUrl?: string };
   llm: {
     provider: (typeof LLM_PROVIDERS)[number];
     model?: string;
@@ -57,6 +59,9 @@ export const PipelineConfigSchema = PipelineEnvSchema.transform((env): PipelineC
       uri: env.NEO4J_URI,
       user: credentials.user,
       password: credentials.password,
+    },
+    registry: {
+      databaseUrl: env.REGISTRY_DATABASE_URL,
     },
     llm: {
       provider: env.LLM_PROVIDER,

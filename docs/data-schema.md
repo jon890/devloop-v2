@@ -202,6 +202,14 @@ Concept 이름 파편화가 관계형 질문의 연결을 끊는 **1번 위험**
 | `source` | 프로젝트에 붙는 원천 (Dooray·GitHub) | `(kind, external_key)` 유일. 한 소스는 한 프로젝트에만 붙는다 |
 | `concept_decision` | 판단 한 건 | `(project_id, key_norm)` 유일 |
 
+컬럼 계약이다.
+
+| 표 | 컬럼 |
+| --- | --- |
+| `project` | `id serial primary key`<br>`code text not null unique`<br>`name text`<br>`created_at timestamptz not null default now()` |
+| `source` | `id serial primary key`<br>`project_id integer not null references project(id) on delete cascade`<br>`kind text not null check (kind in ('dooray', 'github'))`<br>`external_key text not null`<br>`created_at timestamptz not null default now()`<br>`unique (kind, external_key)` |
+| `concept_decision` | `id serial primary key`<br>`project_id integer not null references project(id) on delete cascade`<br>`key_raw text not null`<br>`key_norm text not null`<br>`kind text not null check (kind in ('merge_alias', 'block'))`<br>`canonical text`<br>`reason text not null`<br>`approved_at date`<br>`created_at timestamptz not null default now()`<br>`unique (project_id, key_norm)`<br>`check ((kind = 'merge_alias') = (canonical is not null))` |
+
 `concept_decision` 의 종류는 두 가지다.
 
 - `merge_alias` — 이 표기는 `canonical` 과 같은 개체다

@@ -30,6 +30,9 @@ test("NEO4J_URI 가 있으면 설정으로 파싱된다", () => {
         user: "neo4j",
         password: "devloop-password",
       },
+      registry: {
+        databaseUrl: undefined,
+      },
       llm: {
         provider: "codex",
         model: undefined,
@@ -55,8 +58,21 @@ test("알 수 없는 환경변수는 PipelineConfig 로 새지 않는다", () =>
     PIPELINE_DATA_DIR: "/tmp/devloop-data",
   });
 
-  assert.deepEqual(Object.keys(validated.pipeline).sort(), ["llm", "neo4j", "pipelineDataDir"]);
+  assert.deepEqual(Object.keys(validated.pipeline).sort(), ["llm", "neo4j", "pipelineDataDir", "registry"]);
   assert.deepEqual(Object.keys(validated.pipeline.neo4j).sort(), ["password", "uri", "user"]);
+  assert.deepEqual(Object.keys(validated.pipeline.registry).sort(), ["databaseUrl"]);
+});
+
+test("REGISTRY_DATABASE_URL 은 선택 설정으로 파싱된다", () => {
+  const missing = validatePipelineConfig(validEnv()).pipeline;
+  assert.equal(missing.registry.databaseUrl, undefined);
+
+  const configured = validatePipelineConfig(
+    validEnv({
+      REGISTRY_DATABASE_URL: "postgresql://devloop:devloop-password@localhost:15434/devloop_registry",
+    }),
+  ).pipeline;
+  assert.equal(configured.registry.databaseUrl, "postgresql://devloop:devloop-password@localhost:15434/devloop_registry");
 });
 
 test("LLM 선택 값은 기본값과 지정값을 파싱한다", () => {
@@ -234,6 +250,9 @@ test("PIPELINE_CONFIG 토큰으로 검증된 설정 객체를 주입한다", asy
           uri: "bolt://localhost:7690",
           user: "neo4j",
           password: "devloop-password",
+        },
+        registry: {
+          databaseUrl: undefined,
         },
         llm: {
           provider: "codex",

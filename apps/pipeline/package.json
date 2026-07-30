@@ -4,7 +4,7 @@
   "private": true,
   "main": "dist/main.js",
   "scripts": {
-    "build": "pnpm --filter @devloop/shared build && tsc -p tsconfig.json && cp src/neo4j/schema.cy dist/neo4j/schema.cy",
+    "build": "pnpm --filter @devloop/shared build && pnpm --filter @devloop/registry build && tsc -p tsconfig.json && cp src/neo4j/schema.cy dist/neo4j/schema.cy",
     "fetch-dooray": "pnpm build && node dist/main.js fetch-dooray",
     "pipeline": "pnpm build && node dist/main.js",
     "start": "node dist/main.js",
@@ -16,9 +16,11 @@
     "seed-concepts": "pnpm build && node dist/main.js seed-concepts",
     "parse-structure": "pnpm build && node dist/main.js parse-structure",
     "infer-knowledge": "pnpm build && node dist/main.js infer-knowledge",
-    "test": "pnpm --filter @devloop/shared build && pnpm build && node --test dist/cli-options.test.js dist/config/*.test.js dist/fetch/*.test.js dist/infer/*.test.js dist/llm/*.test.js dist/neo4j/*.test.js dist/resolve/*.test.js test/*.test.cjs"
+    "migrate-registry": "pnpm build && node dist/registry/migrate.js",
+    "test": "pnpm --filter @devloop/shared build && pnpm build && node --test dist/cli-options.test.js dist/config/*.test.js dist/fetch/*.test.js dist/infer/*.test.js dist/llm/*.test.js dist/neo4j/*.test.js dist/registry/*.test.js dist/resolve/*.test.js test/*.test.cjs"
   },
   "dependencies": {
+    "@devloop/registry": "workspace:*",
     "@devloop/shared": "workspace:*",
     "@nestjs/common": "^11.1.0",
     "@nestjs/config": "^4.0.4",

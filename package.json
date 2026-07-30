@@ -7,6 +7,7 @@
     "build": "pnpm -r build",
     "pipeline": "pnpm --filter pipeline pipeline",
     "apply-schema": "pnpm --filter pipeline apply-schema",
+    "migrate-registry": "pnpm --filter pipeline migrate-registry",
     "api": "pnpm --filter api start",
     "web": "pnpm --filter web dev",
     "format": "prettier --write \"**/*.{ts,tsx}\"",

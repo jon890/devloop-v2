@@ -10,7 +10,7 @@
       "file": "phase-01.md",
       "title": "Postgres 와 registry 패키지 골격을 세운다",
       "execution_profile": "standard",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "number": 2,
