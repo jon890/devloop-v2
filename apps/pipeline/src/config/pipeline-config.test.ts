@@ -30,6 +30,14 @@ test("NEO4J_URI 가 있으면 설정으로 파싱된다", () => {
         user: "neo4j",
         password: "devloop-password",
       },
+      llm: {
+        provider: "codex",
+        model: undefined,
+        reasoningEffort: undefined,
+        concurrency: 4,
+        timeoutMs: 120_000,
+      },
+      pipelineDataDir: undefined,
     },
   });
 });
@@ -48,8 +56,48 @@ test("알 수 없는 환경변수는 PipelineConfig 로 새지 않는다", () =>
     PIPELINE_DATA_DIR: "/tmp/devloop-data",
   });
 
-  assert.deepEqual(Object.keys(validated.pipeline).sort(), ["neo4j"]);
+  assert.deepEqual(Object.keys(validated.pipeline).sort(), ["llm", "neo4j", "pipelineDataDir"]);
   assert.deepEqual(Object.keys(validated.pipeline.neo4j).sort(), ["password", "uri", "user"]);
+});
+
+test("LLM 선택 값은 기본값과 지정값을 파싱한다", () => {
+  const defaults = validatePipelineConfig(validEnv()).pipeline;
+  assert.equal(defaults.llm.provider, "codex");
+  assert.equal(defaults.llm.model, undefined);
+  assert.equal(defaults.llm.reasoningEffort, undefined);
+  assert.equal(defaults.llm.concurrency, 4);
+  assert.equal(defaults.llm.timeoutMs, 120_000);
+
+  const configured = validatePipelineConfig(
+    validEnv({
+      LLM_PROVIDER: "claude",
+      LLM_MODEL: "gpt-5.5",
+      LLM_REASONING_EFFORT: "high",
+      LLM_CONCURRENCY: "8",
+      LLM_TIMEOUT_MS: "30000",
+      PIPELINE_DATA_DIR: "/tmp/devloop-data",
+    }),
+  ).pipeline;
+  assert.deepEqual(configured.llm, {
+    provider: "claude",
+    model: "gpt-5.5",
+    reasoningEffort: "high",
+    concurrency: 8,
+    timeoutMs: 30_000,
+  });
+  assert.equal(configured.pipelineDataDir, "/tmp/devloop-data");
+});
+
+test("LLM_PROVIDER 오타와 잘못된 effort는 거부한다", () => {
+  assert.throws(() => validatePipelineConfig(validEnv({ LLM_PROVIDER: "codexx" })), /LLM_PROVIDER/);
+  assert.throws(() => validatePipelineConfig(validEnv({ LLM_REASONING_EFFORT: "extreme" })), /LLM_REASONING_EFFORT/);
+});
+
+test("LLM_CONCURRENCY 와 LLM_TIMEOUT_MS 는 양의 정수여야 한다", () => {
+  for (const value of ["0", "-1", "1.5", "not-a-number"]) {
+    assert.throws(() => validatePipelineConfig(validEnv({ LLM_CONCURRENCY: value })), /LLM_CONCURRENCY/);
+    assert.throws(() => validatePipelineConfig(validEnv({ LLM_TIMEOUT_MS: value })), /LLM_TIMEOUT_MS/);
+  }
 });
 
 test("Neo4j 자격증명은 NEO4J_AUTH 기본값을 쓴다", () => {
@@ -158,6 +206,14 @@ test("PIPELINE_CONFIG 토큰으로 검증된 설정 객체를 주입한다", asy
           user: "neo4j",
           password: "devloop-password",
         },
+        llm: {
+          provider: "codex",
+          model: undefined,
+          reasoningEffort: undefined,
+          concurrency: 4,
+          timeoutMs: 120_000,
+        },
+        pipelineDataDir: undefined,
       });
     } finally {
       await app.close();

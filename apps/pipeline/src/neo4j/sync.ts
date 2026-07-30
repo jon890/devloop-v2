@@ -49,9 +49,9 @@ interface RelationshipMergeScope {
 
 type DatabaseKey = string | Integer;
 
-function parseArgs(args: readonly string[]): Omit<LoadOptions, "config"> {
+function parseArgs(args: readonly string[], config: PipelineConfig): Omit<LoadOptions, "config"> {
   const project = readFlag(args, "--project") ?? DEFAULT_PROJECT;
-  const dataDir = readDataDirFlag(args) ?? resolve(__dirname, "../../data");
+  const dataDir = readDataDirFlag(args, config) ?? resolve(__dirname, "../../data");
 
   return { project, dataDir: resolve(dataDir) };
 }
@@ -304,8 +304,7 @@ async function writeGraphToNeo4j(
 }
 
 if (require.main === module) {
-  const options = parseArgs(process.argv.slice(2));
-  void withPipelineConfig((config) => loadGraph({ ...options, config })).catch((error) => {
+  void withPipelineConfig((config) => loadGraph({ ...parseArgs(process.argv.slice(2), config), config })).catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });

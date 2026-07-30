@@ -16,10 +16,19 @@ const TEST_CONFIG = {
     user: "neo4j",
     password: "devloop-password",
   },
+  llm: {
+    provider: "codex" as const,
+    model: undefined,
+    reasoningEffort: undefined,
+    concurrency: 4,
+    timeoutMs: 120_000,
+  },
+  pipelineDataDir: undefined,
 };
 
 function configWithUri(uri: string) {
   return {
+    ...TEST_CONFIG,
     neo4j: {
       ...TEST_CONFIG.neo4j,
       uri,

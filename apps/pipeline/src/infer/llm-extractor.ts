@@ -350,7 +350,7 @@ export async function extractLlm(options: LlmExtractionOptions): Promise<LlmExtr
   const concurrency = options.concurrency ?? 4;
   const maxAttempts = options.maxAttempts ?? 3;
   const retryDelayMs = options.retryDelayMs ?? 1_000;
-  const effort = LlmReasoningEffortSchema.optional().parse(options.effort ?? process.env.LLM_REASONING_EFFORT);
+  const effort = LlmReasoningEffortSchema.optional().parse(options.effort ?? options.config?.llm.reasoningEffort);
   if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("concurrency must be a positive integer.");
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3) {
     throw new Error("maxAttempts must be an integer between 1 and 3.");

@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const { spawnSync } = require('node:child_process');
 const { chmod, cp, mkdir, mkdtemp, readFile, writeFile } = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
@@ -623,12 +624,10 @@ process.stdin.on('end', () => process.stdout.write(JSON.stringify({ result: inpu
 `, 'utf8');
   await Promise.all([chmod(codexPath, 0o755), chmod(claudePath, 0o755)]);
   const previousPath = process.env.PATH;
-  const previousEffort = process.env.LLM_REASONING_EFFORT;
   process.env.PATH = `${temporary}:${previousPath}`;
   process.env.WP2_ARGS_FILE = argsFile;
-  process.env.LLM_REASONING_EFFORT = 'low';
   try {
-    const codex = LlmResultSchema.parse(await new CodexCliAdapter().complete('codex prompt', { model: 'codex-model' }));
+    const codex = LlmResultSchema.parse(await new CodexCliAdapter().complete('codex prompt', { model: 'codex-model', effort: 'low' }));
     assert.equal(codex.text, '{"nodes":[],"relationships":[]}');
     const codexArgs = JSON.parse(await readFile(argsFile, 'utf8'));
     assert.deepEqual(codexArgs.slice(0, 5), ['exec', '--sandbox', 'read-only', '--ephemeral', '--output-last-message']);
@@ -653,8 +652,21 @@ process.stdin.on('end', () => process.stdout.write(JSON.stringify({ result: inpu
     ]);
   } finally {
     process.env.PATH = previousPath;
-    if (previousEffort === undefined) delete process.env.LLM_REASONING_EFFORT;
-    else process.env.LLM_REASONING_EFFORT = previousEffort;
     delete process.env.WP2_ARGS_FILE;
   }
+});
+
+test('infer-knowledge 는 LLM_MODEL 이 없으면 LLM 호출 전에 거부한다', () => {
+  const result = spawnSync(process.execPath, [path.join(__dirname, '../dist/main.js'), 'infer-knowledge'], {
+    cwd: path.join(__dirname, '..'),
+    env: {
+      ...process.env,
+      NEO4J_URI: 'bolt://localhost:7690',
+      LLM_MODEL: '',
+    },
+    encoding: 'utf8',
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(`${result.stdout}\n${result.stderr}`, /LLM_MODEL is required for LLM extraction/);
 });

@@ -1,3 +1,5 @@
+import type { PipelineConfig } from "./config";
+
 export const DEFAULT_PROJECT = "tc-ocr";
 
 export interface PipelineOptions {
@@ -79,6 +81,6 @@ export function readFlag(args: readonly string[], flag: string): string | undefi
  * `resolve/` 가 `neo4j/` 를 몰라야 하므로(CLAUDE.md), 이 함수는 둘 다 이미 의존하는
  * `cli-options.ts` 에 둔다 — 어느 한쪽에 두면 다른 쪽이 그쪽을 import 해야 한다.
  */
-export function readDataDirFlag(args: readonly string[]): string | undefined {
-  return readFlag(args, "--data-dir") ?? process.env.PIPELINE_DATA_DIR;
+export function readDataDirFlag(args: readonly string[], config: Pick<PipelineConfig, "pipelineDataDir">): string | undefined {
+  return readFlag(args, "--data-dir") ?? config.pipelineDataDir;
 }

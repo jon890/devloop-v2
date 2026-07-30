@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { DEFAULT_NEO4J_AUTH } from "./pipeline-config.const";
+import {
+  DEFAULT_LLM_CONCURRENCY,
+  DEFAULT_LLM_PROVIDER,
+  DEFAULT_LLM_TIMEOUT_MS,
+  DEFAULT_NEO4J_AUTH,
+  LLM_PROVIDERS,
+  LLM_REASONING_EFFORTS,
+} from "./pipeline-config.const";
 
 /**
  * 빈 문자열은 "값 없음"으로 취급한다. `.env` 에 `KEY=` 로 남은 줄이 기본값을 건너뛰지 않게 한다.
@@ -20,10 +27,24 @@ export const PipelineEnvSchema = z.object({
   NEO4J_AUTH: z.string().default(DEFAULT_NEO4J_AUTH),
   NEO4J_USER: optionalText,
   NEO4J_PASSWORD: optionalText,
+  LLM_PROVIDER: z.preprocess(emptyToUndefined, z.enum(LLM_PROVIDERS).default(DEFAULT_LLM_PROVIDER)),
+  LLM_MODEL: optionalText,
+  LLM_REASONING_EFFORT: z.preprocess(emptyToUndefined, z.enum(LLM_REASONING_EFFORTS).optional()),
+  LLM_CONCURRENCY: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().default(DEFAULT_LLM_CONCURRENCY)),
+  LLM_TIMEOUT_MS: z.preprocess(emptyToUndefined, z.coerce.number().int().positive().default(DEFAULT_LLM_TIMEOUT_MS)),
+  PIPELINE_DATA_DIR: optionalText,
 });
 
 export interface PipelineConfig {
   neo4j: { uri: string; user: string; password: string };
+  llm: {
+    provider: (typeof LLM_PROVIDERS)[number];
+    model?: string;
+    reasoningEffort?: (typeof LLM_REASONING_EFFORTS)[number];
+    concurrency: number;
+    timeoutMs: number;
+  };
+  pipelineDataDir?: string;
 }
 
 export interface ValidatedPipelineConfig {
@@ -38,6 +59,14 @@ export const PipelineConfigSchema = PipelineEnvSchema.transform((env): PipelineC
       user: credentials.user,
       password: credentials.password,
     },
+    llm: {
+      provider: env.LLM_PROVIDER,
+      model: env.LLM_MODEL,
+      reasoningEffort: env.LLM_REASONING_EFFORT,
+      concurrency: env.LLM_CONCURRENCY,
+      timeoutMs: env.LLM_TIMEOUT_MS,
+    },
+    pipelineDataDir: env.PIPELINE_DATA_DIR,
   };
 });
 

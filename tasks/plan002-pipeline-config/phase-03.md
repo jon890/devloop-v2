@@ -1,7 +1,7 @@
 # Phase 03 — LLM 과 데이터 디렉터리 변수를 이관한다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

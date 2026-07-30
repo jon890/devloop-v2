@@ -1,6 +1,8 @@
+import "reflect-metadata";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import { RESOLVED_GRAPH_FILE } from "@devloop/shared";
 import { DEFAULT_PROJECT, readDataDirFlag, readFlag } from "../cli-options";
+import { type PipelineConfig, withPipelineConfig } from "../config";
 import { readResolveInput, writeResolved, writeResolveReport } from "./io";
 import { compareCodePoints } from "./node-merge";
 import { resolveGraph, type ResolveInput } from "./resolve";
@@ -55,9 +57,9 @@ function reportPathFor(outPath: string): string {
   return resolve(dir, `${stem}.resolve-report.json`);
 }
 
-export function parseResolveArgs(args: readonly string[]): ResolveCliOptions {
+export function parseResolveArgs(args: readonly string[], config: Pick<PipelineConfig, "pipelineDataDir">): ResolveCliOptions {
   const project = readFlag(args, "--project") ?? DEFAULT_PROJECT;
-  const dataDir = resolveDataDir(readDataDirFlag(args));
+  const dataDir = resolveDataDir(readDataDirFlag(args, config));
   // `--out` 은 상대 경로를 허용한다 — `--data-dir` 과 달리 두 실행 간 비교 안정성이 걸려 있지 않다.
   // dry-run 비교는 두 `--out` 산출물을 직접 `cmp` 하므로, 상대 경로가 매 실행 cwd 기준으로 풀려도
   // 같은 cwd 에서 두 번 실행하는 한 결과가 어긋나지 않는다. 빠뜨린 것이 아니라 의도적인 비대칭이다.
@@ -81,8 +83,8 @@ export function assertEndpointIndexNotEmpty(input: ResolveInput): void {
   }
 }
 
-export async function runResolveGraph(args: readonly string[]): Promise<void> {
-  const options = parseResolveArgs(args);
+export async function runResolveGraph(args: readonly string[], config: Pick<PipelineConfig, "pipelineDataDir">): Promise<void> {
+  const options = parseResolveArgs(args, config);
   const input = await readResolveInput(options.dataDir, options.project);
   assertEndpointIndexNotEmpty(input);
 
@@ -119,7 +121,7 @@ export async function runResolveGraph(args: readonly string[]): Promise<void> {
 }
 
 if (require.main === module) {
-  void runResolveGraph(process.argv.slice(2)).catch((error) => {
+  void withPipelineConfig((config) => runResolveGraph(process.argv.slice(2), config)).catch((error) => {
     console.error(error);
     process.exitCode = 1;
   });
