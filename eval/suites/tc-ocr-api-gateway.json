@@ -1,0 +1,1000 @@
+{
+  "schemaVersion": "kg-eval-suite/v1",
+  "project": "tc-ocr",
+  "flowId": "api-gateway-removal",
+  "title": "tc-ocr API Gateway 제거 대표 흐름 평가 세트",
+  "sourceSnapshot": "apps/pipeline/data/raw/tc-ocr/posts 483,491,494,496,497,498,499,501,502,506 확인",
+  "questions": [
+    {
+      "id": "AGW-H01",
+      "audience": "human",
+      "difficulty": "L4",
+      "question": "게이트웨이 뗀 거 왜 시작했고, 실제로는 어떤 크기 제한까지 같이 풀어야 했는지 업무 483 근거로 정리해줘.",
+      "answerability": "answerable",
+      "sourceRefs": [
+        {
+          "id": "task-483",
+          "type": "post",
+          "task": 483,
+          "postId": "4341679971084318100"
+        },
+        {
+          "id": "comment-483-planning",
+          "type": "comment",
+          "task": 483,
+          "postId": "4341679971084318100",
+          "commentId": "4350352062068741480"
+        }
+      ],
+      "graphChecks": [
+        {
+          "anchor": "task-483",
+          "depth": 1,
+          "requiredNodes": [
+            "task-483",
+            "comment-483-planning"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-483",
+              "end": "comment-483-planning"
+            }
+          ]
+        }
+      ],
+      "requiredEvidence": [
+        "task-483",
+        "comment-483-planning"
+      ],
+      "supportingEvidence": [],
+      "orderedEvents": [],
+      "expectedClaims": [
+        "API Gateway 제거는 촬영 이미지가 5MB를 넘는 경우가 많아진 상황에서 OCR 사용성을 개선하려는 결정이었다.",
+        "API Gateway의 데이터 전송량 제한이 서비스 사용에 지장을 주는 문제로 기록됐다.",
+        "API Gateway만 제거해도 문제가 끝나는 것이 아니라 nginx Ingress, OCR.API multipart, OCR.API WebClient 구간의 제한도 함께 상향해야 했다."
+      ],
+      "forbiddenClaims": [
+        "API Gateway 제거의 직접 원인을 업무 491의 RST 장애라고 단정하면 안 된다.",
+        "크기 제한은 API Gateway 한 곳만 풀면 해결된다고 답하면 안 된다."
+      ]
+    },
+    {
+      "id": "AGW-H02",
+      "audience": "human",
+      "difficulty": "L2",
+      "question": "API Gateway가 하던 일은 뭐였고, 없애면 어디로 옮기기로 했어?",
+      "answerability": "answerable",
+      "sourceRefs": [
+        {
+          "id": "task-483",
+          "type": "post",
+          "task": 483,
+          "postId": "4341679971084318100"
+        },
+        {
+          "id": "comment-483-planning",
+          "type": "comment",
+          "task": 483,
+          "postId": "4341679971084318100",
+          "commentId": "4350352062068741480"
+        }
+      ],
+      "graphChecks": [
+        {
+          "anchor": "task-483",
+          "depth": 1,
+          "requiredNodes": [
+            "task-483",
+            "comment-483-planning"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-483",
+              "end": "comment-483-planning"
+            }
+          ]
+        }
+      ],
+      "requiredEvidence": [
+        "comment-483-planning"
+      ],
+      "supportingEvidence": [
+        "task-483"
+      ],
+      "orderedEvents": [],
+      "expectedClaims": [
+        "API Gateway는 외부 도메인과 TLS, 데이터 크기 제한, 23개 경로 rewrite, x-nhn-apikey 인증 계층을 담당했다.",
+        "대체 구조는 새 공인 LoadBalancer와 nginx Ingress로 외부 진입과 rewrite를 처리하는 방향이었다.",
+        "경로 rewrite는 NKS nginx Ingress annotation으로 이전하고 앱 코드는 바꾸지 않는 것으로 확정됐다."
+      ],
+      "forbiddenClaims": [
+        "API Gateway가 rate-limit나 CORS 같은 별도 플러그인을 핵심 역할로 수행했다고 답하면 안 된다.",
+        "경로 rewrite 이전 대상이 OCR.API 애플리케이션 코드라고 답하면 안 된다."
+      ]
+    },
+    {
+      "id": "AGW-H03",
+      "audience": "human",
+      "difficulty": "L3",
+      "question": "공인 LB가 안 잡혔던 때 alpha랑 beta에 같이 보인 증상, 원인, 해결 조치를 알려줘.",
+      "answerability": "answerable",
+      "sourceRefs": [
+        {
+          "id": "task-483",
+          "type": "post",
+          "task": 483,
+          "postId": "4341679971084318100"
+        },
+        {
+          "id": "comment-483-lb-blocked",
+          "type": "comment",
+          "task": 483,
+          "postId": "4341679971084318100",
+          "commentId": "4368386203875572396"
+        },
+        {
+          "id": "comment-483-trust-fixed",
+          "type": "comment",
+          "task": 483,
+          "postId": "4341679971084318100",
+          "commentId": "4368487170324989096"
+        },
+        {
+          "id": "task-494",
+          "type": "post",
+          "task": 494,
+          "postId": "4368536352876432445"
+        }
+      ],
+      "graphChecks": [
+        {
+          "anchor": "task-483",
+          "depth": 1,
+          "requiredNodes": [
+            "task-483",
+            "comment-483-lb-blocked",
+            "comment-483-trust-fixed"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-483",
+              "end": "comment-483-lb-blocked"
+            },
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-483",
+              "end": "comment-483-trust-fixed"
+            }
+          ]
+        },
+        {
+          "anchor": "task-494",
+          "depth": 1,
+          "requiredNodes": [
+            "task-494",
+            "task-483"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "REFERENCES",
+              "start": "task-494",
+              "end": "task-483"
+            }
+          ]
+        }
+      ],
+      "requiredEvidence": [
+        "comment-483-lb-blocked",
+        "comment-483-trust-fixed"
+      ],
+      "supportingEvidence": [
+        "task-494"
+      ],
+      "orderedEvents": [],
+      "expectedClaims": [
+        "공통 증상은 NKS health 정지, csi-cinder 403, LB 생성 또는 갱신 503, k8s 업그레이드 실패로 정리됐다.",
+        "근본 원인은 클러스터 생성자 계정 권한 상실로 구세대 trust 인증이 무효화된 것이었다.",
+        "키페어 변경으로 service user 방식으로 전환한 뒤 health 회복, csi 정상화, 공인 LB 발급이 확인됐다.",
+        "업무 494는 공인 LB 생성 과정에서 드러난 trust 장애를 service user 전환과 k8s 업그레이드까지 함께 처리한 실행 업무다."
+      ],
+      "forbiddenClaims": [
+        "공인 LB 발급 실패의 근본 원인을 ingress-nginx chart 버전만으로 단정하면 안 된다.",
+        "지원 종료된 k8s 버전이 장애 시작 원인이라고 단정하면 안 된다."
+      ]
+    },
+    {
+      "id": "AGW-H04",
+      "audience": "human",
+      "difficulty": "L2",
+      "question": "20MB로 올리기 전에 모델서버 쪽에서 먼저 발견한 병목이 뭐였고 어떻게 조치했어?",
+      "answerability": "answerable",
+      "sourceRefs": [
+        {
+          "id": "task-497",
+          "type": "post",
+          "task": 497,
+          "postId": "4370459603968637011"
+        },
+        {
+          "id": "comment-497-model-buffer",
+          "type": "comment",
+          "task": 497,
+          "postId": "4370459603968637011",
+          "commentId": "4370653236611135492"
+        }
+      ],
+      "graphChecks": [
+        {
+          "anchor": "task-497",
+          "depth": 1,
+          "requiredNodes": [
+            "task-497",
+            "comment-497-model-buffer"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-497",
+              "end": "comment-497-model-buffer"
+            }
+          ]
+        }
+      ],
+      "requiredEvidence": [
+        "task-497",
+        "comment-497-model-buffer"
+      ],
+      "supportingEvidence": [],
+      "orderedEvents": [],
+      "expectedClaims": [
+        "상향 전 선행 검증에서 business 등록증 분석이 6MB 이상 이미지에서 실패했다.",
+        "그 병목은 OCR.API나 nginx 설정이 아니라 모델 서버 envoy 사이드카 버퍼 한도였다.",
+        "general, business_register, idcard 모델 서버의 관련 한도를 30MB로 올렸고, credit-card는 이미 충분해 변경하지 않았다.",
+        "envoy 한도 해소 뒤 20MB에서는 ocr-api 파드 memory limit 부족이라는 새 병목이 발견됐다."
+      ],
+      "forbiddenClaims": [
+        "6MB 이상 실패를 API Gateway 제한 때문이라고 답하면 안 된다.",
+        "모든 모델 서버를 같은 방식으로 변경했다고 답하면 안 된다."
+      ]
+    },
+    {
+      "id": "AGW-H05",
+      "audience": "human",
+      "difficulty": "L4",
+      "question": "20MB 부하검증 흐름을 업무 497 댓글 4370687072077430200, 4370694603185019293, 4370706006367260540 순서로 넣어서 최초 실패, 메모리 상향, 남은 병목을 설명해줘.",
+      "answerability": "answerable",
+      "sourceRefs": [
+        {
+          "id": "task-497",
+          "type": "post",
+          "task": 497,
+          "postId": "4370459603968637011"
+        },
+        {
+          "id": "comment-497-oom-required",
+          "type": "comment",
+          "task": 497,
+          "postId": "4370459603968637011",
+          "commentId": "4370687072077430200"
+        },
+        {
+          "id": "comment-497-memory-fixed",
+          "type": "comment",
+          "task": 497,
+          "postId": "4370459603968637011",
+          "commentId": "4370694603185019293"
+        },
+        {
+          "id": "comment-497-sustained-load",
+          "type": "comment",
+          "task": 497,
+          "postId": "4370459603968637011",
+          "commentId": "4370706006367260540"
+        }
+      ],
+      "graphChecks": [
+        {
+          "anchor": "task-497",
+          "depth": 1,
+          "requiredNodes": [
+            "task-497",
+            "comment-497-oom-required",
+            "comment-497-memory-fixed",
+            "comment-497-sustained-load"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-497",
+              "end": "comment-497-oom-required"
+            },
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-497",
+              "end": "comment-497-memory-fixed"
+            },
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-497",
+              "end": "comment-497-sustained-load"
+            }
+          ]
+        }
+      ],
+      "requiredEvidence": [
+        "comment-497-oom-required",
+        "comment-497-memory-fixed",
+        "comment-497-sustained-load"
+      ],
+      "supportingEvidence": [
+        "task-497"
+      ],
+      "orderedEvents": [
+        "comment-497-oom-required",
+        "comment-497-memory-fixed",
+        "comment-497-sustained-load"
+      ],
+      "expectedClaims": [
+        "동시 5건 20MB 요청에서 ocr-api 파드 2개가 모두 OOMKilled되어 컨테이너 memory limit 상향이 필요하다고 판단했다.",
+        "memory limit을 500M에서 1536Mi로 올린 뒤 동일 시나리오에서 5건 모두 성공했고 재시작은 0이었다.",
+        "이후 k6 지속 부하에서는 실패율 0%와 메모리 안정이 확인됐지만 20MB 이미지 응답시간은 p95 47.5초 수준으로 남은 과제가 됐다."
+      ],
+      "forbiddenClaims": [
+        "노드 사양 증설만으로 동시 20MB 요청 문제가 해결됐다고 답하면 안 된다.",
+        "응답시간 과제가 완전히 해결됐다고 답하면 안 된다."
+      ]
+    },
+    {
+      "id": "AGW-A01",
+      "audience": "ai",
+      "difficulty": "L3",
+      "question": "Task 496, 497, 498, 499가 Task 483의 Phase B 하위 업무라는 근거를 찾고, 답변에는 496, 497, 498, 499 순서로 각 업무의 목적과 검증 순서를 써라.",
+      "answerability": "answerable",
+      "sourceRefs": [
+        {
+          "id": "task-483",
+          "type": "post",
+          "task": 483,
+          "postId": "4341679971084318100"
+        },
+        {
+          "id": "comment-483-phase-b",
+          "type": "comment",
+          "task": 483,
+          "postId": "4341679971084318100",
+          "commentId": "4370461163391214266"
+        },
+        {
+          "id": "task-496",
+          "type": "post",
+          "task": 496,
+          "postId": "4370459590214302914"
+        },
+        {
+          "id": "task-497",
+          "type": "post",
+          "task": 497,
+          "postId": "4370459603968637011"
+        },
+        {
+          "id": "task-498",
+          "type": "post",
+          "task": 498,
+          "postId": "4370459616313629252"
+        },
+        {
+          "id": "task-499",
+          "type": "post",
+          "task": 499,
+          "postId": "4370459629633166522"
+        }
+      ],
+      "graphChecks": [
+        {
+          "anchor": "task-483",
+          "depth": 1,
+          "requiredNodes": [
+            "task-483",
+            "comment-483-phase-b"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-483",
+              "end": "comment-483-phase-b"
+            }
+          ]
+        },
+        {
+          "anchor": "task-496",
+          "depth": 2,
+          "requiredNodes": [
+            "task-496",
+            "task-497",
+            "task-498",
+            "task-499",
+            "task-483"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "REFERENCES",
+              "start": "task-496",
+              "end": "task-483"
+            },
+            {
+              "type": "REFERENCES",
+              "start": "task-497",
+              "end": "task-483"
+            },
+            {
+              "type": "REFERENCES",
+              "start": "task-498",
+              "end": "task-483"
+            },
+            {
+              "type": "REFERENCES",
+              "start": "task-499",
+              "end": "task-483"
+            }
+          ]
+        }
+      ],
+      "requiredEvidence": [
+        "comment-483-phase-b",
+        "task-496",
+        "task-497",
+        "task-498",
+        "task-499"
+      ],
+      "supportingEvidence": [],
+      "orderedEvents": [
+        "task-496",
+        "task-497",
+        "task-498",
+        "task-499"
+      ],
+      "expectedClaims": [
+        "Phase B는 rewrite 이전, 크기 제한 상향, 등가성 검증 스크립트, 크기 상향 부하테스트의 네 업무로 분할됐다.",
+        "업무 496은 23개 frontend 경로 rewrite를 공인 nginx Ingress로 이전하는 업무다.",
+        "업무 497은 multipart, WebClient, 공인 ingress proxy-body-size 등 전 구간 크기 제한을 상향하는 업무다.",
+        "업무 498은 API Gateway 경로와 공인 LB 경로에 같은 요청을 보내 응답 등가성을 비교하는 스크립트를 만드는 업무다.",
+        "업무 499는 상향 후 대용량 동시 요청의 메모리, 응답시간, 에러율을 부하테스트로 확인하는 업무다."
+      ],
+      "forbiddenClaims": [
+        "업무 499가 업무 497보다 먼저 실행되어야 한다고 답하면 안 된다.",
+        "업무 496이 사설 ingress 경로를 변경했다고 답하면 안 된다."
+      ]
+    },
+    {
+      "id": "AGW-A02",
+      "audience": "ai",
+      "difficulty": "L3",
+      "question": "Task 497의 크기 설정 변경이 Task 499와 관련 댓글에서 어떻게 검증됐는지 required source id를 포함해 설명하라.",
+      "answerability": "answerable",
+      "sourceRefs": [
+        {
+          "id": "task-497",
+          "type": "post",
+          "task": 497,
+          "postId": "4370459603968637011"
+        },
+        {
+          "id": "comment-497-api-size",
+          "type": "comment",
+          "task": 497,
+          "postId": "4370459603968637011",
+          "commentId": "4370591145563302388"
+        },
+        {
+          "id": "comment-497-ingress-size",
+          "type": "comment",
+          "task": 497,
+          "postId": "4370459603968637011",
+          "commentId": "4370591159247716165"
+        },
+        {
+          "id": "task-499",
+          "type": "post",
+          "task": 499,
+          "postId": "4370459629633166522"
+        },
+        {
+          "id": "comment-499-summary",
+          "type": "comment",
+          "task": 499,
+          "postId": "4370459629633166522",
+          "commentId": "4372036195886706721"
+        }
+      ],
+      "graphChecks": [
+        {
+          "anchor": "task-497",
+          "depth": 2,
+          "requiredNodes": [
+            "task-497",
+            "comment-497-api-size",
+            "comment-497-ingress-size"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-497",
+              "end": "comment-497-api-size"
+            },
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-497",
+              "end": "comment-497-ingress-size"
+            }
+          ]
+        },
+        {
+          "anchor": "task-499",
+          "depth": 1,
+          "requiredNodes": [
+            "task-499",
+            "comment-499-summary"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-499",
+              "end": "comment-499-summary"
+            }
+          ]
+        }
+      ],
+      "requiredEvidence": [
+        "comment-497-api-size",
+        "comment-497-ingress-size",
+        "comment-499-summary"
+      ],
+      "supportingEvidence": [
+        "task-497",
+        "task-499"
+      ],
+      "orderedEvents": [],
+      "expectedClaims": [
+        "OCR.API는 multipart max-file-size를 5MB에서 20MB로, max-request-size를 6MB에서 21MB로, WebClient maxInMemorySize를 10MB에서 30MB로 올렸다.",
+        "공인 ingress는 proxy-body-size를 30m으로 올렸고, 사설 경로는 10m으로 유지했다.",
+        "업무 499의 부하테스트는 크기 제한 상향 이후 메모리, 응답시간, 에러율을 확인하기 위한 검증이었다.",
+        "부하테스트 결과 메모리 OOM은 해결됐고, 남은 축은 모델 응답시간과 동시성 한계로 정리됐다."
+      ],
+      "forbiddenClaims": [
+        "beta 자체 도메인에 업무 497의 앱 크기 상향이 이미 반영됐다고 답하면 안 된다.",
+        "크기 상향 검증 결과 모든 엔드포인트에서 20MB 일괄 적용이 최종 확정됐다고 답하면 안 된다."
+      ]
+    },
+    {
+      "id": "AGW-A03",
+      "audience": "ai",
+      "difficulty": "L2",
+      "question": "Task 498에서 만든 APIGW와 공인 LB 등가성 검사의 대상, 판정 결과, 재사용 시점을 source id와 함께 요약하라.",
+      "answerability": "answerable",
+      "sourceRefs": [
+        {
+          "id": "task-498",
+          "type": "post",
+          "task": 498,
+          "postId": "4370459616313629252"
+        },
+        {
+          "id": "comment-498-script",
+          "type": "comment",
+          "task": 498,
+          "postId": "4370459616313629252",
+          "commentId": "4370476728428194410"
+        },
+        {
+          "id": "comment-498-result",
+          "type": "comment",
+          "task": 498,
+          "postId": "4370459616313629252",
+          "commentId": "4370476741729254652"
+        }
+      ],
+      "graphChecks": [
+        {
+          "anchor": "task-498",
+          "depth": 1,
+          "requiredNodes": [
+            "task-498",
+            "comment-498-script",
+            "comment-498-result"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-498",
+              "end": "comment-498-script"
+            },
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-498",
+              "end": "comment-498-result"
+            }
+          ]
+        }
+      ],
+      "requiredEvidence": [
+        "task-498",
+        "comment-498-result"
+      ],
+      "supportingEvidence": [
+        "comment-498-script"
+      ],
+      "orderedEvents": [],
+      "expectedClaims": [
+        "등가성 검사는 API Gateway와 공인 LB 두 진입점에 같은 요청을 보내 응답 본문을 비교하는 방식이다.",
+        "정상 경로는 전수 sweep 22건과 깊은 비교 2건을 합쳐 24/24 PASS로 기록됐다.",
+        "private x-nhn-apikey 경로 1건은 이전 제외 설계라 SKIP됐다.",
+        "알려진 차이 3건은 없는 v 경로, 잘못된 HTTP 메서드, 루트 밖 경로의 비정상 응답 차이였다.",
+        "이 스크립트는 도메인 전환 검증과 APIGW 철거 직전 최종 검증에서 재사용하도록 기록됐다."
+      ],
+      "forbiddenClaims": [
+        "정상 계약 경로에서 고객 가이드 변경이 필요한 차이가 발견됐다고 답하면 안 된다.",
+        "private 경로까지 공인 rewrite 대상으로 포함해 PASS했다고 답하면 안 된다."
+      ]
+    },
+    {
+      "id": "AGW-A04",
+      "audience": "ai",
+      "difficulty": "L5",
+      "question": "Task 494에서 Task 506으로 이어진 환경별 공인 진입점 전개를 설명하되, 답변에는 494, 506 순서로 업무 번호를 포함하고 무중단 작업과 순단 작업을 분리하라.",
+      "answerability": "answerable",
+      "sourceRefs": [
+        {
+          "id": "task-483",
+          "type": "post",
+          "task": 483,
+          "postId": "4341679971084318100"
+        },
+        {
+          "id": "task-494",
+          "type": "post",
+          "task": 494,
+          "postId": "4368536352876432445"
+        },
+        {
+          "id": "comment-494-alpha-chart",
+          "type": "comment",
+          "task": 494,
+          "postId": "4368536352876432445",
+          "commentId": "4368553470461796306"
+        },
+        {
+          "id": "task-506",
+          "type": "post",
+          "task": 506,
+          "postId": "4373374537635098616"
+        },
+        {
+          "id": "comment-506-progress",
+          "type": "comment",
+          "task": 506,
+          "postId": "4373374537635098616",
+          "commentId": "4373463049949781409"
+        }
+      ],
+      "graphChecks": [
+        {
+          "anchor": "task-494",
+          "depth": 1,
+          "requiredNodes": [
+            "task-494",
+            "task-483",
+            "comment-494-alpha-chart"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "REFERENCES",
+              "start": "task-494",
+              "end": "task-483"
+            },
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-494",
+              "end": "comment-494-alpha-chart"
+            }
+          ]
+        },
+        {
+          "anchor": "task-506",
+          "depth": 1,
+          "requiredNodes": [
+            "task-506",
+            "task-483",
+            "comment-506-progress"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "REFERENCES",
+              "start": "task-506",
+              "end": "task-483"
+            },
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-506",
+              "end": "comment-506-progress"
+            }
+          ]
+        }
+      ],
+      "requiredEvidence": [
+        "task-494",
+        "task-506",
+        "comment-506-progress"
+      ],
+      "supportingEvidence": [
+        "comment-494-alpha-chart"
+      ],
+      "orderedEvents": [
+        "task-494",
+        "task-506"
+      ],
+      "expectedClaims": [
+        "업무 494에서 alpha와 beta의 공인 LB 생성, service user 전환, k8s 업그레이드, ingress-nginx chart 업그레이드가 처리됐다.",
+        "업무 506은 494의 real 대응으로 real 공인 진입점을 확보하는 업무다.",
+        "real의 신규 공인 도메인은 api-ocr.nhncloudservice.com이고 공인 IP는 114.110.145.120으로 고정됐다.",
+        "real에서는 keypair trust 전환, 공인 LB 발급, DNS 연결, 공인 경로 검증을 무중단 구간으로 분리했다.",
+        "real k8s 버전 업그레이드는 노드 롤링 drain으로 순단이 동반되므로 별도 작업으로 분리됐다."
+      ],
+      "forbiddenClaims": [
+        "real k8s 업그레이드가 업무 506에서 이미 실행 완료됐다고 답하면 안 된다.",
+        "APIGW 실제 제거가 업무 506 범위에 포함됐다고 답하면 안 된다."
+      ]
+    },
+    {
+      "id": "AGW-A05",
+      "audience": "ai",
+      "difficulty": "L5",
+      "question": "Task 483의 결정부터 공인 진입점, rewrite, 크기 상향, 등가성, 부하검증, real 전개까지 전체 흐름을 재구성하라. 답변에는 483, 494, 496, 497, 498, 499, 506 순서로 업무 번호를 포함하라.",
+      "answerability": "answerable",
+      "sourceRefs": [
+        {
+          "id": "task-483",
+          "type": "post",
+          "task": 483,
+          "postId": "4341679971084318100"
+        },
+        {
+          "id": "comment-483-phase-b",
+          "type": "comment",
+          "task": 483,
+          "postId": "4341679971084318100",
+          "commentId": "4370461163391214266"
+        },
+        {
+          "id": "task-494",
+          "type": "post",
+          "task": 494,
+          "postId": "4368536352876432445"
+        },
+        {
+          "id": "task-496",
+          "type": "post",
+          "task": 496,
+          "postId": "4370459590214302914"
+        },
+        {
+          "id": "task-497",
+          "type": "post",
+          "task": 497,
+          "postId": "4370459603968637011"
+        },
+        {
+          "id": "task-498",
+          "type": "post",
+          "task": 498,
+          "postId": "4370459616313629252"
+        },
+        {
+          "id": "task-499",
+          "type": "post",
+          "task": 499,
+          "postId": "4370459629633166522"
+        },
+        {
+          "id": "task-506",
+          "type": "post",
+          "task": 506,
+          "postId": "4373374537635098616"
+        }
+      ],
+      "graphChecks": [
+        {
+          "anchor": "task-483",
+          "depth": 1,
+          "requiredNodes": [
+            "task-483",
+            "comment-483-phase-b"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "HAS_COMMENT",
+              "start": "task-483",
+              "end": "comment-483-phase-b"
+            }
+          ]
+        },
+        {
+          "anchor": "task-494",
+          "depth": 2,
+          "requiredNodes": [
+            "task-494",
+            "task-496",
+            "task-497",
+            "task-498",
+            "task-499",
+            "task-506",
+            "task-483"
+          ],
+          "requiredRelationships": [
+            {
+              "type": "REFERENCES",
+              "start": "task-494",
+              "end": "task-483"
+            },
+            {
+              "type": "REFERENCES",
+              "start": "task-496",
+              "end": "task-483"
+            },
+            {
+              "type": "REFERENCES",
+              "start": "task-497",
+              "end": "task-483"
+            },
+            {
+              "type": "REFERENCES",
+              "start": "task-498",
+              "end": "task-483"
+            },
+            {
+              "type": "REFERENCES",
+              "start": "task-499",
+              "end": "task-483"
+            },
+            {
+              "type": "REFERENCES",
+              "start": "task-506",
+              "end": "task-483"
+            }
+          ]
+        }
+      ],
+      "requiredEvidence": [
+        "task-483",
+        "task-494",
+        "task-496",
+        "task-497",
+        "task-498",
+        "task-499",
+        "task-506"
+      ],
+      "supportingEvidence": [
+        "comment-483-phase-b"
+      ],
+      "orderedEvents": [
+        "task-483",
+        "task-494",
+        "task-496",
+        "task-497",
+        "task-498",
+        "task-499",
+        "task-506"
+      ],
+      "expectedClaims": [
+        "업무 483은 OCR 사용성 개선과 API Gateway 데이터 전송량 제한 해제를 위해 API Gateway 제거를 시작한 상위 업무다.",
+        "업무 494는 alpha와 beta 공인 진입점 확보와 trust 복구, k8s 및 ingress-nginx 정비를 다룬다.",
+        "업무 496은 APIGW frontend 경로 rewrite 23건을 공인 nginx Ingress로 이전했다.",
+        "업무 497은 20MB 고객 파일 기준으로 multipart, 요청 크기, ingress, WebClient 제한을 계단식으로 상향했다.",
+        "업무 498은 APIGW와 공인 LB 경로의 응답 등가성 검증 스크립트와 비정상 사례 목록을 만들었다.",
+        "업무 499는 대용량 요청 부하에서 메모리는 해결됐지만 모델 응답시간과 동시성 한계가 남았음을 정리했다.",
+        "업무 506은 real 공인 진입점 확보를 진행하고 순단이 있는 k8s 업그레이드는 별도 작업으로 분리했다."
+      ],
+      "forbiddenClaims": [
+        "업무 491의 RST 장애를 이 전체 흐름의 직접 시작 원인으로 끼워 넣으면 안 된다.",
+        "API Gateway가 이미 real에서 제거됐다고 답하면 안 된다.",
+        "부하검증에서 모든 성능 과제가 해결됐다고 답하면 안 된다."
+      ]
+    },
+    {
+      "id": "AGW-N01",
+      "audience": "human",
+      "difficulty": "L1",
+      "question": "업무 491의 RST 장애가 업무 483의 API Gateway 제거를 직접 유발한 거야?",
+      "answerability": "insufficient-source",
+      "sourceRefs": [
+        {
+          "id": "task-491",
+          "type": "post",
+          "task": 491,
+          "postId": "4361843157915549153"
+        },
+        {
+          "id": "comment-491-auth-delay",
+          "type": "comment",
+          "task": 491,
+          "postId": "4361843157915549153",
+          "commentId": "4371280460390891404"
+        },
+        {
+          "id": "task-483",
+          "type": "post",
+          "task": 483,
+          "postId": "4341679971084318100"
+        }
+      ],
+      "graphChecks": [],
+      "requiredEvidence": [],
+      "supportingEvidence": [
+        "task-491",
+        "comment-491-auth-delay",
+        "task-483"
+      ],
+      "orderedEvents": [],
+      "expectedClaims": [
+        "업무 491은 RST 발신 주체를 API Gateway로 특정했지만 원인은 처음에는 미확정이라고 기록했다.",
+        "업무 491 댓글은 해당 이슈가 NHN Cloud 인증 쪽 장애 여파로 API Gateway 응답이 지연된 것으로 답변받았다고 기록했다.",
+        "업무 483은 API Gateway 제거 사유를 5MB 초과 이미지 증가와 API Gateway 데이터 전송량 제한에 따른 사용성 문제로 기록했다.",
+        "제공된 원천에는 업무 491이 업무 483의 제거 결정을 직접 유발했다는 참조나 인과가 없다."
+      ],
+      "forbiddenClaims": [
+        "업무 491의 RST 장애가 업무 483의 API Gateway 제거를 직접 유발했다고 단정하면 안 된다.",
+        "업무 483이 실패 호출 과금 문제를 해결하려고 시작됐다고 단정하면 안 된다.",
+        "주제가 API Gateway로 같다는 이유만으로 두 업무 사이 인과를 만들면 안 된다."
+      ]
+    },
+    {
+      "id": "AGW-N02",
+      "audience": "ai",
+      "difficulty": "L1",
+      "question": "Task 501과 Task 502가 직접 의존하거나 서로를 유발했는지 판정하고, 근거가 부족하면 부족하다고 답하라.",
+      "answerability": "insufficient-source",
+      "sourceRefs": [
+        {
+          "id": "task-501",
+          "type": "post",
+          "task": 501,
+          "postId": "4370723016593670248"
+        },
+        {
+          "id": "comment-501-duplicate",
+          "type": "comment",
+          "task": 501,
+          "postId": "4370723016593670248",
+          "commentId": "4370724449637109197"
+        },
+        {
+          "id": "task-502",
+          "type": "post",
+          "task": 502,
+          "postId": "4371156492278230010"
+        }
+      ],
+      "graphChecks": [],
+      "requiredEvidence": [],
+      "supportingEvidence": [
+        "task-501",
+        "comment-501-duplicate",
+        "task-502"
+      ],
+      "orderedEvents": [],
+      "expectedClaims": [
+        "업무 501은 General OCR ReadTimeout 조사에서 GPU 메모리 압박과 AMP FP16 도입을 다룬다.",
+        "업무 501 댓글은 이미 존재하는 업무 454로 통합하고 501을 중복으로 닫는다고 기록했다.",
+        "업무 502는 업무 487에서 업무 454로 이어지는 AMP FP16 진행 중 범위 밖으로 남은 추론 최적화 방법론을 정리한다.",
+        "제공된 원천에는 업무 501과 업무 502가 서로 직접 의존하거나 서로를 유발했다는 참조가 없다."
+      ],
+      "forbiddenClaims": [
+        "업무 501이 업무 502를 직접 유발했다고 단정하면 안 된다.",
+        "업무 502가 업무 501의 후속 실행 업무라고 단정하면 안 된다.",
+        "두 업무가 GPU 최적화 주제를 공유한다는 이유만으로 직접 의존 관계를 만들면 안 된다."
+      ]
+    }
+  ]
+}
