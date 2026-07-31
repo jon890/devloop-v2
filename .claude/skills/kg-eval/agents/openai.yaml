@@ -1,0 +1,4 @@
+interface:
+  display_name: "KG Eval"
+  short_description: "원천 Dooray 근거 기반 지식그래프 품질 평가 실행"
+  default_prompt: "Use $kg-eval to validate and run a source-backed knowledge graph evaluation suite."
