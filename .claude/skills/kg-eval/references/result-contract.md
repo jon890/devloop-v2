@@ -60,6 +60,14 @@
 `requiredEvidence`, `supportingEvidence`, `orderedEvents`는 `sourceRefs[].id` 문자열 배열이다.
 객체 항목이나 별칭 필드는 쓰지 않는다.
 
+`orderedEvents`는 답변에 표시되어야 할 `sourceRefs[].id` 순서다.
+`type=post`는 `task` 번호 문자열을, `type=comment`는 `commentId`를 답변 내 검색 문자열로 쓴다.
+빈 배열은 순서 검사를 적용하지 않는다는 뜻이다.
+하나라도 답변에 없거나 첫 등장 위치가 엄격 증가하지 않으면 `deterministicChecks.order.status=FAIL`이고,
+모두 엄격 증가하면 `PASS`다.
+그래프와 근거 회수가 먼저 통과한 뒤 순서가 실패하면 `failureBoundary=ANSWER`, `failedAxes=["G"]`로 기록한다.
+근거 회수가 먼저 실패하면 순서는 `NOT_EVALUATED`로 기록한다.
+
 `graphChecks` 항목은 검색 전 `/api/graph/search`와 이웃 조회로 확인할 그래프 도달성 조건이다.
 각 항목은 다음 구조를 따른다.
 
