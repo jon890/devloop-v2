@@ -1,0 +1,37 @@
+{
+  "name": "plan005-kg-eval-runner",
+  "description": "tc-ocr 대표 업무 흐름을 원천 근거 기반으로 반복 측정하는 kg-eval 스킬을 만든다",
+  "status": "pending",
+  "created_at": "2026-07-31",
+  "total_phases": 4,
+  "phases": [
+    {
+      "number": 1,
+      "file": "phase-01.md",
+      "title": "평가 스킬과 데이터 계약을 통합한다",
+      "execution_profile": "standard",
+      "status": "pending"
+    },
+    {
+      "number": 2,
+      "file": "phase-02.md",
+      "title": "반복 실행·재개·비교 스크립트를 구현한다",
+      "execution_profile": "standard",
+      "status": "pending"
+    },
+    {
+      "number": 3,
+      "file": "phase-03.md",
+      "title": "API Gateway 제거 대표 흐름 평가 세트를 만든다",
+      "execution_profile": "deep",
+      "status": "pending"
+    },
+    {
+      "number": 4,
+      "file": "phase-04.md",
+      "title": "현재 그래프 기준선을 측정하고 통합 검증한다",
+      "execution_profile": "standard",
+      "status": "pending"
+    }
+  ]
+}

@@ -43,6 +43,8 @@ packages/shared/     온톨로지 계약 · API 타입 · Concept 표준 사전 
 apps/pipeline/       수집 → 추출 → 적재 CLI
 apps/api/            질의응답 REST (NestJS)
 apps/web/            React 와 Vite UI
+.claude/skills/      저장소 전용 개발·평가 절차와 번들 스크립트
+eval/                질문 은행·대표 흐름 평가 세트·평가 리포트
 ```
 
 의존 방향은 한쪽이다.
@@ -55,6 +57,11 @@ flowchart LR
 ```
 
 `apps/*` 끼리는 서로 의존하지 않는다. 공유가 필요하면 `packages/shared` 로 올린다.
+
+평가 실행기는 별도 `apps/*` 패키지로 만들지 않는다.
+제품 런타임이 아니라 개발 품질 게이트이고, 현재 API 계약만으로 실행할 수 있기 때문이다.
+반복 실행에 필요한 결정적 동작은 `kg-eval` 스킬의 `scripts/`에 두고,
+평가 방법과 의미 판정 절차는 스킬 본문과 `docs/EVAL-RUBRIC.md`가 소유한다.
 
 ADR 0005가 채택한 판단 저장소는 `packages/registry`가 소유한다.
 스키마·repository·service는 이 패키지에 두고, 파이프라인의
@@ -220,6 +227,39 @@ React 와 Vite 다. 화면 4종이다.
 **Vite 는 워크스페이스 의존성 변경으로 사전 번들 캐시를 무효화하지 않는다.**
 `packages/shared` 를 다시 빌드하면 웹이 옛 캐시를 물어 named export 가 사라진다.
 `dev` 스크립트에 `--force` 를 붙여 막았다.
+
+## 평가 스킬
+
+기존 사람형 평가와 AI 에이전트형 평가에 중복돼 있던 실행·채점 절차는 `kg-eval` 하나로 합친다.
+사람형 질문과 AI 에이전트형 질문은 별도 애플리케이션이 아니라 같은 평가의 `audience` 분류다.
+
+```text
+.claude/skills/kg-eval/
+├── SKILL.md
+├── references/
+│   └── result-contract.md
+└── scripts/
+    ├── run.mjs
+    ├── compare.mjs
+    └── validate-suite.mjs
+
+eval/
+├── questions-human-tc-ocr.json
+├── questions-ai-tc-ocr.json
+├── suites/
+│   └── tc-ocr-api-gateway.json
+├── runs/                         커밋하지 않는 원시 응답
+└── reports/                      비교 가능한 요약 JSON·Markdown
+```
+
+스크립트는 Node.js 기본 기능만 사용한다.
+새 패키지나 서버 엔드포인트를 추가하지 않고 기존 `/api/graph/*`와 `/api/query`를 호출한다.
+`run.mjs`는 사전 점검, 직렬 반복 실행, 재개, 원시 결과 기록을 맡는다.
+`validate-suite.mjs`는 원천 참조와 평가 세트 형식을 검사한다.
+`compare.mjs`는 두 리포트의 문항·축별 회귀만 비교한다.
+
+`kg-model-bench`는 모델 선택이라는 별도 관심사를 유지한다.
+검색 품질 측정이 필요할 때 `kg-eval` 결과를 재사용하며 자체 채점 규칙을 복제하지 않는다.
 
 ## 테스트 배치와 함정
 
