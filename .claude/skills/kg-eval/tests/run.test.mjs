@@ -102,6 +102,16 @@ function sourceNodesFromQuery(question, idPrefix = "") {
   return [node(`${idPrefix}task-${task}`, "Task", task), node(`${idPrefix}comment-${commentId}`, "Comment", commentId)];
 }
 
+function defaultSamplesByLabel(suite, idPrefix = "") {
+  const samples = { Task: [], Comment: [] };
+  for (const question of suite.questions) {
+    const [taskNode, commentNode] = sourceNodesFromQuery(question, idPrefix);
+    samples.Task.push(taskNode);
+    samples.Comment.push(commentNode);
+  }
+  return samples;
+}
+
 function orderedAnswer(question) {
   return `업무 ${question.sourceRefs[0].task} 이후 댓글 ${question.sourceRefs[1].commentId}에서 확인했습니다.`;
 }
@@ -125,6 +135,7 @@ async function withServer(handler, callback) {
 
 function graphServer(suite, options = {}) {
   const calls = [];
+  const samplesByLabel = options.samplesByLabel ?? defaultSamplesByLabel(suite, options.sampleIdPrefix ?? "");
   return {
     calls,
     handler: async (request, response) => {
@@ -136,17 +147,38 @@ function graphServer(suite, options = {}) {
         return;
       }
       if (url.pathname === "/api/graph/search") {
-        const key = url.searchParams.get("q");
-        const question = suite.questions.find((item) => item.sourceRefs.some((sourceRef) => String(sourceRef.task) === key || sourceRef.commentId === key));
         response.writeHead(200, { "content-type": "application/json" });
-        response.end(JSON.stringify(question ? sourceNodesFromQuery(question, options.searchIdPrefix ?? "") : []));
+        response.end(JSON.stringify([]));
+        return;
+      }
+      if (url.pathname === "/api/graph/samples") {
+        const label = url.searchParams.get("label");
+        const offset = Number(url.searchParams.get("offset") ?? "0");
+        const limit = Number(url.searchParams.get("limit") ?? "5");
+        const nodes = samplesByLabel[label] ?? [];
+        response.writeHead(options.samplesStatus ?? 200, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify(
+            options.samplesBody ??
+              {
+                nodes: nodes.slice(offset, offset + limit),
+                relationships: [],
+                total: nodes.length,
+                offset,
+                limit,
+              },
+          ),
+        );
         return;
       }
       if (url.pathname.includes("/neighbors")) {
         const encodedId = url.pathname.split("/")[4] ?? "";
         const elementId = decodeURIComponent(encodedId);
         const task = elementId.match(/task-(\d+)/)?.[1];
-        const question = suite.questions.find((item) => String(item.sourceRefs[0].task) === task) ?? suite.questions[0];
+        const commentId = elementId.match(/comment-(comment-\d+-1)/)?.[1];
+        const question =
+          suite.questions.find((item) => String(item.sourceRefs[0].task) === task || item.sourceRefs[1].commentId === commentId) ??
+          suite.questions[0];
         const nodes = sourceNodesFromQuery(question, options.neighborIdPrefix ?? "");
         response.writeHead(200, { "content-type": "application/json" });
         response.end(JSON.stringify({ nodes, relationships: [rel(`rel-${calls.length}`, "HAS_COMMENT", nodes[0].id, nodes[1].id)] }));
@@ -209,6 +241,8 @@ test("runs questions and repetitions serially", async () => {
       assert.equal(result.status, 0, result.stderr);
       const queryCalls = server.calls.filter((call) => call === "POST /api/query");
       assert.equal(queryCalls.length, workspace.suite.questions.length * 2);
+      assert.equal(server.calls.filter((call) => call === "GET /api/graph/search").length, 0);
+      assert.equal(server.calls.filter((call) => call === "GET /api/graph/samples").length, 1);
       const run = JSON.parse(await readFile(workspace.outPath, "utf8"));
       assert.equal(run.attempts.length, workspace.suite.questions.length * 2);
       assert.equal(run.attempts[0].deterministicChecks.failureBoundary, "NONE");
@@ -296,10 +330,25 @@ test("rejects mismatched conditions and lock conflicts", async () => {
   });
 });
 
+test("resolves comment anchors through graph samples and caches each label for the run", async () => {
+  await withWorkspace(async (workspace) => {
+    workspace.suite.questions[0].graphChecks[0].anchor = "comment-481-1";
+    await writeJson(workspace.suitePath, workspace.suite);
+    const server = graphServer(workspace.suite);
+    await withServer(server.handler, async (baseUrl) => {
+      const result = await runCli(workspace, baseUrl);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(server.calls.filter((call) => call === "GET /api/graph/samples").length, 2);
+      const run = JSON.parse(await readFile(workspace.outPath, "utf8"));
+      assert.equal(run.attempts[0].deterministicChecks.graph.status, "PASS");
+    });
+  });
+});
+
 test("matches evidence by label and key when element ids differ", async () => {
   await withWorkspace(async (workspace) => {
     const server = graphServer(workspace.suite, {
-      searchIdPrefix: "search-",
+      sampleIdPrefix: "sample-",
       neighborIdPrefix: "neighbor-",
       evidenceIdPrefix: "evidence-",
     });
@@ -309,6 +358,73 @@ test("matches evidence by label and key when element ids differ", async () => {
       const run = JSON.parse(await readFile(workspace.outPath, "utf8"));
       assert.equal(run.attempts[0].deterministicChecks.retrieval.status, "PASS");
       assert.deepEqual(run.attempts[0].deterministicChecks.retrieval.missingRequiredEvidence, []);
+    });
+  });
+});
+
+test("paginates graph samples and requires exact sourceRef identity", async () => {
+  await withWorkspace(async (workspace) => {
+    const noisyTasks = Array.from({ length: 100 }, (_, index) => node(`noise-task-${index}`, "Task", `noise-${index}`));
+    const samplesByLabel = {
+      Task: [...noisyTasks, ...defaultSamplesByLabel(workspace.suite).Task],
+      Comment: defaultSamplesByLabel(workspace.suite).Comment,
+    };
+    const server = graphServer(workspace.suite, { samplesByLabel });
+    await withServer(server.handler, async (baseUrl) => {
+      const result = await runCli(workspace, baseUrl);
+      assert.equal(result.status, 0, result.stderr);
+      const sampleCalls = server.calls.filter((call) => call === "GET /api/graph/samples");
+      assert.equal(sampleCalls.length, 2);
+      const run = JSON.parse(await readFile(workspace.outPath, "utf8"));
+      assert.equal(run.attempts[0].deterministicChecks.graph.status, "PASS");
+    });
+  });
+});
+
+test("records graph failure when sourceRef identity is missing from graph samples", async () => {
+  await withWorkspace(async (workspace) => {
+    const samplesByLabel = {
+      Task: defaultSamplesByLabel(workspace.suite).Task.filter((sample) => sample.key !== "481"),
+      Comment: defaultSamplesByLabel(workspace.suite).Comment,
+    };
+    const server = graphServer(workspace.suite, { samplesByLabel });
+    await withServer(server.handler, async (baseUrl) => {
+      const result = await runCli(workspace, baseUrl);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(server.calls.filter((call) => call === "POST /api/query").length, (workspace.suite.questions.length - 1) * 2);
+      const run = JSON.parse(await readFile(workspace.outPath, "utf8"));
+      const missing = run.attempts.find((attempt) => attempt.questionId === "Q-01");
+      assert.equal(missing.deterministicChecks.graph.status, "FAIL");
+      assert.equal(missing.deterministicChecks.failureBoundary, "GRAPH");
+      assert.deepEqual(missing.deterministicChecks.failedAxes, ["G"]);
+    });
+  });
+});
+
+test("records graph failure when graph samples response violates contract", async () => {
+  await withWorkspace(async (workspace) => {
+    const server = graphServer(workspace.suite, { samplesBody: { nodes: [], relationships: [], total: "12", offset: 0, limit: 100 } });
+    await withServer(server.handler, async (baseUrl) => {
+      const result = await runCli(workspace, baseUrl);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(server.calls.filter((call) => call === "POST /api/query").length, 0);
+      const run = JSON.parse(await readFile(workspace.outPath, "utf8"));
+      assert.equal(run.attempts[0].deterministicChecks.graph.status, "FAIL");
+      assert.match(run.attempts[0].deterministicChecks.graph.checks[0].reason, /samples Task HTTP 200/);
+    });
+  });
+});
+
+test("records graph failure when graph samples pagination stalls", async () => {
+  await withWorkspace(async (workspace) => {
+    const server = graphServer(workspace.suite, { samplesBody: { nodes: [], relationships: [], total: 12, offset: 0, limit: 100 } });
+    await withServer(server.handler, async (baseUrl) => {
+      const result = await runCli(workspace, baseUrl);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(server.calls.filter((call) => call === "POST /api/query").length, 0);
+      const run = JSON.parse(await readFile(workspace.outPath, "utf8"));
+      assert.equal(run.attempts[0].deterministicChecks.graph.status, "FAIL");
+      assert.match(run.attempts[0].deterministicChecks.graph.checks[0].reason, /pagination did not advance/);
     });
   });
 });

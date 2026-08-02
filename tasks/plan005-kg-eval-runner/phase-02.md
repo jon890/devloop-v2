@@ -51,12 +51,13 @@ node .claude/skills/kg-eval/scripts/run.mjs \
 
 문항의 `graphChecks`는 다음 기존 API만 사용한다.
 
-- `/api/graph/search`로 기준 노드의 `label`·`key`를 찾는다.
+- `/api/graph/samples?label=<Task|Comment>&offset=<n>&limit=100` 페이지를 순회해 기준 노드의 `label`·`key`를 정확히 찾는다.
 - `/api/graph/nodes/:id/neighbors?depth=N`으로 필요한 노드와 관계가 존재하는지 검사한다.
 - `/api/query` 응답의 evidence 노드 `label`·`key`와 관계 유형을 `requiredEvidence`에 대조한다.
 
 검색 결과의 Neo4j `elementId`는 재적재 시 바뀌므로 gold에 저장하지 않는다.
 gold 식별자는 `label`과 도메인 key 조합을 사용한다.
+`/api/graph/search`는 fulltext 전용이라 숫자 `Task.number`나 `Comment.commentId` 해석에 쓰지 않는다.
 앞 경계가 실패하면 뒤 경계를 `NOT_EVALUATED`로 기록한다.
 
 ### 3. `compare.mjs`를 구현한다

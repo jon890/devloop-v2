@@ -68,7 +68,10 @@
 그래프와 근거 회수가 먼저 통과한 뒤 순서가 실패하면 `failureBoundary=ANSWER`, `failedAxes=["G"]`로 기록한다.
 근거 회수가 먼저 실패하면 순서는 `NOT_EVALUATED`로 기록한다.
 
-`graphChecks` 항목은 검색 전 `/api/graph/search`와 이웃 조회로 확인할 그래프 도달성 조건이다.
+`graphChecks` 항목은 검색 전 `/api/graph/samples?label=<Task|Comment>&offset=<n>&limit=100`와 이웃 조회로 확인할 그래프 도달성 조건이다.
+`sourceRefs`의 `type=post`는 `Task` 라벨과 `task` 번호 문자열 key를,
+`type=comment`는 `Comment` 라벨과 `commentId` 문자열 key를 정확히 비교해 기준 노드를 찾는다.
+`/api/graph/search`는 fulltext 검색 전용이라 숫자 업무 번호나 댓글 id 식별자 해석에 사용하지 않는다.
 각 항목은 다음 구조를 따른다.
 
 ```json

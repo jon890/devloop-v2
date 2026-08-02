@@ -297,7 +297,7 @@ LLM 캐시가 있어 추출 재실행은 불필요하다.
 | `question` | `/api/query`에 보낼 자연어 질문 |
 | `answerability` | `answerable` 또는 `insufficient-source` |
 | `sourceRefs` | 정답을 확인한 업무·댓글·위키 식별자 |
-| `graphChecks` | 검색 전 `/api/graph/search`와 이웃 조회로 확인할 노드·관계 |
+| `graphChecks` | 검색 전 `/api/graph/samples?label=<Task|Comment>&offset=<n>&limit=100`와 이웃 조회로 확인할 노드·관계 |
 | `requiredEvidence` | 전부 검색돼야 하는 근거 식별자 |
 | `supportingEvidence` | 답을 보강하는 근거 식별자 |
 | `orderedEvents` | 순서가 중요한 근거 식별자 배열 |
@@ -306,6 +306,11 @@ LLM 캐시가 있어 추출 재실행은 불필요하다.
 
 `answerability=insufficient-source`인 문항은 `requiredEvidence`를 요구하지 않는다.
 대신 답변이 근거 부족을 명시하고 `forbiddenClaims`를 만들지 않아야 통과한다.
+
+`sourceRefs`의 그래프 기준 노드는 fulltext 검색이 아니라 라벨별 샘플 페이지에서 찾는다.
+`type=post`는 `Task` 라벨과 업무 번호 문자열 key를,
+`type=comment`는 `Comment` 라벨과 댓글 id 문자열 key를 정확히 비교한다.
+`/api/graph/search`는 `Task.subject`·`Wiki.subject`·`Concept.name` fulltext 검색 전용이라 숫자 key 해석에 쓰지 않는다.
 
 문항의 정답 목록을 두 등급으로 나눈다.
 

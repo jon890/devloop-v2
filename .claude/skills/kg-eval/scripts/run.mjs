@@ -10,6 +10,7 @@ import { validateSuite } from "./validate-suite.mjs";
 const RUN_SCHEMA_VERSION = "kg-eval-run/v1";
 const DEFAULT_REPETITIONS = 3;
 const DATA_ROOT = "apps/pipeline/data";
+const GRAPH_SAMPLE_PAGE_SIZE = 100;
 
 function parseArgs(argv) {
   const args = {};
@@ -116,6 +117,22 @@ function hasEvidenceShape(value) {
   return value && Array.isArray(value.nodes) && Array.isArray(value.relationships);
 }
 
+function isSafePagination(value) {
+  return (
+    Number.isSafeInteger(value?.total) &&
+    value.total >= 0 &&
+    Number.isSafeInteger(value?.offset) &&
+    value.offset >= 0 &&
+    Number.isInteger(value?.limit) &&
+    value.limit >= 1 &&
+    value.limit <= GRAPH_SAMPLE_PAGE_SIZE
+  );
+}
+
+function hasGraphSamplesShape(value) {
+  return hasEvidenceShape(value) && isSafePagination(value);
+}
+
 async function requestJson(url, options = {}) {
   const started = Date.now();
   const response = await fetch(url, {
@@ -148,29 +165,61 @@ async function assertPreflight({ suitePath, baseUrl }) {
   }
 }
 
-async function resolveSourceRef(baseUrl, sourceRefId, identities, cache) {
-  const cached = cache.get(sourceRefId);
+async function loadSamplesByLabel(baseUrl, label, labelCache) {
+  const cached = labelCache.get(label);
   if (cached) return cached;
+
+  const nodes = [];
+  let offset = 0;
+  while (true) {
+    const samples = await requestJson(
+      `${baseUrl}/api/graph/samples?label=${encodeURIComponent(label)}&offset=${offset}&limit=${GRAPH_SAMPLE_PAGE_SIZE}`,
+    );
+    if (samples.status < 200 || samples.status >= 300 || !hasGraphSamplesShape(samples.body)) {
+      const result = { ok: false, label, nodes: [], reason: `samples ${label} HTTP ${samples.status}` };
+      labelCache.set(label, result);
+      return result;
+    }
+    if (samples.body.offset !== offset || samples.body.limit !== GRAPH_SAMPLE_PAGE_SIZE) {
+      const result = { ok: false, label, nodes: [], reason: `samples ${label} pagination contract mismatch` };
+      labelCache.set(label, result);
+      return result;
+    }
+    nodes.push(...samples.body.nodes);
+    const nextOffset = offset + samples.body.nodes.length;
+    if (samples.body.nodes.length === 0 && nextOffset < samples.body.total) {
+      const result = { ok: false, label, nodes: [], reason: `samples ${label} pagination did not advance` };
+      labelCache.set(label, result);
+      return result;
+    }
+    if (nextOffset >= samples.body.total) {
+      const result = { ok: true, label, nodes };
+      labelCache.set(label, result);
+      return result;
+    }
+    offset = nextOffset;
+  }
+}
+
+async function resolveSourceRef(baseUrl, sourceRefId, identities, labelCache) {
   const identity = identities.get(sourceRefId);
   if (!identity) {
     return { ok: false, sourceRefId, reason: "undeclared sourceRef" };
   }
-  const search = await requestJson(`${baseUrl}/api/graph/search?q=${encodeURIComponent(identity.key)}`);
-  if (search.status < 200 || search.status >= 300 || !Array.isArray(search.body)) {
-    return { ok: false, sourceRefId, identity, reason: `search HTTP ${search.status}` };
+  const samples = await loadSamplesByLabel(baseUrl, identity.label, labelCache);
+  if (!samples.ok) {
+    return { ok: false, sourceRefId, identity, reason: samples.reason };
   }
-  const node = search.body.find((candidate) => sameIdentity(candidate, identity));
+  const node = samples.nodes.find((candidate) => sameIdentity(candidate, identity));
   const result = node ? { ok: true, sourceRefId, identity, node } : { ok: false, sourceRefId, identity, reason: "not found by label/key" };
-  cache.set(sourceRefId, result);
   return result;
 }
 
-async function evaluateGraphChecks(baseUrl, question) {
+async function evaluateGraphChecks(baseUrl, question, labelCache = new Map()) {
   const identities = sourceRefIndex(question);
-  const cache = new Map();
   const checks = [];
   for (const check of question.graphChecks ?? []) {
-    const anchor = await resolveSourceRef(baseUrl, check.anchor, identities, cache);
+    const anchor = await resolveSourceRef(baseUrl, check.anchor, identities, labelCache);
     if (!anchor.ok) {
       checks.push({ anchor: check.anchor, status: "FAIL", missingNodes: [check.anchor], missingRelationships: [], reason: anchor.reason });
       continue;
@@ -315,8 +364,8 @@ function deterministicChecks(question, graphChecks, queryBody, httpStatus) {
   };
 }
 
-async function executeAttempt(baseUrl, question) {
-  const graphChecks = await evaluateGraphChecks(baseUrl, question);
+async function executeAttempt(baseUrl, question, labelCache = new Map()) {
+  const graphChecks = await evaluateGraphChecks(baseUrl, question, labelCache);
   if (!graphChecks.every((check) => check.status === "PASS")) {
     const checks = deterministicChecks(question, graphChecks, null, 0);
     return {
@@ -410,6 +459,7 @@ async function runEvaluation(options) {
     lock = await acquireLock(options.outPath);
     const run = await loadOrCreateRun(options.outPath, expected);
     const completed = completedAttemptKeys(run);
+    const labelCache = new Map();
     let interrupted = false;
     const interrupt = () => {
       interrupted = true;
@@ -428,7 +478,7 @@ async function runEvaluation(options) {
           const startedAt = new Date().toISOString();
           let attempt;
           try {
-            attempt = await executeAttempt(options.baseUrl, question);
+            attempt = await executeAttempt(options.baseUrl, question, labelCache);
           } catch (error) {
             attempt = {
               latencyMs: 0,
