@@ -139,6 +139,9 @@
 
 요약 결과는 `eval/reports/`에 JSON과 Markdown으로 함께 둔다.
 최상위 객체는 실행 조건, 기준선 비교 정보, `questions` 배열을 가진다.
+세트 내용 해시는 report 형식에서는 `suite.hash`에 둔다.
+비교기는 raw 실행 결과의 top-level `suiteHash`와 report의 `suite.hash`를 모두 읽지만,
+둘 다 있으면 같은 비어 있지 않은 값이어야 한다.
 
 각 `questions` 항목은 다음 값을 가진다.
 
@@ -158,3 +161,10 @@
 
 `finalVerdict=REVIEW`는 반복 결과가 흔들리거나 두 의미 판정이 불일치할 때 사용한다.
 `failureBoundary`는 앞 경계가 실패하면 뒤 경계를 `NOT_EVALUATED`로 둔다는 원칙을 따른다.
+
+## 비교 결과
+
+`compare.mjs`는 같은 세트 해시의 요약 JSON 두 개만 비교한다.
+결과 최상위 객체는 `improved`, `regressed`, `unchanged`, `review`, `axisChanges`, `failureBoundaryChanges`를 가진다.
+`axisChanges`는 실패 경계 변화 여부와 독립적으로 문항별 `failedAxes`의 추가·해소를 기록한다.
+`failureBoundaryChanges`는 실패 경계가 달라진 문항만 기록한다.

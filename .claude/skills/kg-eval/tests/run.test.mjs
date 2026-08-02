@@ -133,6 +133,18 @@ async function withServer(handler, callback) {
   }
 }
 
+function waitForExit(child, timeoutMs = 1000) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`child did not exit within ${timeoutMs}ms`));
+    }, timeoutMs);
+    child.on("exit", (code) => {
+      clearTimeout(timeout);
+      resolve(code);
+    });
+  });
+}
+
 function graphServer(suite, options = {}) {
   const calls = [];
   const samplesByLabel = options.samplesByLabel ?? defaultSamplesByLabel(suite, options.sampleIdPrefix ?? "");
@@ -200,7 +212,7 @@ function graphServer(suite, options = {}) {
   };
 }
 
-async function runCli(workspace, baseUrl, extraArgs = []) {
+async function runCli(workspace, baseUrl, extraArgs = [], repeats = "2") {
   const child = spawn(
     process.execPath,
     [
@@ -214,7 +226,7 @@ async function runCli(workspace, baseUrl, extraArgs = []) {
       "--query-model",
       "gpt-5.6-terra",
       "--repeats",
-      "2",
+      repeats,
       "--out",
       workspace.outPath,
       ...extraArgs,
@@ -490,10 +502,10 @@ test("does not evaluate order when retrieval fails first", async () => {
   });
 });
 
-test("writes valid JSON and removes lock after SIGINT", async () => {
+test("SIGINT aborts in-flight query, preserves completed attempts, and resumes without duplicates", async () => {
   await withWorkspace(async (workspace) => {
     let queryCount = 0;
-    let releaseSecondQuery;
+    let releasePendingQuery;
     const server = graphServer(workspace.suite);
     const handler = async (request, response) => {
       const url = new URL(request.url, "http://localhost");
@@ -504,8 +516,11 @@ test("writes valid JSON and removes lock after SIGINT", async () => {
       queryCount += 1;
       if (queryCount === 2) {
         await new Promise((resolve) => {
-          releaseSecondQuery = resolve;
+          releasePendingQuery = resolve;
         });
+        if (request.destroyed || response.destroyed) {
+          return;
+        }
       }
       await server.handler(request, response);
     };
@@ -533,12 +548,23 @@ test("writes valid JSON and removes lock after SIGINT", async () => {
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
       child.kill("SIGINT");
-      releaseSecondQuery();
-      const exit = await new Promise((resolve) => child.on("exit", (code) => resolve(code)));
+      const exit = await waitForExit(child, 1000);
       assert.equal(exit, 130);
       const run = JSON.parse(await readFile(workspace.outPath, "utf8"));
-      assert(run.attempts.length >= 1);
+      assert.equal(run.attempts.length, 1);
+      assert.equal(run.attempts[0].questionId, "Q-01");
+      assert.equal(run.attempts[0].attempt, 1);
+      assert.equal(run.attempts.filter((attempt) => attempt.questionId === "Q-01" && attempt.attempt === 2).length, 0);
+      assert.equal(typeof run.interruptedAt, "string");
       assert.equal(await readFile(`${workspace.outPath}.lock`, "utf8").then(() => "exists", () => "missing"), "missing");
+      releasePendingQuery();
+
+      const resumed = await runCli(workspace, baseUrl, [], "3");
+      assert.equal(resumed.status, 0, resumed.stderr);
+      const resumedRun = JSON.parse(await readFile(workspace.outPath, "utf8"));
+      assert.equal(resumedRun.attempts.length, workspace.suite.questions.length * 3);
+      assert.equal(resumedRun.attempts.filter((attempt) => attempt.questionId === "Q-01" && attempt.attempt === 1).length, 1);
+      assert.equal(resumedRun.attempts.filter((attempt) => attempt.questionId === "Q-01" && attempt.attempt === 2).length, 1);
     });
   });
 });

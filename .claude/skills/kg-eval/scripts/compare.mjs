@@ -42,6 +42,23 @@ function questionMap(summary) {
   return new Map(summary.questions.map((question) => [question.id, question]));
 }
 
+function nonemptyString(value) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function resolveSuiteHash(summary, role = "summary") {
+  const topLevel = nonemptyString(summary?.suiteHash) ? summary.suiteHash : null;
+  const nested = nonemptyString(summary?.suite?.hash) ? summary.suite.hash : null;
+  if (topLevel && nested && topLevel !== nested) {
+    throw new Error(`${role} has conflicting suite hashes: suiteHash=${topLevel} suite.hash=${nested}`);
+  }
+  const resolved = topLevel ?? nested;
+  if (!resolved) {
+    throw new Error(`${role} suiteHash is missing`);
+  }
+  return resolved;
+}
+
 function axisChanges(baseline, candidate) {
   const before = new Set(baseline.failedAxes ?? []);
   const after = new Set(candidate.failedAxes ?? []);
@@ -52,25 +69,32 @@ function axisChanges(baseline, candidate) {
 }
 
 function compareSummaries(baseline, candidate) {
-  if (baseline.suiteHash !== candidate.suiteHash) {
-    throw new Error(`suiteHash differs: baseline=${baseline.suiteHash ?? "missing"} candidate=${candidate.suiteHash ?? "missing"}`);
+  const baselineHash = resolveSuiteHash(baseline, "baseline");
+  const candidateHash = resolveSuiteHash(candidate, "candidate");
+  if (baselineHash !== candidateHash) {
+    throw new Error(`suiteHash differs: baseline=${baselineHash} candidate=${candidateHash}`);
   }
   const baselineQuestions = questionMap(baseline);
   const candidateQuestions = questionMap(candidate);
   const result = {
-    suiteHash: baseline.suiteHash,
+    suiteHash: baselineHash,
     improved: [],
     regressed: [],
     unchanged: [],
     review: [],
+    axisChanges: [],
     failureBoundaryChanges: [],
   };
 
   for (const [id, before] of baselineQuestions) {
     const after = candidateQuestions.get(id);
     if (!after) {
+      const axes = axisChanges(before, {});
       result.review.push(id);
-      result.failureBoundaryChanges.push({ id, from: before.failureBoundary ?? "NONE", to: "MISSING", axes: axisChanges(before, {}) });
+      if (axes.resolved.length > 0 || axes.added.length > 0) {
+        result.axisChanges.push({ id, ...axes });
+      }
+      result.failureBoundaryChanges.push({ id, from: before.failureBoundary ?? "NONE", to: "MISSING", axes });
       continue;
     }
     const rankBefore = verdictRank(before.finalVerdict);
@@ -84,26 +108,35 @@ function compareSummaries(baseline, candidate) {
     } else {
       result.unchanged.push(id);
     }
+    const axes = axisChanges(before, after);
+    if (axes.resolved.length > 0 || axes.added.length > 0) {
+      result.axisChanges.push({ id, ...axes });
+    }
     if ((before.failureBoundary ?? "NONE") !== (after.failureBoundary ?? "NONE")) {
       result.failureBoundaryChanges.push({
         id,
         from: before.failureBoundary ?? "NONE",
         to: after.failureBoundary ?? "NONE",
-        axes: axisChanges(before, after),
+        axes,
       });
     }
   }
 
   for (const id of candidateQuestions.keys()) {
     if (!baselineQuestions.has(id)) {
+      const axes = axisChanges({}, candidateQuestions.get(id));
       result.review.push(id);
-      result.failureBoundaryChanges.push({ id, from: "MISSING", to: candidateQuestions.get(id).failureBoundary ?? "NONE", axes: axisChanges({}, candidateQuestions.get(id)) });
+      if (axes.resolved.length > 0 || axes.added.length > 0) {
+        result.axisChanges.push({ id, ...axes });
+      }
+      result.failureBoundaryChanges.push({ id, from: "MISSING", to: candidateQuestions.get(id).failureBoundary ?? "NONE", axes });
     }
   }
 
   for (const key of ["improved", "regressed", "unchanged", "review"]) {
     result[key].sort();
   }
+  result.axisChanges.sort((left, right) => left.id.localeCompare(right.id));
   result.failureBoundaryChanges.sort((left, right) => left.id.localeCompare(right.id));
   return result;
 }
@@ -123,4 +156,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   await main();
 }
 
-export { compareSummaries, parseArgs };
+export { compareSummaries, parseArgs, resolveSuiteHash };

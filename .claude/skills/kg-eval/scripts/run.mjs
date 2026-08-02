@@ -133,6 +133,10 @@ function hasGraphSamplesShape(value) {
   return hasEvidenceShape(value) && isSafePagination(value);
 }
 
+function isAbortError(error) {
+  return error?.name === "AbortError";
+}
+
 async function requestJson(url, options = {}) {
   const started = Date.now();
   const response = await fetch(url, {
@@ -165,7 +169,7 @@ async function assertPreflight({ suitePath, baseUrl }) {
   }
 }
 
-async function loadSamplesByLabel(baseUrl, label, labelCache) {
+async function loadSamplesByLabel(baseUrl, label, labelCache, signal) {
   const cached = labelCache.get(label);
   if (cached) return cached;
 
@@ -174,6 +178,7 @@ async function loadSamplesByLabel(baseUrl, label, labelCache) {
   while (true) {
     const samples = await requestJson(
       `${baseUrl}/api/graph/samples?label=${encodeURIComponent(label)}&offset=${offset}&limit=${GRAPH_SAMPLE_PAGE_SIZE}`,
+      { signal },
     );
     if (samples.status < 200 || samples.status >= 300 || !hasGraphSamplesShape(samples.body)) {
       const result = { ok: false, label, nodes: [], reason: `samples ${label} HTTP ${samples.status}` };
@@ -201,12 +206,12 @@ async function loadSamplesByLabel(baseUrl, label, labelCache) {
   }
 }
 
-async function resolveSourceRef(baseUrl, sourceRefId, identities, labelCache) {
+async function resolveSourceRef(baseUrl, sourceRefId, identities, labelCache, signal) {
   const identity = identities.get(sourceRefId);
   if (!identity) {
     return { ok: false, sourceRefId, reason: "undeclared sourceRef" };
   }
-  const samples = await loadSamplesByLabel(baseUrl, identity.label, labelCache);
+  const samples = await loadSamplesByLabel(baseUrl, identity.label, labelCache, signal);
   if (!samples.ok) {
     return { ok: false, sourceRefId, identity, reason: samples.reason };
   }
@@ -215,17 +220,17 @@ async function resolveSourceRef(baseUrl, sourceRefId, identities, labelCache) {
   return result;
 }
 
-async function evaluateGraphChecks(baseUrl, question, labelCache = new Map()) {
+async function evaluateGraphChecks(baseUrl, question, labelCache = new Map(), signal) {
   const identities = sourceRefIndex(question);
   const checks = [];
   for (const check of question.graphChecks ?? []) {
-    const anchor = await resolveSourceRef(baseUrl, check.anchor, identities, labelCache);
+    const anchor = await resolveSourceRef(baseUrl, check.anchor, identities, labelCache, signal);
     if (!anchor.ok) {
       checks.push({ anchor: check.anchor, status: "FAIL", missingNodes: [check.anchor], missingRelationships: [], reason: anchor.reason });
       continue;
     }
 
-    const neighbors = await requestJson(`${baseUrl}/api/graph/nodes/${encodeURIComponent(anchor.node.id)}/neighbors?depth=${check.depth}`);
+    const neighbors = await requestJson(`${baseUrl}/api/graph/nodes/${encodeURIComponent(anchor.node.id)}/neighbors?depth=${check.depth}`, { signal });
     if (neighbors.status < 200 || neighbors.status >= 300 || !hasEvidenceShape(neighbors.body)) {
       checks.push({ anchor: check.anchor, status: "FAIL", missingNodes: [], missingRelationships: [], reason: `neighbors HTTP ${neighbors.status}` });
       continue;
@@ -364,8 +369,8 @@ function deterministicChecks(question, graphChecks, queryBody, httpStatus) {
   };
 }
 
-async function executeAttempt(baseUrl, question, labelCache = new Map()) {
-  const graphChecks = await evaluateGraphChecks(baseUrl, question, labelCache);
+async function executeAttempt(baseUrl, question, labelCache = new Map(), signal) {
+  const graphChecks = await evaluateGraphChecks(baseUrl, question, labelCache, signal);
   if (!graphChecks.every((check) => check.status === "PASS")) {
     const checks = deterministicChecks(question, graphChecks, null, 0);
     return {
@@ -382,6 +387,7 @@ async function executeAttempt(baseUrl, question, labelCache = new Map()) {
   const query = await requestJson(`${baseUrl}/api/query`, {
     method: "POST",
     body: JSON.stringify({ question: question.question }),
+    signal,
   });
   const evidence = hasEvidenceShape(query.body?.evidence) ? query.body.evidence : { nodes: [], relationships: [] };
   const answer = typeof query.body?.answer === "string" ? query.body.answer : "";
@@ -460,9 +466,11 @@ async function runEvaluation(options) {
     const run = await loadOrCreateRun(options.outPath, expected);
     const completed = completedAttemptKeys(run);
     const labelCache = new Map();
+    const abortController = new AbortController();
     let interrupted = false;
     const interrupt = () => {
       interrupted = true;
+      abortController.abort();
     };
     process.once("SIGINT", interrupt);
     try {
@@ -478,8 +486,13 @@ async function runEvaluation(options) {
           const startedAt = new Date().toISOString();
           let attempt;
           try {
-            attempt = await executeAttempt(options.baseUrl, question, labelCache);
+            attempt = await executeAttempt(options.baseUrl, question, labelCache, abortController.signal);
           } catch (error) {
+            if (abortController.signal.aborted || isAbortError(error)) {
+              run.interruptedAt = new Date().toISOString();
+              await writeJsonAtomic(options.outPath, run);
+              return { run, interrupted: true };
+            }
             attempt = {
               latencyMs: 0,
               httpStatus: 0,
@@ -488,6 +501,11 @@ async function runEvaluation(options) {
               cypher: null,
               error: error instanceof Error ? error.message : String(error),
             };
+          }
+          if (abortController.signal.aborted) {
+            run.interruptedAt = new Date().toISOString();
+            await writeJsonAtomic(options.outPath, run);
+            return { run, interrupted: true };
           }
           run.attempts.push({
             questionId: question.id,
