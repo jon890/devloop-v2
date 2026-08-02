@@ -28,6 +28,8 @@
 
 plan 시작 시 확인한 기준은 노드 3,082개, 관계 13,002개, Concept 968개다.
 셋 중 하나라도 다르면 다른 그래프를 평가할 수 있으므로 기준선 실행을 멈추고 실제 응답값을 보고한다.
+완료 리포트의 확인 근거는 `eval/reports/2026-07-31-plan005-baseline.json#graphSnapshot`과
+`eval/reports/2026-07-31-plan005-baseline.md`의 "기준선 그래프 스냅샷" 항목에 남긴다.
 
 질의 모델 표기는 `.env`의 `QUERY_LLM_MODEL` 값을 읽어 명령에 명시한다.
 API 응답이 실제 모델 id를 증명하지 않는다는 한계를 리포트에 남긴다.

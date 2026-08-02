@@ -2526,5 +2526,14 @@
         "음성 대조 금지 주장 위반 회차: 2."
       ]
     }
-  ]
+  ],
+  "graphSnapshot": {
+    "source": "GET /api/graph/stats before baseline run",
+    "evidencePath": "eval/reports/2026-07-31-plan005-baseline.json#graphSnapshot",
+    "nodes": 3082,
+    "relationships": 13002,
+    "labels": {
+      "Concept": 968
+    }
+  }
 }
