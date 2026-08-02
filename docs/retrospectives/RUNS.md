@@ -8,4 +8,4 @@
 | 2026-07-30 | build-with-teams | plan002-pipeline-config | B | 3 | — | 1 | 2 | 없음 | 1 | main 머지·원격 push 완료 |
 | 2026-07-30 | build-with-teams | plan003-registry-curation | A | 4 | 0 | 2 | 1 | 없음 | 5 | 로컬 phase 커밋 완료, push·PR 생략 |
 | 2026-07-31 | planning | plan005-kg-eval-runner | - | 4 | - | - | - | 없음 | 1 | task 커밋 완료 |
-| 2026-07-31 | build-with-teams | plan005-kg-eval-runner | C | 4 | 0 | 3 | 0 | 없음 | 0 | Phase04 기준선 재실행·리포트·검증 완료, 독립 리뷰 수정 완료 |
+| 2026-07-31 | build-with-teams | plan005-kg-eval-runner | C | 4 | 0 | 6 | 0 | 없음 | 0 | Phase04 기준선 재실행·리포트·검증 완료, 독립 리뷰 2라운드 수정 완료 |
