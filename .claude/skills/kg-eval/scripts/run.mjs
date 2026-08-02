@@ -113,6 +113,10 @@ function sameIdentity(node, identity) {
   return node?.label === identity.label && String(node?.key) === String(identity.key);
 }
 
+function attemptKey(attempt) {
+  return `${attempt.questionId}:${attempt.attempt}`;
+}
+
 function hasEvidenceShape(value) {
   return value && Array.isArray(value.nodes) && Array.isArray(value.relationships);
 }
@@ -181,21 +185,15 @@ async function loadSamplesByLabel(baseUrl, label, labelCache, signal) {
       { signal },
     );
     if (samples.status < 200 || samples.status >= 300 || !hasGraphSamplesShape(samples.body)) {
-      const result = { ok: false, label, nodes: [], reason: `samples ${label} HTTP ${samples.status}` };
-      labelCache.set(label, result);
-      return result;
+      return { ok: false, label, nodes: [], reason: `samples ${label} HTTP ${samples.status}` };
     }
     if (samples.body.offset !== offset || samples.body.limit !== GRAPH_SAMPLE_PAGE_SIZE) {
-      const result = { ok: false, label, nodes: [], reason: `samples ${label} pagination contract mismatch` };
-      labelCache.set(label, result);
-      return result;
+      return { ok: false, label, nodes: [], reason: `samples ${label} pagination contract mismatch` };
     }
     nodes.push(...samples.body.nodes);
     const nextOffset = offset + samples.body.nodes.length;
     if (samples.body.nodes.length === 0 && nextOffset < samples.body.total) {
-      const result = { ok: false, label, nodes: [], reason: `samples ${label} pagination did not advance` };
-      labelCache.set(label, result);
-      return result;
+      return { ok: false, label, nodes: [], reason: `samples ${label} pagination did not advance` };
     }
     if (nextOffset >= samples.body.total) {
       const result = { ok: true, label, nodes };
@@ -447,8 +445,18 @@ function completedAttemptKeys(run) {
   return new Set(
     run.attempts
       .filter((attempt) => attempt && !attempt.error)
-      .map((attempt) => `${attempt.questionId}:${attempt.attempt}`),
+      .map(attemptKey),
   );
+}
+
+function upsertAttempt(run, attempt) {
+  const key = attemptKey(attempt);
+  const existingIndex = run.attempts.findIndex((item) => attemptKey(item) === key);
+  if (existingIndex >= 0) {
+    run.attempts[existingIndex] = attempt;
+    return;
+  }
+  run.attempts.push(attempt);
 }
 
 async function runEvaluation(options) {
@@ -507,12 +515,13 @@ async function runEvaluation(options) {
             await writeJsonAtomic(options.outPath, run);
             return { run, interrupted: true };
           }
-          run.attempts.push({
+          const record = {
             questionId: question.id,
             attempt: attemptNumber,
             startedAt,
             ...attempt,
-          });
+          };
+          upsertAttempt(run, record);
           await writeJsonAtomic(options.outPath, run);
           if (!attempt.error) {
             completed.add(key);

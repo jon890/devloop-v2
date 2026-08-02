@@ -91,6 +91,20 @@ test("accepts a valid source-backed suite", async () => {
   });
 });
 
+test("rejects unsupported suite schemaVersion", async () => {
+  await withFixture(async (fixture) => {
+    const errors = await validateObject(fixture, makeSuite({ schemaVersion: "kg-eval-suite/v999" }));
+    assert(errors.some((error) => error === "schemaVersion: must be kg-eval-suite/v1"));
+
+    const { spawnSync } = await import("node:child_process");
+    const result = spawnSync(process.execPath, [VALIDATOR, "--suite", fixture.suitePath, "--data-root", fixture.dataRoot], {
+      encoding: "utf8"
+    });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /schemaVersion: must be kg-eval-suite\/v1/);
+  });
+});
+
 test("accepts insufficient-source negative controls with empty graph checks", async () => {
   await withFixture(async (fixture) => {
     const questions = makeSuite().questions;

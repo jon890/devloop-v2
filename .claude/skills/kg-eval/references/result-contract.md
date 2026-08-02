@@ -10,7 +10,7 @@
 
 | 필드 | 형식 | 설명 |
 | --- | --- | --- |
-| `schemaVersion` | string | 세트 형식 버전. 예: `kg-eval-suite/v1` |
+| `schemaVersion` | string | 세트 형식 버전. `kg-eval-suite/v1`만 허용한다 |
 | `project` | string | 원천 프로젝트 코드. 예: `tc-ocr` |
 | `flowId` | string | 대표 업무 흐름의 안정된 식별자 |
 | `title` | string | 사람이 읽는 평가 세트 제목 |

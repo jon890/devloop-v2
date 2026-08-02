@@ -4,6 +4,7 @@ import path from "node:path";
 import process from "node:process";
 
 const AUDIENCES = new Set(["human", "ai"]);
+const SUITE_SCHEMA_VERSION = "kg-eval-suite/v1";
 const DIFFICULTIES = new Set(["L1", "L2", "L3", "L4", "L5"]);
 const ANSWERABILITIES = new Set(["answerable", "insufficient-source"]);
 const SOURCE_TYPES = new Set(["post", "comment"]);
@@ -245,6 +246,9 @@ async function validateSuite(suitePath, dataRoot) {
 
   for (const field of ["schemaVersion", "project", "flowId", "title", "sourceSnapshot"]) {
     requireText(errors, suite, field, field);
+  }
+  if (hasText(suite.schemaVersion) && suite.schemaVersion !== SUITE_SCHEMA_VERSION) {
+    add(errors, null, "schemaVersion", `must be ${SUITE_SCHEMA_VERSION}`);
   }
   const questions = requireArray(errors, suite, "questions", "questions");
   if (questions.length < 12) {

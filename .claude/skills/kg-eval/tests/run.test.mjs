@@ -167,6 +167,12 @@ function graphServer(suite, options = {}) {
         const label = url.searchParams.get("label");
         const offset = Number(url.searchParams.get("offset") ?? "0");
         const limit = Number(url.searchParams.get("limit") ?? "5");
+        if (typeof options.samplesResponse === "function") {
+          const value = options.samplesResponse({ label, offset, limit, calls });
+          response.writeHead(value.status ?? 200, { "content-type": "application/json" });
+          response.end(JSON.stringify(value.body));
+          return;
+        }
         const nodes = samplesByLabel[label] ?? [];
         response.writeHead(options.samplesStatus ?? 200, { "content-type": "application/json" });
         response.end(
@@ -199,6 +205,12 @@ function graphServer(suite, options = {}) {
       if (url.pathname === "/api/query") {
         const body = JSON.parse(await readRequestBody(request));
         const question = suite.questions.find((item) => item.question === body.question) ?? suite.questions[0];
+        if (typeof options.queryResponse === "function") {
+          const value = options.queryResponse({ question, calls });
+          response.writeHead(value.status ?? 200, { "content-type": "application/json" });
+          response.end(JSON.stringify(value.body));
+          return;
+        }
         const nodes = options.evidenceNodes ? options.evidenceNodes(question) : sourceNodesFromQuery(question, options.evidenceIdPrefix ?? "");
         const answer = typeof options.answer === "function" ? options.answer(question) : (options.answer ?? orderedAnswer(question));
         const relationships = nodes.length >= 2 ? [rel("ev-rel", "HAS_COMMENT", nodes[0].id, nodes[1].id)] : [];
@@ -314,6 +326,64 @@ test("resumes and skips completed attempts from an existing file", async () => {
   });
 });
 
+test("replaces a failed attempt on resume without duplicating attempt keys", async () => {
+  await withWorkspace(async (workspace) => {
+    const failedRecord = {
+      questionId: "Q-01",
+      attempt: 1,
+      startedAt: new Date().toISOString(),
+      latencyMs: 1,
+      httpStatus: 500,
+      answer: "",
+      evidence: { nodes: [], relationships: [] },
+      cypher: null,
+      error: "{\"error\":\"transient\"}",
+    };
+    await writeJson(workspace.outPath, {
+      schemaVersion: "kg-eval-run/v1",
+      suitePath: workspace.suitePath,
+      suiteHash: suiteHash(workspace.suitePath),
+      commit: "unknown",
+      stage: "plan005-baseline",
+      baseUrl: "PLACEHOLDER",
+      declaredQueryModel: "gpt-5.6-terra",
+      repetitions: 2,
+      startedAt: new Date().toISOString(),
+      attempts: [
+        failedRecord,
+        {
+          questionId: "Q-01",
+          attempt: 2,
+          startedAt: new Date().toISOString(),
+          latencyMs: 1,
+          httpStatus: 200,
+          answer: "완료",
+          evidence: { nodes: [], relationships: [] },
+          cypher: "RETURN 1",
+          error: null,
+        },
+      ],
+    });
+    const server = graphServer(workspace.suite);
+    await withServer(server.handler, async (baseUrl) => {
+      const existing = JSON.parse(await readFile(workspace.outPath, "utf8"));
+      existing.baseUrl = baseUrl;
+      await writeJson(workspace.outPath, existing);
+      const result = await runCli(workspace, baseUrl);
+      assert.equal(result.status, 0, result.stderr);
+      const run = JSON.parse(await readFile(workspace.outPath, "utf8"));
+      assert.equal(run.attempts.length, workspace.suite.questions.length * 2);
+      const keys = run.attempts.map((attempt) => `${attempt.questionId}:${attempt.attempt}`);
+      assert.equal(new Set(keys).size, keys.length);
+      const retried = run.attempts.filter((attempt) => attempt.questionId === "Q-01" && attempt.attempt === 1);
+      assert.equal(retried.length, 1);
+      assert.equal(retried[0].error, null);
+      assert.equal(retried[0].httpStatus, 200);
+      assert.equal(run.attempts.filter((attempt) => attempt.questionId === "Q-01" && attempt.attempt === 2).length, 1);
+    });
+  });
+});
+
 test("rejects mismatched conditions and lock conflicts", async () => {
   await withWorkspace(async (workspace) => {
     const server = graphServer(workspace.suite);
@@ -423,6 +493,37 @@ test("records graph failure when graph samples response violates contract", asyn
       const run = JSON.parse(await readFile(workspace.outPath, "utf8"));
       assert.equal(run.attempts[0].deterministicChecks.graph.status, "FAIL");
       assert.match(run.attempts[0].deterministicChecks.graph.checks[0].reason, /samples Task HTTP 200/);
+    });
+  });
+});
+
+test("does not poison label cache with transient graph samples failures", async () => {
+  await withWorkspace(async (workspace) => {
+    let taskSamplesCalls = 0;
+    const defaultSamples = defaultSamplesByLabel(workspace.suite);
+    const server = graphServer(workspace.suite, {
+      samplesResponse: ({ label, offset, limit }) => {
+        const nodes = defaultSamples[label] ?? [];
+        if (label === "Task") {
+          taskSamplesCalls += 1;
+          if (taskSamplesCalls === 1) {
+            return { status: 500, body: { error: "transient" } };
+          }
+        }
+        return { body: { nodes: nodes.slice(offset, offset + limit), relationships: [], total: nodes.length, offset, limit } };
+      },
+    });
+    await withServer(server.handler, async (baseUrl) => {
+      const result = await runCli(workspace, baseUrl);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(taskSamplesCalls, 2);
+      const run = JSON.parse(await readFile(workspace.outPath, "utf8"));
+      const first = run.attempts.find((attempt) => attempt.questionId === "Q-01" && attempt.attempt === 1);
+      const second = run.attempts.find((attempt) => attempt.questionId === "Q-01" && attempt.attempt === 2);
+      assert.equal(first.deterministicChecks.graph.status, "FAIL");
+      assert.match(first.deterministicChecks.graph.checks[0].reason, /samples Task HTTP 500/);
+      assert.equal(second.deterministicChecks.graph.status, "PASS");
+      assert.equal(second.deterministicChecks.failureBoundary, "NONE");
     });
   });
 });
