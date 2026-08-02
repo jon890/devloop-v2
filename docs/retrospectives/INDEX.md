@@ -9,3 +9,4 @@
 | RETRO-0005 | 2026-07-30 | plan003-registry-curation | 구현 완료 뒤 목표 상태 문구가 남았다 | 해결 | 승격 안 함 |
 | RETRO-0006 | 2026-07-30 | plan003-registry-curation | 최상위 완료와 하위 상태 표기가 어긋났다 | 해결 | 승격 안 함 |
 | RETRO-0007 | 2026-07-31 | plan005-kg-eval-runner | fulltext preflight가 숫자 식별자를 그래프 실패로 만들었다 | 해결 | 승격 안 함 |
+| RETRO-0008 | 2026-07-31 | plan005 | 독립 코드 리뷰가 평가 계약 불일치를 드러냈다 | 해결 | 승격 안 함 |
