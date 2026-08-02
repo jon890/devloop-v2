@@ -155,7 +155,7 @@ function graphServer(suite, options = {}) {
       calls.push(`${request.method} ${url.pathname}`);
       if (url.pathname === "/api/graph/stats") {
         response.writeHead(options.statsStatus ?? 200, { "content-type": "application/json" });
-        response.end(JSON.stringify(options.statsStatus ? { error: "down" } : { nodes: { Task: 12 }, relationships: { HAS_COMMENT: 12 } }));
+        response.end(JSON.stringify(options.statsBody ?? (options.statsStatus ? { error: "down" } : { nodes: { Task: 12 }, relationships: { HAS_COMMENT: 12 } })));
         return;
       }
       if (url.pathname === "/api/graph/search") {
@@ -286,6 +286,18 @@ test("does not query when graph stats preflight fails", async () => {
   });
 });
 
+test("does not query when graph stats preflight response violates contract", async () => {
+  await withWorkspace(async (workspace) => {
+    const server = graphServer(workspace.suite, { statsBody: { nodes: { Task: "12" }, relationships: { HAS_COMMENT: 12 } } });
+    await withServer(server.handler, async (baseUrl) => {
+      const result = await runCli(workspace, baseUrl);
+      assert.equal(result.status, 1);
+      assert.match(result.stderr, /graph stats preflight failed: HTTP 200/);
+      assert.equal(server.calls.filter((call) => call === "POST /api/query").length, 0);
+    });
+  });
+});
+
 test("resumes and skips completed attempts from an existing file", async () => {
   await withWorkspace(async (workspace) => {
     await writeJson(workspace.outPath, {
@@ -380,6 +392,46 @@ test("replaces a failed attempt on resume without duplicating attempt keys", asy
       assert.equal(retried[0].error, null);
       assert.equal(retried[0].httpStatus, 200);
       assert.equal(run.attempts.filter((attempt) => attempt.questionId === "Q-01" && attempt.attempt === 2).length, 1);
+    });
+  });
+});
+
+test("records malformed 2xx query responses as retryable errors", async () => {
+  await withWorkspace(async (workspace) => {
+    let malformedServed = false;
+    const server = graphServer(workspace.suite, {
+      queryResponse: ({ question }) => {
+        if (question.id === "Q-01" && !malformedServed) {
+          malformedServed = true;
+          return { body: { answer: "missing evidence and cypher" } };
+        }
+        const nodes = sourceNodesFromQuery(question);
+        return {
+          body: {
+            answer: orderedAnswer(question),
+            evidence: { nodes, relationships: [rel("ev-rel", "HAS_COMMENT", nodes[0].id, nodes[1].id)] },
+            cypher: "MATCH (n) RETURN n",
+          },
+        };
+      },
+    });
+    await withServer(server.handler, async (baseUrl) => {
+      const first = await runCli(workspace, baseUrl, [], "1");
+      assert.equal(first.status, 0, first.stderr);
+      const failedRun = JSON.parse(await readFile(workspace.outPath, "utf8"));
+      const failed = failedRun.attempts.find((attempt) => attempt.questionId === "Q-01" && attempt.attempt === 1);
+      assert.equal(failed.httpStatus, 200);
+      assert.equal(failed.error, "query response contract mismatch");
+
+      const resumed = await runCli(workspace, baseUrl, [], "1");
+      assert.equal(resumed.status, 0, resumed.stderr);
+      const resumedRun = JSON.parse(await readFile(workspace.outPath, "utf8"));
+      assert.equal(resumedRun.attempts.length, workspace.suite.questions.length);
+      const keys = resumedRun.attempts.map((attempt) => `${attempt.questionId}:${attempt.attempt}`);
+      assert.equal(new Set(keys).size, keys.length);
+      const retried = resumedRun.attempts.find((attempt) => attempt.questionId === "Q-01" && attempt.attempt === 1);
+      assert.equal(retried.error, null);
+      assert.equal(retried.httpStatus, 200);
     });
   });
 });

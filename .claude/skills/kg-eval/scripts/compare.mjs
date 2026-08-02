@@ -89,11 +89,8 @@ function compareSummaries(baseline, candidate) {
   for (const [id, before] of baselineQuestions) {
     const after = candidateQuestions.get(id);
     if (!after) {
-      const axes = axisChanges(before, {});
+      const axes = { resolved: [], added: [] };
       result.review.push(id);
-      if (axes.resolved.length > 0 || axes.added.length > 0) {
-        result.axisChanges.push({ id, ...axes });
-      }
       result.failureBoundaryChanges.push({ id, from: before.failureBoundary ?? "NONE", to: "MISSING", axes });
       continue;
     }

@@ -137,6 +137,23 @@ function hasGraphSamplesShape(value) {
   return hasEvidenceShape(value) && isSafePagination(value);
 }
 
+function isNonnegativeNumberRecord(value) {
+  return (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.values(value).every((item) => Number.isInteger(item) && item >= 0)
+  );
+}
+
+function hasGraphStatsShape(value) {
+  return value && isNonnegativeNumberRecord(value.nodes) && isNonnegativeNumberRecord(value.relationships);
+}
+
+function hasQueryResponseShape(value) {
+  return value && typeof value.answer === "string" && hasEvidenceShape(value.evidence) && typeof value.cypher === "string";
+}
+
 function isAbortError(error) {
   return error?.name === "AbortError";
 }
@@ -168,7 +185,7 @@ async function assertPreflight({ suitePath, baseUrl }) {
     throw new Error(`suite validation failed:\n${suiteErrors.join("\n")}`);
   }
   const stats = await requestJson(`${baseUrl}/api/graph/stats`);
-  if (stats.status < 200 || stats.status >= 300 || !stats.body || typeof stats.body !== "object") {
+  if (stats.status < 200 || stats.status >= 300 || !hasGraphStatsShape(stats.body)) {
     throw new Error(`graph stats preflight failed: HTTP ${stats.status}`);
   }
 }
@@ -387,6 +404,16 @@ async function executeAttempt(baseUrl, question, labelCache = new Map(), signal)
     body: JSON.stringify({ question: question.question }),
     signal,
   });
+  if (query.status >= 200 && query.status < 300 && !hasQueryResponseShape(query.body)) {
+    return {
+      latencyMs: query.latencyMs,
+      httpStatus: query.status,
+      answer: "",
+      evidence: { nodes: [], relationships: [] },
+      cypher: null,
+      error: "query response contract mismatch",
+    };
+  }
   const evidence = hasEvidenceShape(query.body?.evidence) ? query.body.evidence : { nodes: [], relationships: [] };
   const answer = typeof query.body?.answer === "string" ? query.body.answer : "";
   const checks = deterministicChecks(question, graphChecks, { answer, evidence }, query.status);

@@ -73,6 +73,20 @@ test("accepts raw top-level suiteHash and report nested suite hash", () => {
   assert.deepEqual(result.unchanged, ["Q-01"]);
 });
 
+test("does not report resolved axes when candidate question is missing", () => {
+  const result = compareSummaries(
+    summary({
+      questions: [{ id: "Q-01", finalVerdict: "FAIL", failureBoundary: "RETRIEVAL", failedAxes: ["R"] }],
+    }),
+    summary({
+      questions: [],
+    }),
+  );
+  assert.deepEqual(result.review, ["Q-01"]);
+  assert.deepEqual(result.axisChanges, []);
+  assert.deepEqual(result.failureBoundaryChanges, [{ id: "Q-01", from: "RETRIEVAL", to: "MISSING", axes: { resolved: [], added: [] } }]);
+});
+
 test("prints JSON result and exits nonzero on hash mismatch", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "kg-eval-compare-"));
   try {
