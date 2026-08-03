@@ -12,3 +12,4 @@
 | 2026-08-03 | planning | plan006-evidence-retrieval | — | 4 | — | — | 5 | 없음 | 7 | task 커밋 완료. 1단계 실측이 계획 방향을 바꿨다 |
 | 2026-08-03 | build-with-teams | plan006-evidence-retrieval | B | 4 | — | — | — | 없음 | 4 | 로컬 phase 커밋 완료, push·PR 생략(지시). 스펙 결함 3건을 조정자 확인으로 고쳤다 |
 | 2026-08-03 | plan007 | plan007-evidence-budget | — | — | 1 | — | 4 | 없음 | 0 | 근거 상한을 길이 예산으로, Cypher 를 모든 업무 댓글 확장으로. 회수 (12,12) → (7,9) 로 구간 비겹침. 독립 검토가 blocker 1건을 측정 전에 잡았다 |
+| 2026-08-04 | plan008 | plan008-cypher-row-budget | — | — | — | — | 2 | 없음 | 0 | 다수 업무 확장을 collect 로 접었다. 회수 실패 (7,9) → (2,2) 로 변동 0. 지연은 44 → 70~78초로 늘었다 |
