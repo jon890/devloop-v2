@@ -11,4 +11,4 @@
 | 2026-07-31 | build-with-teams | plan005-kg-eval-runner | C | 4 | 0 | 9 | 0 | 없음 | 0 | Phase04 기준선 재실행·리포트·검증 완료, 독립 리뷰 3라운드 수정 완료 |
 | 2026-08-03 | planning | plan006-evidence-retrieval | — | 4 | — | — | 5 | 없음 | 7 | task 커밋 완료. 1단계 실측이 계획 방향을 바꿨다 |
 | 2026-08-03 | build-with-teams | plan006-evidence-retrieval | B | 4 | — | — | — | 없음 | 4 | 로컬 phase 커밋 완료, push·PR 생략(지시). 스펙 결함 3건을 조정자 확인으로 고쳤다 |
-| 2026-08-03 | plan007 | plan007-evidence-budget | — | — | 1 | — | 3 | 없음 | 0 | 근거 상한을 길이 예산으로 교체. 회수 12 → 12 판정 불가. 독립 검토가 blocker 1건을 측정 전에 잡았다 |
+| 2026-08-03 | plan007 | plan007-evidence-budget | — | — | 1 | — | 4 | 없음 | 0 | 근거 상한을 길이 예산으로, Cypher 를 모든 업무 댓글 확장으로. 회수 (12,12) → (7,9) 로 구간 비겹침. 독립 검토가 blocker 1건을 측정 전에 잡았다 |
