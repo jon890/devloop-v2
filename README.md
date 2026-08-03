@@ -15,8 +15,9 @@ Dooray 프로젝트(기본 tc-ocr)의 업무·위키를 수집해 고정 온톨�
 - `docs/adr/` — 코드로 자명하지 않은 장기 기술 결정
 - `docs/EVAL-RUBRIC.md` — 품질 판정 단일 소스 (정적 기준·채점표·통과선)
 - `eval/questions-{human,ai}-<project>.json` — 평가 질문 gold 단일 소스 (기대 근거 포함)
+- `eval/suites/` — 원천 근거 기반 평가 세트 (`kg-eval` 러너 입력)
 - `eval/` — 정적 점검 쿼리·평가 리포트
-- `.claude/skills/` — 평가 스킬 3종 (kg-eval-human, kg-eval-ai, kg-model-bench)
+- `.claude/skills/` — 평가 스킬 2종 (kg-eval, kg-model-bench)
 
 ## 실행
 
