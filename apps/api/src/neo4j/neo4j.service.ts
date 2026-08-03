@@ -3,6 +3,7 @@ import type { GraphNode, GraphRel } from "@devloop/shared";
 import { NODE_KEY_PROPERTIES, NODE_LABELS, RELATIONSHIP_TYPES } from "@devloop/shared";
 import neo4j, { Driver, Integer, Node, Path, Relationship, Session, auth, int, isInt } from "neo4j-driver";
 import { API_CONFIG, type ApiConfig } from "../config";
+import { COMMENT_DISPLAY_LIMIT } from "./neo4j.const";
 
 type NeoValue = null | string | number | boolean | Integer | Date | NeoValue[] | { [key: string]: NeoValue };
 
@@ -141,15 +142,26 @@ function sanitizeValue(value: unknown): unknown {
   return value;
 }
 
-function displayFor(label: GraphNode["label"], properties: Record<string, unknown>, key: string): string {
+export function displayFor(label: GraphNode["label"], properties: Record<string, unknown>, key: string): string {
   if (label === "Task") return String(properties.subject ?? key);
   if (label === "Wiki") return String(properties.subject ?? key);
   if (label === "Person") return String(properties.name ?? key);
   if (label === "Concept") return String(properties.name ?? key);
   if (label === "Project") return String(properties.name ?? key);
   if (label === "Decision") return String(properties.summary ?? key);
-  if (label === "Comment") return String(properties.excerpt ?? key);
+  if (label === "Comment") return truncateDisplay(String(properties.excerpt ?? key));
   return key;
+}
+
+/**
+ * `Comment` 의 `excerpt` 는 최대 6,000자다. 목록 표시에 그 전체를 넣지 않는다.
+ *
+ * 저장한 본문은 길게 두고 표시만 짧게 하는 것이다. 근거 노드의 `excerpt` 속성은 그대로 길어야
+ * 답변이 인용할 수 있으므로 여기서 자르는 값은 `display` 뿐이다.
+ */
+function truncateDisplay(text: string): string {
+  const collapsed = text.replace(/\s+/g, " ").trim();
+  return collapsed.length <= COMMENT_DISPLAY_LIMIT ? collapsed : `${collapsed.slice(0, COMMENT_DISPLAY_LIMIT)}…`;
 }
 
 function integerToString(value: Integer): string {

@@ -1,7 +1,7 @@
 # Phase 02 — 본문·댓글 전문 검색 인덱스와 댓글 히트 승격을 넣는다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

@@ -343,10 +343,13 @@ test('fulltext 검색은 인덱스별 후보를 전역 LIMIT 없이 RRF 단계�
 
   assert.match(executedCypher, /queryNodes\(indexName, \$q, \{limit: \$perIndexLimit\}\)/);
   assert.doesNotMatch(executedCypher, /LIMIT \$limit/);
+  // 본문·댓글 인덱스는 기존 셋 뒤에 붙는다. 제목·이름만 덮으면 닿지 않는 노드가 있다.
   assert.deepEqual(executedParams.indexes, [
     'task_subject_fulltext',
     'wiki_subject_fulltext',
     'concept_name_fulltext',
+    'task_body_fulltext',
+    'comment_excerpt_fulltext',
   ]);
   assert.equal(
     executedParams.q,
