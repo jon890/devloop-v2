@@ -267,6 +267,8 @@ export class QueryService {
       '예시 Cypher: MATCH (t:Task)-[typeTag:TAGGED]->(:Concept {name:"개선"}) WHERE typeTag.dimension = "0" MATCH (t)-[groupTag:TAGGED]->(c:Concept) WHERE groupTag.dimension = "2" RETURN c.name, count(t)',
       "집계 질의의 Cypher는 집계 결과 행만 반환하라. 집계 뒤 근거 node/path를 재확장하거나 근거 수집용 LIMIT를 같은 쿼리에 넣지 마라. LIMIT는 집계 그룹에 적용한다.",
       "비집계 질의는 가능하면 node, relationship, path를 RETURN해서 근거 그래프를 포함하라.",
+      "질문이 검증·조치·경과·근거를 묻거나 특정 Task 번호를 지목하면, **지목된 모든 Task 의 댓글을 함께** 확장하라. 한 Task 의 number 목록을 만들어 MATCH (t:Task) WHERE t.number IN [...] OPTIONAL MATCH (t)-[hasComment:HAS_COMMENT]->(comment:Comment) 형태로 쓴다. 업무 하나만 댓글 확장하면 다른 업무의 근거 댓글이 아예 조회되지 않는다.",
+      "실측 사례 — 497의 변경이 499에서 어떻게 검증됐는지 묻는 질문에 499의 댓글만 확장해 497의 근거 댓글 2건을 놓쳤다. 두 업무를 number 목록에 함께 넣어야 한다.",
       "fulltext 검색으로 찾은 순위화된 anchor 후보를 우선 사용하라. 관련 anchor는 label과 key에 맞는 실제 노드로 제한하고, display를 질문 용어 해석에 활용하라.",
       `Anchor candidates (label/key/display; Task includes decisionCount): ${JSON.stringify(anchorSummaries(anchorCandidates))}`,
       retry ? `이전 Cypher는 오류가 났다. 오류를 반영해 한 번만 고쳐라.\nPrevious: ${retry.previousCypher}\nError: ${retry.error}` : "",
