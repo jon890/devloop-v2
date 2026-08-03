@@ -15,6 +15,7 @@ const { LlmNodeSchema, LlmRelationshipSchema } = require('../dist/infer/llm-extr
 const { extractLlm: extractLlmWithRegistry } = require('../dist/infer/llm-extractor');
 const { sanitizeLlmGraphFile } = require('../dist/infer/llm-relationship-sanitizer');
 const { extractStructural } = require('../dist/parse/structural-extractor');
+const { COMMENT_EXCERPT_LIMIT, TASK_BODY_LIMIT } = require('../dist/parse/parse.const');
 const { resolvePipelineDataRoot } = require('../dist/main');
 
 const extractLlm = (options) => extractLlmWithRegistry({ ...options, curation: { merges: [], blocks: [] } });
@@ -126,7 +127,7 @@ test('fixture 5건을 온톨로지 구조 노드와 관계로 추출한다', asy
   assert.ok(relationships.filter((relationship) => relationship.type === 'TAGGED').every((relationship) => typeof relationship.properties.dimension === 'string'));
 });
 
-test('Task bodyExcerpt는 raw 마크다운과 개행을 유지하고 앞 300자만 저장한다', async () => {
+test('Task bodyExcerpt는 raw 마크다운과 개행을 유지하고 상한까지 저장한다', async () => {
   const dataRoot = await fixtureDataRoot();
   const postPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts', '101.json');
   const document = JSON.parse(await readFile(postPath, 'utf8'));
@@ -135,7 +136,7 @@ test('Task bodyExcerpt는 raw 마크다운과 개행을 유지하고 앞 300자�
     '',
     '* API Gateway를 제거한 이유를 기록한다.',
     '',
-    `후속 내용 ${'가'.repeat(320)}`,
+    `후속 내용 ${'가'.repeat(TASK_BODY_LIMIT + 20)}`,
   ].join('\n');
   document.post.body.content = rawBody;
   await writeFile(postPath, JSON.stringify(document));
@@ -144,9 +145,70 @@ test('Task bodyExcerpt는 raw 마크다운과 개행을 유지하고 앞 300자�
   const records = await jsonLines(result.outputPath);
   const task = records.find((record) => record.label === 'Task' && record.key === '101');
 
-  assert.equal(task.properties.bodyExcerpt, rawBody.slice(0, 300));
-  assert.equal(task.properties.bodyExcerpt.length, 300);
+  assert.equal(task.properties.bodyExcerpt, rawBody.slice(0, TASK_BODY_LIMIT));
+  assert.equal(task.properties.bodyExcerpt.length, TASK_BODY_LIMIT);
   assert.match(task.properties.bodyExcerpt, /^## 개요\n\n\* API Gateway/);
+  assert.equal(result.truncatedTaskBodies, 1, '상한을 넘긴 본문 1건이 요약에 집계된다');
+});
+
+// phase-01 이 1번 위험으로 못 박은 자리다. 훅 머리말 벗기기나 개행 보존 추출이
+// addCommentNode 밖으로 올라가면 addTextReferences 가 가공된 값을 받아 REFERENCES 가 조용히 바뀐다.
+// 참조를 머리말 둘째 줄에만 두어, 유출이 생기면 이 테스트가 반드시 실패하게 만든다.
+test('업무 참조 추출은 훅 머리말을 벗기지 않은 원문을 받는다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  const postPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts', '101.json');
+  const document = JSON.parse(await readFile(postPath, 'utf8'));
+  const repo = '[[TOASTCloud/OCR.Console](https://github.nhnent.com/TOASTCloud/OCR.Console)]';
+  const commit = '[62d7fab](https://github.nhnent.com/TOASTCloud/OCR.Console/commit/62d7fab)';
+  document.comments[0].content = [
+    `${repo} dev pushes ${commit} to \`refs/heads/develop\``,
+    '[관련 업무 tc-ocr/102 대응](https://github.nhnent.com/x/y/pull/9)',
+    '본문에는 참조가 없다',
+  ].join('\n');
+  await writeFile(postPath, JSON.stringify(document));
+
+  const result = await extractStructural({ dataRoot, project: 'tc-ocr' });
+  const records = await jsonLines(result.outputPath);
+  const comment = records.find((record) => record.label === 'Comment' && record.key === 'c-101-1');
+
+  assert.equal(comment.properties.excerpt, '본문에는 참조가 없다', '저장 값은 머리말이 벗겨진다');
+  assert.ok(
+    records.some(
+      (record) => record.type === 'REFERENCES' && record.startKey === 'Task:101' && record.endKey === 'Task:102',
+    ),
+    '머리말 둘째 줄의 참조가 REFERENCES 로 남아야 한다 — 없으면 가공된 값이 참조 추출로 새어나갔다',
+  );
+});
+
+test('상한을 넘긴 댓글 건수가 요약에 집계된다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  const postPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts', '101.json');
+  const document = JSON.parse(await readFile(postPath, 'utf8'));
+  document.comments[0].content = '다'.repeat(COMMENT_EXCERPT_LIMIT + 100);
+  await writeFile(postPath, JSON.stringify(document));
+
+  const result = await extractStructural({ dataRoot, project: 'tc-ocr' });
+  const records = await jsonLines(result.outputPath);
+  const comment = records.find((record) => record.label === 'Comment' && record.key === 'c-101-1');
+
+  assert.equal(comment.properties.excerpt.length, COMMENT_EXCERPT_LIMIT);
+  assert.equal(result.truncatedComments, 1);
+});
+
+test('상한 이하 본문은 잘리지 않고 집계에도 오르지 않는다', async () => {
+  const dataRoot = await fixtureDataRoot();
+  const postPath = path.join(dataRoot, 'raw', 'tc-ocr', 'posts', '101.json');
+  const document = JSON.parse(await readFile(postPath, 'utf8'));
+  const rawBody = `후속 내용 ${'가'.repeat(1200)}`;
+  document.post.body.content = rawBody;
+  await writeFile(postPath, JSON.stringify(document));
+
+  const result = await extractStructural({ dataRoot, project: 'tc-ocr' });
+  const records = await jsonLines(result.outputPath);
+  const task = records.find((record) => record.label === 'Task' && record.key === '101');
+
+  assert.equal(task.properties.bodyExcerpt, rawBody, '기존 300자 상한을 넘는 본문이 온전히 남는다');
+  assert.equal(result.truncatedTaskBodies, 0);
 });
 
 test('실제 Dooray 구조에서 사람 관계·태그 차원·정수 업무 번호를 추출한다', async () => {

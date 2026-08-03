@@ -9,7 +9,7 @@ import { Neo4jService } from "../neo4j.service";
 import { ANCHOR_CANDIDATE_LIMIT, ANCHOR_LABEL_QUOTAS, EVIDENCE_NODE_LIMIT, FULLTEXT_INDEXES } from "./query.const";
 import { AnchorResponseSchema, AnswerResponseSchema, CypherResponseSchema } from "./query.schema";
 
-interface FulltextMatch {
+export interface FulltextMatch {
   node: GraphNode;
   score: number;
 }
@@ -45,7 +45,16 @@ export class QueryService {
       diagnostics.push(`anchor 검색 실패(${terms[index]}): ${formatError(result.reason)}`);
       return [];
     });
-    const anchors = rankAnchorCandidates(fulfilledSearchResults, ANCHOR_CANDIDATE_LIMIT);
+    let promotedSearchResults: FulltextMatch[][];
+    try {
+      promotedSearchResults = await this.promoteCommentHits(fulfilledSearchResults);
+    } catch (error) {
+      diagnostics.push(`댓글 히트 승격 실패: ${formatError(error)}`);
+      // 원본으로 되돌리지 않는다. 되돌리면 Comment 가 앵커 목록에 남아 라벨 정원이 없는 채로
+      // 슬롯을 잠식한다. 승격하지 못한 댓글 히트는 버리는 것이 이 단계의 규칙이다.
+      promotedSearchResults = dropCommentHits(fulfilledSearchResults);
+    }
+    const anchors = rankAnchorCandidates(promotedSearchResults, ANCHOR_CANDIDATE_LIMIT);
     let decisionCounts: ReadonlyMap<string, number> | undefined;
     try {
       decisionCounts = await this.countTaskDecisions(anchors);
@@ -150,6 +159,43 @@ export class QueryService {
         node: this.neo4jService.nodeToGraphNode(record.get("node")),
         score: toSafeNumber(record.get("score") as number),
       }));
+    });
+  }
+
+  /**
+   * 검색 결과의 `Comment` 히트를 부모 업무로 바꿔 넣는다.
+   *
+   * 댓글을 앵커 목록에 그대로 두면 Cypher 생성 프롬프트가 새 라벨을 다루는 법을 알아야 하고
+   * 앵커 슬롯 8개를 댓글이 잠식한다. 프롬프트까지 함께 바뀌면 회수 실패가 줄었을 때 텍스트 확보
+   * 덕인지 프롬프트 덕인지 가를 수 없다.
+   *
+   * 부모 조회는 검색어 개수만큼 반복하지 않고 전체 결과에서 한 번에 모아 한 질의로 처리한다.
+   */
+  private async promoteCommentHits(resultSets: FulltextMatch[][]): Promise<FulltextMatch[][]> {
+    const commentIds = [
+      ...new Set(resultSets.flatMap((matches) => matches.filter((match) => match.node.label === "Comment").map((match) => match.node.id))),
+    ];
+    if (commentIds.length === 0) return resultSets;
+    const parents = await this.commentParentTasks(commentIds);
+    return resultSets.map((matches) => promoteCommentAnchors(matches, parents));
+  }
+
+  private async commentParentTasks(commentIds: string[]): Promise<Map<string, GraphNode>> {
+    return this.neo4jService.executeRead(async (session) => {
+      const result = await session.run(
+        `
+        MATCH (c:Comment)<-[:HAS_COMMENT]-(t:Task)
+        WHERE elementId(c) IN $commentIds
+        RETURN elementId(c) AS commentId, t AS task
+        `,
+        { commentIds },
+      );
+      const parents = new Map<string, GraphNode>();
+      for (const record of result.records) {
+        const commentId = String(record.get("commentId"));
+        if (!parents.has(commentId)) parents.set(commentId, this.neo4jService.nodeToGraphNode(record.get("task")));
+      }
+      return parents;
     });
   }
 
@@ -354,6 +400,47 @@ function normalizeTaskCitations(answer: string, answerNodes: GraphNode[]): strin
     /(?:(?:Task|업무)[ \t]+)?(?<![\w/])(?<!Task\n)(?<!Task\r\n)(?<!업무\n)(?<!업무\r\n)#(\d+)(?![\w.]|번)/gi,
     (reference, taskNumber: string) => (taskNumbers.has(taskNumber) ? `Task #${taskNumber}` : reference),
   );
+}
+
+/**
+ * 부모 조회가 실패했을 때 쓰는 안전 기본값이다. `Comment` 히트만 버리고 나머지는 그대로 둔다.
+ *
+ * `ANCHOR_LABEL_QUOTAS` 에 `Comment` 항목이 없어 `max` 가 없으므로, 앵커 목록에 `Comment` 가
+ * 남으면 backfill 이 제한 없이 채워 슬롯을 잠식한다.
+ */
+export function dropCommentHits(resultSets: FulltextMatch[][]): FulltextMatch[][] {
+  return resultSets.map((matches) => matches.filter((match) => match.node.label !== "Comment"));
+}
+
+/**
+ * 한 검색 결과에서 `Comment` 히트를 부모 업무로 치환한다.
+ *
+ * `rankAnchorCandidates` 가 배열 위치를 순위로 써서 역수로 융합하므로(`1 / (60 + rank + 1)`),
+ * 승격한 업무는 **댓글이 있던 자리에 그대로 들어가야** 융합에서 제 무게를 갖는다.
+ *
+ * - 같은 업무의 댓글이 여러 건 걸리면 가장 높은 순위 한 자리로 합치고 점수는 큰 값을 남긴다
+ * - 승격한 업무가 이미 결과에 있으면 더 높은 순위 자리를 남긴다
+ * - 부모를 못 찾은 댓글 히트는 버린다. 앵커 목록에 `Comment` 를 남기지 않는다
+ */
+export function promoteCommentAnchors(matches: FulltextMatch[], parents: ReadonlyMap<string, GraphNode>): FulltextMatch[] {
+  const promoted: FulltextMatch[] = [];
+  const positionById = new Map<string, number>();
+  for (const match of matches) {
+    let effective = match;
+    if (match.node.label === "Comment") {
+      const parent = parents.get(match.node.id);
+      if (!parent) continue;
+      effective = { node: parent, score: match.score };
+    }
+    const position = positionById.get(effective.node.id);
+    if (position !== undefined) {
+      promoted[position] = { node: promoted[position].node, score: Math.max(promoted[position].score, effective.score) };
+      continue;
+    }
+    positionById.set(effective.node.id, promoted.length);
+    promoted.push(effective);
+  }
+  return promoted;
 }
 
 export function rankAnchorCandidates(resultSets: FulltextMatch[][], limit = ANCHOR_CANDIDATE_LIMIT): GraphNode[] {

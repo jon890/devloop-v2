@@ -9,3 +9,5 @@ CREATE CONSTRAINT decision_id_unique IF NOT EXISTS FOR (n:Decision) REQUIRE n.id
 CREATE FULLTEXT INDEX task_subject_fulltext IF NOT EXISTS FOR (n:Task) ON EACH [n.subject] OPTIONS { indexConfig: { `fulltext.analyzer`: 'cjk' } };
 CREATE FULLTEXT INDEX wiki_subject_fulltext IF NOT EXISTS FOR (n:Wiki) ON EACH [n.subject] OPTIONS { indexConfig: { `fulltext.analyzer`: 'cjk' } };
 CREATE FULLTEXT INDEX concept_name_fulltext IF NOT EXISTS FOR (n:Concept) ON EACH [n.name] OPTIONS { indexConfig: { `fulltext.analyzer`: 'cjk' } };
+CREATE FULLTEXT INDEX task_body_fulltext IF NOT EXISTS FOR (n:Task) ON EACH [n.bodyExcerpt] OPTIONS { indexConfig: { `fulltext.analyzer`: 'cjk' } };
+CREATE FULLTEXT INDEX comment_excerpt_fulltext IF NOT EXISTS FOR (n:Comment) ON EACH [n.excerpt] OPTIONS { indexConfig: { `fulltext.analyzer`: 'cjk' } };

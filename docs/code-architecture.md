@@ -59,7 +59,7 @@ flowchart LR
 `apps/*` 끼리는 서로 의존하지 않는다. 공유가 필요하면 `packages/shared` 로 올린다.
 
 평가 실행기는 별도 `apps/*` 패키지로 만들지 않는다.
-제품 런타임이 아니라 개발 품질 게이트이고, 현재 API 계약만으로 실행할 수 있기 때문이다.
+제품 런타임이 아니라 개발 품질 점검이고, 현재 API 계약만으로 실행할 수 있기 때문이다.
 반복 실행에 필요한 결정적 동작은 `kg-eval` 스킬의 `scripts/`에 두고,
 평가 방법과 의미 판정 절차는 스킬 본문과 `docs/EVAL-RUBRIC.md`가 소유한다.
 
@@ -101,14 +101,21 @@ repository는 행 단위 조회·삽입·삭제만 수행하고, 전달받은 `R
 | --- | --- | --- |
 | `fetch/` | `fetch-dooray` | 외부 API 호출과 원본 저장. 가공하지 않는다 |
 | `concepts/` | `seed-concepts`·`audit-concepts` | Concept 사전 시드 생성과 정규화 감사 |
-| `parse/` | `parse-structure` | 규칙 파싱. 정규식·필드 매핑만 쓴다 |
+| `parse/` | `parse-structure` | 규칙 파싱. 정규식·필드 매핑만 쓴다. 저장 텍스트 상한은 `parse.const.ts`, 훅 댓글 판정과 머리말 제거는 `github-hook-comment.ts` 가 소유한다 |
 | `infer/` | `infer-knowledge` | LLM 추출. 캐시·재시도·동시성·관계 검증 |
 | `neo4j/` | `sync-neo4j`·`apply-schema` | DB 를 건드리는 것만 모은다 |
 | `config/` | — | 환경변수 검증과 주입 |
 | `llm/` | — | LLM CLI 어댑터 (codex·claude) |
-| `raw-reader.ts` | — | 원본 읽기. `parse` 와 `infer` 가 함께 쓴다 |
+| `raw-reader.ts` | — | 원본 읽기. `parse` 와 `infer` 가 함께 쓴다.<br>텍스트 추출이 두 종류다 — 참조 추출용(개행을 공백으로 병합)과 저장용(개행 보존) |
 
 `raw-reader.ts` 가 루트에 있는 이유 — 두 단계가 공용으로 쓰므로 한쪽에 넣으면 의존이 역류한다.
+
+**원천 형식에 종속된 판정 규칙은 전용 모듈로 뺀다.** GitHub 훅 댓글 판정과 머리말 제거가 그 예다.
+`structural-extractor.ts` 안에 정규식으로 섞어 두면 세 가지가 나빠진다.
+
+- 규칙이 좁은지 넓은지 눈으로 확인하기 어렵다. 넓게 잡아 사람 댓글 40건의 내용을 깎을 뻔했다 (최대 699자)
+- 훅 종류가 늘거나 다른 서비스가 붙을 때 손댈 자리가 흩어진다
+- 규칙 단위 테스트를 붙일 대상이 없어, 오탐이 생겨도 어디를 고칠지 드러나지 않는다
 
 ### 설정은 단계 함수에 인자로 내려간다
 
@@ -201,6 +208,13 @@ NestJS 다. 도메인별 디렉터리로 나뉜다.
 
 `graph-query.service.ts` 는 조회 4종만 담고, 전문 검색은 `query` 도메인에 위임한다 —
 질의응답 앵커 검색과 같은 의미를 써야 하므로 구현을 복제하지 않았다.
+
+그래서 검색 대상 인덱스를 늘리면 `/api/graph/search` 결과도 함께 바뀐다. 화면 검색에
+`Comment` 노드가 섞여 나오므로, 목록에 쓰는 표시 문자열은 짧게 자른다. 저장한 본문은 길게
+두되 사람이 훑는 목록에는 앞부분만 보인다.
+
+표시 상한은 `apps/api/src/neo4j/neo4j.const.ts` 의 `COMMENT_DISPLAY_LIMIT` 가 소유한다.
+자르는 대상은 `display` 뿐이고 근거 노드의 `excerpt` 속성은 그대로 길어야 답변이 인용할 수 있다.
 
 ### 설정이 기동을 실패시키는 이유
 

@@ -72,7 +72,9 @@ async function bootstrap(): Promise<void> {
     }
     if (stage === "parse-structure" || stage === "all") {
       const result = await extractStructural({ dataRoot, project: options.project, config });
-      console.log(`Structural extraction complete: nodes=${result.nodes} relationships=${result.relationships} output=${result.outputPath}`);
+      console.log(
+        `Structural extraction complete: nodes=${result.nodes} relationships=${result.relationships} truncatedTaskBodies=${result.truncatedTaskBodies} truncatedComments=${result.truncatedComments} output=${result.outputPath}`,
+      );
     }
     if (stage === "infer-knowledge" || stage === "all") {
       const model = config.llm.model;

@@ -84,3 +84,27 @@ export function textContent(value: unknown): string {
         .trim()
     : "";
 }
+
+/**
+ * `textContent` 와 같은 원천에서 텍스트를 뽑되 **개행을 남긴다.** 줄 안의 공백·탭만 병합한다.
+ *
+ * 그래프에 저장해 답변이 인용할 텍스트에 쓴다. `textContent` 는 `\s+` 를 공백 하나로 바꿔
+ * 개행을 지우는데, 200자만 저장할 때는 문제가 없었지만 6,000자를 담으면 마크다운 표·목록·헤딩이
+ * 통째로 뭉개진다. 표의 행 경계가 사라지면 값을 다른 행에서 잘못 읽어 답이 틀릴 수 있다.
+ *
+ * **참조 추출에는 쓰지 마라.** `addTextReferences` 는 `textContent` 값을 그대로 받아야 한다.
+ * 가공한 값을 넘기면 `REFERENCES` 328건이 조용히 바뀐다.
+ */
+export function textContentPreservingLineBreaks(value: unknown): string {
+  const content = firstString(value, ["body.content", "body.text", "content", "text", "description"]);
+  if (!content) return "";
+  return (
+    content
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\r\n?/g, "\n")
+      // 개행이 아닌 공백만 병합한다. `\s` 는 개행을 포함하므로 쓸 수 없다.
+      .replace(/[^\S\n]+/g, " ")
+      .replace(/ *\n */g, "\n")
+      .trim()
+  );
+}

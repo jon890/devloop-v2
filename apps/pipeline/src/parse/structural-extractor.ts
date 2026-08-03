@@ -3,10 +3,12 @@ import path from "node:path";
 import { PARSED_GRAPH_FILE } from "@devloop/shared";
 import type { ConceptKind, OntologyNode, OntologyRelationship, RawDoorayObject } from "@devloop/shared";
 import { GraphRecordSchema, nodeRef, type GraphRecord } from "./graph-record.schema";
+import { stripGitHubHookHeader } from "./github-hook-comment";
+import { COMMENT_EXCERPT_LIMIT, TASK_BODY_LIMIT } from "./parse.const";
 import { CODE_REFERENCE_PATTERN, TAG_DIMENSION_PATTERN } from "./structural-extractor.const";
 import { findTaskReferences } from "./task-reference";
 import type { PipelineConfig } from "../config";
-import { asRecordArray, firstString, readRawProject, textContent, valueAt } from "../raw-reader";
+import { asRecordArray, firstString, readRawProject, textContent, textContentPreservingLineBreaks, valueAt } from "../raw-reader";
 
 export interface StructuralExtractionOptions {
   dataRoot: string;
@@ -18,15 +20,24 @@ export interface StructuralExtractionResult {
   outputPath: string;
   nodes: number;
   relationships: number;
+  /** 저장 상한을 넘겨 잘린 건수다. 0 이 아니면 그만큼 원천 텍스트가 그래프에 없다. */
+  truncatedTaskBodies: number;
+  truncatedComments: number;
   records: GraphRecord[];
 }
 
 type RawProject = Awaited<ReturnType<typeof readRawProject>>;
 
+interface TruncationCounts {
+  taskBodies: number;
+  comments: number;
+}
+
 interface StructuralGraphStores {
   nodes: Map<string, OntologyNode>;
   relationships: Map<string, OntologyRelationship>;
   wikiParents: Array<{ pageId: string; parentId: string }>;
+  truncations: TruncationCounts;
 }
 
 function addNode(store: Map<string, OntologyNode>, node: OntologyNode): void {
@@ -55,10 +66,17 @@ function taskNumber(post: RawDoorayObject): number {
   return number;
 }
 
-function taskBodyExcerpt(post: RawDoorayObject): string {
+/** 상한을 넘겨 잘렸으면 카운터를 올린다. 조용한 텍스트 손실을 요약에 드러내는 것이 목적이다. */
+function truncate(text: string, limit: number, counts: TruncationCounts, kind: keyof TruncationCounts): string {
+  if (text.length <= limit) return text;
+  counts[kind] += 1;
+  return text.slice(0, limit);
+}
+
+function taskBodyExcerpt(post: RawDoorayObject, counts: TruncationCounts): string {
   for (const candidatePath of ["body.content", "body.text", "content", "text", "description"]) {
     const candidate = valueAt(post, candidatePath);
-    if (typeof candidate === "string") return candidate.slice(0, 300);
+    if (typeof candidate === "string") return truncate(candidate, TASK_BODY_LIMIT, counts, "taskBodies");
   }
   return "";
 }
@@ -149,6 +167,7 @@ function createStores(): StructuralGraphStores {
     nodes: new Map<string, OntologyNode>(),
     relationships: new Map<string, OntologyRelationship>(),
     wikiParents: [],
+    truncations: { taskBodies: 0, comments: 0 },
   };
 }
 
@@ -209,7 +228,7 @@ function addTaskNode(post: RawDoorayObject, number: string, numericNumber: numbe
       workflowClass: firstString(post, ["workflowClass", "workflowClass.name", "status"]),
       createdAt: firstString(post, ["createdAt", "createdDate"]),
       url: firstString(post, ["url", "webUrl"]),
-      bodyExcerpt: taskBodyExcerpt(post),
+      bodyExcerpt: taskBodyExcerpt(post, stores.truncations),
     },
   });
 }
@@ -285,7 +304,7 @@ function addComments(
   for (const [index, comment] of document.comments.entries()) {
     const commentId = firstString(comment, ["commentId", "id"]) ?? `${number}-${index + 1}`;
     const commentText = textContent(comment);
-    addCommentNode(comment, commentId, commentText, stores);
+    addCommentNode(comment, commentId, stores);
     addRelationship(stores.relationships, {
       type: "HAS_COMMENT",
       startKey: nodeRef("Task", number),
@@ -297,14 +316,20 @@ function addComments(
   }
 }
 
-function addCommentNode(comment: RawDoorayObject, commentId: string, commentText: string, stores: StructuralGraphStores): void {
+function addCommentNode(comment: RawDoorayObject, commentId: string, stores: StructuralGraphStores): void {
+  // 저장용 텍스트는 개행을 살려 뽑는다. 6,000자를 담으면 마크다운 표·목록이 행 경계를 잃기 때문이고,
+  // 훅 머리말 판정도 개행을 전제한다.
+  //
+  // 이 추출과 머리말 벗기기를 이 함수 밖으로 올리지 마라. 호출부의 addTextReferences 는
+  // textContent 값을 그대로 받아야 한다. 가공한 값을 넘기면 REFERENCES 328건이 조용히 바뀐다.
+  const storedText = textContentPreservingLineBreaks(comment);
   addNode(stores.nodes, {
     label: "Comment",
     key: commentId,
     properties: {
       commentId,
       createdAt: firstString(comment, ["createdAt", "createdDate"]),
-      excerpt: commentText.slice(0, 200),
+      excerpt: truncate(stripGitHubHookHeader(storedText), COMMENT_EXCERPT_LIMIT, stores.truncations, "comments"),
     },
   });
 }
@@ -386,5 +411,12 @@ export async function extractStructural(options: StructuralExtractionOptions): P
   const outputPath = path.join(outputDir, PARSED_GRAPH_FILE);
   await mkdir(outputDir, { recursive: true });
   await writeFile(outputPath, records.map((record) => JSON.stringify(record)).join("\n") + "\n", "utf8");
-  return { outputPath, nodes: stores.nodes.size, relationships: resolvedRelationships.length, records };
+  return {
+    outputPath,
+    nodes: stores.nodes.size,
+    relationships: resolvedRelationships.length,
+    truncatedTaskBodies: stores.truncations.taskBodies,
+    truncatedComments: stores.truncations.comments,
+    records,
+  };
 }

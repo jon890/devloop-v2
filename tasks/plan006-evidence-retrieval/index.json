@@ -1,0 +1,37 @@
+{
+  "name": "plan006-evidence-retrieval",
+  "description": "원천 텍스트를 검색 가능한 분량으로 보존하고 본문·댓글을 전문 검색 대상에 넣어 근거 회수 실패를 줄인다",
+  "status": "completed",
+  "created_at": "2026-08-03",
+  "total_phases": 4,
+  "phases": [
+    {
+      "number": 1,
+      "file": "phase-01.md",
+      "title": "원천 텍스트를 보존하고 훅 머리말을 벗긴다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 2,
+      "file": "phase-02.md",
+      "title": "본문·댓글 전문 검색 인덱스와 댓글 히트 승격을 넣는다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 3,
+      "file": "phase-03.md",
+      "title": "적재하고 엔진 변경 효과를 기준선과 비교한다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 4,
+      "file": "phase-04.md",
+      "title": "gold 를 보강으로 낮추고 새 기준선을 남긴다",
+      "execution_profile": "standard",
+      "status": "completed"
+    }
+  ]
+}

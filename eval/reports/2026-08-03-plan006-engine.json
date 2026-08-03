@@ -1,0 +1,1876 @@
+{
+  "schemaVersion": "kg-eval-report/v1",
+  "reportDate": "2026-08-03",
+  "stage": "plan006-engine",
+  "suite": {
+    "path": "eval/suites/tc-ocr-api-gateway.json",
+    "hash": "141153e4727dfa2d3dfcc17d053e340f7a3b2738624af2f2f27fc934d3a4485d",
+    "project": "tc-ocr",
+    "flowId": "api-gateway-removal",
+    "title": "tc-ocr API Gateway 제거 대표 흐름 평가 세트",
+    "questionCount": 12
+  },
+  "execution": {
+    "rawRunPath": "eval/runs/plan006-engine.json",
+    "commit": "3e5a8d3c421efbf0c936787548826831f36f1a2e",
+    "baseUrl": "http://localhost:3100",
+    "declaredQueryModel": "gpt-5.6-terra",
+    "queryModelEvidence": ".env declaration only; API response does not prove the runtime model id.",
+    "repetitions": 3,
+    "completedAttempts": 36,
+    "expectedAttempts": 36,
+    "completed": true,
+    "measuredQuestions": 12,
+    "httpStatusCounts": {
+      "201": 36
+    },
+    "errorCount": 0
+  },
+  "latencyMs": {
+    "count": 36,
+    "mean": 48590,
+    "min": 34469,
+    "p50": 49245,
+    "p95": 62429,
+    "max": 68190,
+    "totalMs": 1749234
+  },
+  "latencyComparison": {
+    "comparable": false,
+    "reason": "plan005 기준선 리포트에 지연 필드가 없고, 지연을 담은 원시 실행 결과는 커밋 대상이 아니라 남아 있지 않다. 따라서 전후 delta 를 계산할 수 없다. 이 값이 앞으로의 지연 기준선이 된다."
+  },
+  "semanticScope": {
+    "mode": "targeted",
+    "gradedQuestionIds": [
+      "AGW-H04",
+      "AGW-H05",
+      "AGW-N01",
+      "AGW-N02"
+    ],
+    "gradedAttempts": 12,
+    "llmCalls": 24,
+    "rationale": "전체 72회 판정은 정보량이 낮다 — plan005 에서 36회 중 22회가 채점자 불일치로 REVIEW 였다. 대신 이번 변경의 고유 위험이 나타나는 자리만 판정했다: 회수가 개선된 문항(새 본문이 프롬프트에 처음 들어온다)과 음성 대조 문항(없는 근거를 만들어내는지 본다).",
+    "notGradedHandling": "판정하지 않은 문항은 finalVerdict 를 REVIEW 로 두고 semanticJudgments 를 빈 배열로 남겼다. verdictReason 이 semantic-not-graded 인 문항이 그것이며, grader-disagreement 로 인한 REVIEW 와 구분된다."
+  },
+  "deterministicSummary": {
+    "boundaryCounts": {
+      "RETRIEVAL": 20,
+      "NONE": 16
+    },
+    "failedAxesCounts": {
+      "R": 20
+    },
+    "retrievalStatusCounts": {
+      "FAIL": 20,
+      "PASS": 10,
+      "NOT_APPLICABLE": 6
+    },
+    "orderStatusCounts": {
+      "NOT_EVALUATED": 20,
+      "NOT_APPLICABLE": 13,
+      "PASS": 3
+    }
+  },
+  "totals": {
+    "attempts": {
+      "FAIL": 23,
+      "REVIEW": 11,
+      "PASS": 2
+    },
+    "questions": {
+      "REVIEW": 12
+    }
+  },
+  "graphSnapshot": {
+    "source": "GET /api/graph/stats after plan006 engine load",
+    "nodes": 3082,
+    "relationships": 13002,
+    "labels": {
+      "Comment": 854,
+      "Concept": 968,
+      "Decision": 535,
+      "Person": 187,
+      "Project": 1,
+      "Task": 490,
+      "Wiki": 47
+    },
+    "relationshipTypes": {
+      "AFFECTS": 1281,
+      "ASSIGNED_TO": 933,
+      "AUTHORED": 490,
+      "CHILD_OF": 250,
+      "COMMENTED": 854,
+      "CONTAINS": 537,
+      "DECIDED_IN": 519,
+      "DEPENDS_ON": 363,
+      "DOCUMENTS": 235,
+      "EVIDENCED_BY": 511,
+      "HAS_COMMENT": 854,
+      "MENTIONS": 4149,
+      "REFERENCES": 328,
+      "RELATES_TO": 150,
+      "TAGGED": 1548
+    },
+    "unchangedFromBaseline": {
+      "nodes": true,
+      "relationships": true,
+      "references": true
+    },
+    "note": "속성만 바꾸는 변경이므로 노드·관계 수가 전부 불변이어야 한다. 적재 전후 실측이 일치했다."
+  },
+  "questions": [
+    {
+      "id": "AGW-H01",
+      "audience": "human",
+      "difficulty": "L4",
+      "answerability": "answerable",
+      "requiredEvidenceCount": 2,
+      "supportingEvidenceCount": 0,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "RETRIEVAL": 3
+        },
+        "retrievalCounts": {
+          "FAIL": 3
+        },
+        "orderCounts": {
+          "NOT_EVALUATED": 3
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {
+          "R": 3
+        }
+      },
+      "semanticGraded": false,
+      "semanticJudgments": [],
+      "semanticAgreement": null,
+      "stability": {
+        "boundaryAxesStable": true,
+        "retrievalStable": true,
+        "finalJudgmentStable": true,
+        "attemptFinalVerdicts": [
+          "FAIL",
+          "FAIL",
+          "FAIL"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "semantic-not-graded",
+      "failureBoundary": "RETRIEVAL",
+      "failedAxes": [
+        "R"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 43617,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-483-planning"
+          ],
+          "evidenceNodeCount": 17,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 45850,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-483-planning"
+          ],
+          "evidenceNodeCount": 21,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 54757,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-483-planning"
+          ],
+          "evidenceNodeCount": 30,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        }
+      ]
+    },
+    {
+      "id": "AGW-H02",
+      "audience": "human",
+      "difficulty": "L2",
+      "answerability": "answerable",
+      "requiredEvidenceCount": 1,
+      "supportingEvidenceCount": 1,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "RETRIEVAL": 1,
+          "NONE": 2
+        },
+        "retrievalCounts": {
+          "FAIL": 1,
+          "PASS": 2
+        },
+        "orderCounts": {
+          "NOT_EVALUATED": 1,
+          "NOT_APPLICABLE": 2
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {
+          "R": 1
+        }
+      },
+      "semanticGraded": false,
+      "semanticJudgments": [],
+      "semanticAgreement": null,
+      "stability": {
+        "boundaryAxesStable": false,
+        "retrievalStable": false,
+        "finalJudgmentStable": false,
+        "attemptFinalVerdicts": [
+          "FAIL",
+          "REVIEW",
+          "REVIEW"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "semantic-not-graded",
+      "failureBoundary": "NOT_EVALUATED",
+      "failedAxes": [
+        "R"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 61659,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-483-planning"
+          ],
+          "evidenceNodeCount": 24,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 49245,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "PASS",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 27,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "REVIEW"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 47560,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "PASS",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 30,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "REVIEW"
+        }
+      ]
+    },
+    {
+      "id": "AGW-H03",
+      "audience": "human",
+      "difficulty": "L3",
+      "answerability": "answerable",
+      "requiredEvidenceCount": 2,
+      "supportingEvidenceCount": 1,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "RETRIEVAL": 3
+        },
+        "retrievalCounts": {
+          "FAIL": 3
+        },
+        "orderCounts": {
+          "NOT_EVALUATED": 3
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {
+          "R": 3
+        }
+      },
+      "semanticGraded": false,
+      "semanticJudgments": [],
+      "semanticAgreement": null,
+      "stability": {
+        "boundaryAxesStable": true,
+        "retrievalStable": true,
+        "finalJudgmentStable": true,
+        "attemptFinalVerdicts": [
+          "FAIL",
+          "FAIL",
+          "FAIL"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "semantic-not-graded",
+      "failureBoundary": "RETRIEVAL",
+      "failedAxes": [
+        "R"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 44863,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-483-lb-blocked",
+            "comment-483-trust-fixed"
+          ],
+          "evidenceNodeCount": 30,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 50503,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-483-lb-blocked",
+            "comment-483-trust-fixed"
+          ],
+          "evidenceNodeCount": 15,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 45071,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-483-lb-blocked"
+          ],
+          "evidenceNodeCount": 22,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        }
+      ]
+    },
+    {
+      "id": "AGW-H04",
+      "audience": "human",
+      "difficulty": "L2",
+      "answerability": "answerable",
+      "requiredEvidenceCount": 2,
+      "supportingEvidenceCount": 0,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "RETRIEVAL": 2,
+          "NONE": 1
+        },
+        "retrievalCounts": {
+          "FAIL": 2,
+          "PASS": 1
+        },
+        "orderCounts": {
+          "NOT_EVALUATED": 2,
+          "NOT_APPLICABLE": 1
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {
+          "R": 2
+        }
+      },
+      "semanticGraded": true,
+      "semanticJudgments": [
+        {
+          "grader": "A",
+          "attemptVerdicts": [
+            "FAIL",
+            "FAIL",
+            "FAIL"
+          ]
+        },
+        {
+          "grader": "B",
+          "attemptVerdicts": [
+            "FAIL",
+            "FAIL",
+            "FAIL"
+          ]
+        }
+      ],
+      "semanticAgreement": {
+        "agreedAttempts": 0,
+        "disagreedAttempts": 3
+      },
+      "stability": {
+        "boundaryAxesStable": false,
+        "retrievalStable": false,
+        "finalJudgmentStable": false,
+        "attemptFinalVerdicts": [
+          "FAIL",
+          "FAIL",
+          "REVIEW"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "unstable-across-attempts",
+      "failureBoundary": "NOT_EVALUATED",
+      "failedAxes": [
+        "R"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 39602,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-497-model-buffer"
+          ],
+          "evidenceNodeCount": 30,
+          "semanticGraded": true,
+          "semanticVerdict": "REVIEW",
+          "semanticAgreement": false,
+          "semanticDisagreementFields": [
+            "causalOrderStatus"
+          ],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "missingClaimIndexes": [
+              3
+            ],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "MISSING",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "ACCURATE"
+            },
+            "verdict": "FAIL"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "FAIL",
+            "verdict": "FAIL",
+            "missingClaimIndexes": [
+              3
+            ],
+            "violatedClaimIndexes": []
+          },
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 42870,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-497-model-buffer"
+          ],
+          "evidenceNodeCount": 30,
+          "semanticGraded": true,
+          "semanticVerdict": "REVIEW",
+          "semanticAgreement": false,
+          "semanticDisagreementFields": [
+            "causalOrderStatus"
+          ],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "missingClaimIndexes": [
+              3
+            ],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "MISSING",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "ACCURATE"
+            },
+            "verdict": "FAIL"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "FAIL",
+            "verdict": "FAIL",
+            "missingClaimIndexes": [
+              3
+            ],
+            "violatedClaimIndexes": []
+          },
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 35048,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "PASS",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 30,
+          "semanticGraded": true,
+          "semanticVerdict": "REVIEW",
+          "semanticAgreement": false,
+          "semanticDisagreementFields": [
+            "missingClaimIndexes"
+          ],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "missingClaimIndexes": [
+              0,
+              3
+            ],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "MISSING",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "ACCURATE"
+            },
+            "verdict": "FAIL"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "verdict": "FAIL",
+            "missingClaimIndexes": [
+              3
+            ],
+            "violatedClaimIndexes": []
+          },
+          "finalVerdict": "REVIEW"
+        }
+      ]
+    },
+    {
+      "id": "AGW-H05",
+      "audience": "human",
+      "difficulty": "L4",
+      "answerability": "answerable",
+      "requiredEvidenceCount": 3,
+      "supportingEvidenceCount": 1,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "NONE": 3
+        },
+        "retrievalCounts": {
+          "PASS": 3
+        },
+        "orderCounts": {
+          "PASS": 3
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {}
+      },
+      "semanticGraded": true,
+      "semanticJudgments": [
+        {
+          "grader": "A",
+          "attemptVerdicts": [
+            "PASS",
+            "PASS",
+            "PASS"
+          ]
+        },
+        {
+          "grader": "B",
+          "attemptVerdicts": [
+            "PASS",
+            "PASS",
+            "FAIL"
+          ]
+        }
+      ],
+      "semanticAgreement": {
+        "agreedAttempts": 2,
+        "disagreedAttempts": 1
+      },
+      "stability": {
+        "boundaryAxesStable": true,
+        "retrievalStable": true,
+        "finalJudgmentStable": false,
+        "attemptFinalVerdicts": [
+          "PASS",
+          "PASS",
+          "REVIEW"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "unstable-across-attempts",
+      "failureBoundary": "NONE",
+      "failedAxes": [],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 34469,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "PASS",
+            "order": "PASS"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 6,
+          "semanticGraded": true,
+          "semanticVerdict": "PASS",
+          "semanticAgreement": true,
+          "semanticDisagreementFields": [],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "PASS",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "missingClaimIndexes": [],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "SATISFIED",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "ACCURATE"
+            },
+            "verdict": "PASS"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "PASS",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "verdict": "PASS",
+            "missingClaimIndexes": [],
+            "violatedClaimIndexes": []
+          },
+          "finalVerdict": "PASS"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 41385,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "PASS",
+            "order": "PASS"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 9,
+          "semanticGraded": true,
+          "semanticVerdict": "PASS",
+          "semanticAgreement": true,
+          "semanticDisagreementFields": [],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "PASS",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "missingClaimIndexes": [],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "SATISFIED",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "ACCURATE"
+            },
+            "verdict": "PASS"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "PASS",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "verdict": "PASS",
+            "missingClaimIndexes": [],
+            "violatedClaimIndexes": []
+          },
+          "finalVerdict": "PASS"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 44300,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "PASS",
+            "order": "PASS"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 6,
+          "semanticGraded": true,
+          "semanticVerdict": "REVIEW",
+          "semanticAgreement": false,
+          "semanticDisagreementFields": [
+            "forbiddenClaimsStatus",
+            "causalOrderStatus",
+            "verdict",
+            "violatedClaimIndexes"
+          ],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "PASS",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "missingClaimIndexes": [],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "SATISFIED",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "ACCURATE"
+            },
+            "verdict": "PASS"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "PASS",
+            "forbiddenClaimsStatus": "FAIL",
+            "causalOrderStatus": "FAIL",
+            "verdict": "FAIL",
+            "missingClaimIndexes": [],
+            "violatedClaimIndexes": [
+              0
+            ]
+          },
+          "finalVerdict": "REVIEW"
+        }
+      ]
+    },
+    {
+      "id": "AGW-A01",
+      "audience": "ai",
+      "difficulty": "L3",
+      "answerability": "answerable",
+      "requiredEvidenceCount": 5,
+      "supportingEvidenceCount": 0,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "RETRIEVAL": 3
+        },
+        "retrievalCounts": {
+          "FAIL": 3
+        },
+        "orderCounts": {
+          "NOT_EVALUATED": 3
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {
+          "R": 3
+        }
+      },
+      "semanticGraded": false,
+      "semanticJudgments": [],
+      "semanticAgreement": null,
+      "stability": {
+        "boundaryAxesStable": true,
+        "retrievalStable": true,
+        "finalJudgmentStable": true,
+        "attemptFinalVerdicts": [
+          "FAIL",
+          "FAIL",
+          "FAIL"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "semantic-not-graded",
+      "failureBoundary": "RETRIEVAL",
+      "failedAxes": [
+        "R"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 53770,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-483-phase-b"
+          ],
+          "evidenceNodeCount": 5,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 57386,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-483-phase-b"
+          ],
+          "evidenceNodeCount": 16,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 50487,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-483-phase-b",
+            "task-496"
+          ],
+          "evidenceNodeCount": 15,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        }
+      ]
+    },
+    {
+      "id": "AGW-A02",
+      "audience": "ai",
+      "difficulty": "L3",
+      "answerability": "answerable",
+      "requiredEvidenceCount": 3,
+      "supportingEvidenceCount": 2,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "NONE": 1,
+          "RETRIEVAL": 2
+        },
+        "retrievalCounts": {
+          "PASS": 1,
+          "FAIL": 2
+        },
+        "orderCounts": {
+          "NOT_APPLICABLE": 1,
+          "NOT_EVALUATED": 2
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {
+          "R": 2
+        }
+      },
+      "semanticGraded": false,
+      "semanticJudgments": [],
+      "semanticAgreement": null,
+      "stability": {
+        "boundaryAxesStable": false,
+        "retrievalStable": false,
+        "finalJudgmentStable": false,
+        "attemptFinalVerdicts": [
+          "REVIEW",
+          "FAIL",
+          "FAIL"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "semantic-not-graded",
+      "failureBoundary": "NOT_EVALUATED",
+      "failedAxes": [
+        "R"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 38056,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "PASS",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 19,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "REVIEW"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 54680,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-497-api-size",
+            "comment-497-ingress-size"
+          ],
+          "evidenceNodeCount": 11,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 55403,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-497-api-size",
+            "comment-497-ingress-size"
+          ],
+          "evidenceNodeCount": 8,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        }
+      ]
+    },
+    {
+      "id": "AGW-A03",
+      "audience": "ai",
+      "difficulty": "L2",
+      "answerability": "answerable",
+      "requiredEvidenceCount": 2,
+      "supportingEvidenceCount": 1,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "NONE": 3
+        },
+        "retrievalCounts": {
+          "PASS": 3
+        },
+        "orderCounts": {
+          "NOT_APPLICABLE": 3
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {}
+      },
+      "semanticGraded": false,
+      "semanticJudgments": [],
+      "semanticAgreement": null,
+      "stability": {
+        "boundaryAxesStable": true,
+        "retrievalStable": true,
+        "finalJudgmentStable": true,
+        "attemptFinalVerdicts": [
+          "REVIEW",
+          "REVIEW",
+          "REVIEW"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "semantic-not-graded",
+      "failureBoundary": "NONE",
+      "failedAxes": [],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 44069,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "PASS",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 25,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "REVIEW"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 50247,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "PASS",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 18,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "REVIEW"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 42462,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "PASS",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 15,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "REVIEW"
+        }
+      ]
+    },
+    {
+      "id": "AGW-A04",
+      "audience": "ai",
+      "difficulty": "L5",
+      "answerability": "answerable",
+      "requiredEvidenceCount": 3,
+      "supportingEvidenceCount": 1,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "RETRIEVAL": 3
+        },
+        "retrievalCounts": {
+          "FAIL": 3
+        },
+        "orderCounts": {
+          "NOT_EVALUATED": 3
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {
+          "R": 3
+        }
+      },
+      "semanticGraded": false,
+      "semanticJudgments": [],
+      "semanticAgreement": null,
+      "stability": {
+        "boundaryAxesStable": true,
+        "retrievalStable": true,
+        "finalJudgmentStable": true,
+        "attemptFinalVerdicts": [
+          "FAIL",
+          "FAIL",
+          "FAIL"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "semantic-not-graded",
+      "failureBoundary": "RETRIEVAL",
+      "failedAxes": [
+        "R"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 42762,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-506-progress"
+          ],
+          "evidenceNodeCount": 23,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 37193,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-506-progress"
+          ],
+          "evidenceNodeCount": 17,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 68190,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "comment-506-progress"
+          ],
+          "evidenceNodeCount": 17,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        }
+      ]
+    },
+    {
+      "id": "AGW-A05",
+      "audience": "ai",
+      "difficulty": "L5",
+      "answerability": "answerable",
+      "requiredEvidenceCount": 7,
+      "supportingEvidenceCount": 1,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "RETRIEVAL": 3
+        },
+        "retrievalCounts": {
+          "FAIL": 3
+        },
+        "orderCounts": {
+          "NOT_EVALUATED": 3
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {
+          "R": 3
+        }
+      },
+      "semanticGraded": false,
+      "semanticJudgments": [],
+      "semanticAgreement": null,
+      "stability": {
+        "boundaryAxesStable": true,
+        "retrievalStable": true,
+        "finalJudgmentStable": true,
+        "attemptFinalVerdicts": [
+          "FAIL",
+          "FAIL",
+          "FAIL"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "semantic-not-graded",
+      "failureBoundary": "RETRIEVAL",
+      "failedAxes": [
+        "R"
+      ],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 58145,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "task-494",
+            "task-497",
+            "task-499",
+            "task-506"
+          ],
+          "evidenceNodeCount": 30,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 57061,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "task-494",
+            "task-496",
+            "task-499"
+          ],
+          "evidenceNodeCount": 21,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 62429,
+          "failureBoundary": "RETRIEVAL",
+          "failedAxes": [
+            "R"
+          ],
+          "deterministic": {
+            "retrieval": "FAIL",
+            "order": "NOT_EVALUATED"
+          },
+          "missingRequired": [
+            "task-494"
+          ],
+          "evidenceNodeCount": 20,
+          "semanticGraded": false,
+          "semanticVerdict": null,
+          "semanticAgreement": null,
+          "semanticDisagreementFields": [],
+          "graderA": null,
+          "graderB": null,
+          "finalVerdict": "FAIL"
+        }
+      ]
+    },
+    {
+      "id": "AGW-N01",
+      "audience": "human",
+      "difficulty": "L1",
+      "answerability": "insufficient-source",
+      "requiredEvidenceCount": 0,
+      "supportingEvidenceCount": 3,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "NONE": 3
+        },
+        "retrievalCounts": {
+          "NOT_APPLICABLE": 3
+        },
+        "orderCounts": {
+          "NOT_APPLICABLE": 3
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {}
+      },
+      "semanticGraded": true,
+      "semanticJudgments": [
+        {
+          "grader": "A",
+          "attemptVerdicts": [
+            "FAIL",
+            "FAIL",
+            "FAIL"
+          ]
+        },
+        {
+          "grader": "B",
+          "attemptVerdicts": [
+            "FAIL",
+            "FAIL",
+            "FAIL"
+          ]
+        }
+      ],
+      "semanticAgreement": {
+        "agreedAttempts": 2,
+        "disagreedAttempts": 1
+      },
+      "stability": {
+        "boundaryAxesStable": true,
+        "retrievalStable": true,
+        "finalJudgmentStable": false,
+        "attemptFinalVerdicts": [
+          "FAIL",
+          "FAIL",
+          "REVIEW"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "unstable-across-attempts",
+      "failureBoundary": "NONE",
+      "failedAxes": [],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 53532,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "NOT_APPLICABLE",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 27,
+          "semanticGraded": true,
+          "semanticVerdict": "FAIL",
+          "semanticAgreement": true,
+          "semanticDisagreementFields": [],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "missingClaimIndexes": [
+              0
+            ],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "MISSING",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "ACCURATE"
+            },
+            "verdict": "FAIL"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "verdict": "FAIL",
+            "missingClaimIndexes": [
+              0
+            ],
+            "violatedClaimIndexes": []
+          },
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 50648,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "NOT_APPLICABLE",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 17,
+          "semanticGraded": true,
+          "semanticVerdict": "FAIL",
+          "semanticAgreement": true,
+          "semanticDisagreementFields": [],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "FAIL",
+            "missingClaimIndexes": [
+              0
+            ],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "MISSING",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "OVERSTATED"
+            },
+            "verdict": "FAIL"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "FAIL",
+            "verdict": "FAIL",
+            "missingClaimIndexes": [
+              0
+            ],
+            "violatedClaimIndexes": []
+          },
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 51380,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "NOT_APPLICABLE",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 25,
+          "semanticGraded": true,
+          "semanticVerdict": "REVIEW",
+          "semanticAgreement": false,
+          "semanticDisagreementFields": [
+            "causalOrderStatus"
+          ],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "FAIL",
+            "missingClaimIndexes": [
+              0
+            ],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "MISSING",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "OVERSTATED"
+            },
+            "verdict": "FAIL"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "verdict": "FAIL",
+            "missingClaimIndexes": [
+              0
+            ],
+            "violatedClaimIndexes": []
+          },
+          "finalVerdict": "REVIEW"
+        }
+      ]
+    },
+    {
+      "id": "AGW-N02",
+      "audience": "ai",
+      "difficulty": "L1",
+      "answerability": "insufficient-source",
+      "requiredEvidenceCount": 0,
+      "supportingEvidenceCount": 3,
+      "deterministicChecks": {
+        "boundaryCounts": {
+          "NONE": 3
+        },
+        "retrievalCounts": {
+          "NOT_APPLICABLE": 3
+        },
+        "orderCounts": {
+          "NOT_APPLICABLE": 3
+        },
+        "httpStatusCounts": {
+          "201": 3
+        },
+        "failedAxesCounts": {}
+      },
+      "semanticGraded": true,
+      "semanticJudgments": [
+        {
+          "grader": "A",
+          "attemptVerdicts": [
+            "FAIL",
+            "FAIL",
+            "FAIL"
+          ]
+        },
+        {
+          "grader": "B",
+          "attemptVerdicts": [
+            "FAIL",
+            "FAIL",
+            "FAIL"
+          ]
+        }
+      ],
+      "semanticAgreement": {
+        "agreedAttempts": 1,
+        "disagreedAttempts": 2
+      },
+      "stability": {
+        "boundaryAxesStable": true,
+        "retrievalStable": true,
+        "finalJudgmentStable": false,
+        "attemptFinalVerdicts": [
+          "FAIL",
+          "REVIEW",
+          "REVIEW"
+        ]
+      },
+      "finalVerdict": "REVIEW",
+      "verdictReason": "unstable-across-attempts",
+      "failureBoundary": "NONE",
+      "failedAxes": [],
+      "attempts": [
+        {
+          "attempt": 1,
+          "httpStatus": 201,
+          "latencyMs": 44711,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "NOT_APPLICABLE",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 2,
+          "semanticGraded": true,
+          "semanticVerdict": "FAIL",
+          "semanticAgreement": true,
+          "semanticDisagreementFields": [],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "missingClaimIndexes": [
+              0,
+              1,
+              2
+            ],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "MISSING",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "ACCURATE"
+            },
+            "verdict": "FAIL"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "verdict": "FAIL",
+            "missingClaimIndexes": [
+              0,
+              1,
+              2
+            ],
+            "violatedClaimIndexes": []
+          },
+          "finalVerdict": "FAIL"
+        },
+        {
+          "attempt": 2,
+          "httpStatus": 201,
+          "latencyMs": 45854,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "NOT_APPLICABLE",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 2,
+          "semanticGraded": true,
+          "semanticVerdict": "REVIEW",
+          "semanticAgreement": false,
+          "semanticDisagreementFields": [
+            "missingClaimIndexes"
+          ],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "missingClaimIndexes": [
+              1,
+              2
+            ],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "MISSING",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "ACCURATE"
+            },
+            "verdict": "FAIL"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "verdict": "FAIL",
+            "missingClaimIndexes": [
+              0,
+              1,
+              2
+            ],
+            "violatedClaimIndexes": []
+          },
+          "finalVerdict": "REVIEW"
+        },
+        {
+          "attempt": 3,
+          "httpStatus": 201,
+          "latencyMs": 49970,
+          "failureBoundary": "NONE",
+          "failedAxes": [],
+          "deterministic": {
+            "retrieval": "NOT_APPLICABLE",
+            "order": "NOT_APPLICABLE"
+          },
+          "missingRequired": [],
+          "evidenceNodeCount": 2,
+          "semanticGraded": true,
+          "semanticVerdict": "REVIEW",
+          "semanticAgreement": false,
+          "semanticDisagreementFields": [
+            "missingClaimIndexes"
+          ],
+          "graderA": {
+            "grader": "A",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "missingClaimIndexes": [
+              1,
+              2
+            ],
+            "violatedClaimIndexes": [],
+            "raw": {
+              "expectedClaimsStatus": "MISSING",
+              "forbiddenClaimsStatus": "CLEAN",
+              "causalOrderStatus": "ACCURATE"
+            },
+            "verdict": "FAIL"
+          },
+          "graderB": {
+            "grader": "B",
+            "expectedClaimsStatus": "FAIL",
+            "forbiddenClaimsStatus": "PASS",
+            "causalOrderStatus": "PASS",
+            "verdict": "FAIL",
+            "missingClaimIndexes": [
+              0,
+              1,
+              2
+            ],
+            "violatedClaimIndexes": []
+          },
+          "finalVerdict": "REVIEW"
+        }
+      ]
+    }
+  ]
+}

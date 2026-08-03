@@ -10,3 +10,5 @@
 | RETRO-0006 | 2026-07-30 | plan003-registry-curation | 최상위 완료와 하위 상태 표기가 어긋났다 | 해결 | 승격 안 함 |
 | RETRO-0007 | 2026-07-31 | plan005-kg-eval-runner | fulltext preflight가 숫자 식별자를 그래프 실패로 만들었다 | 해결 | 승격 안 함 |
 | RETRO-0008 | 2026-07-31 | plan005-kg-eval-runner | 독립 코드 리뷰가 평가 계약 불일치를 드러냈다 | 해결 | 승격 안 함 |
+| RETRO-0009 | 2026-08-03 | plan006-evidence-retrieval | 원천 형태로 스펙을 써서 규칙이 0건 매칭됐다 | 해결 | 승격 |
+| RETRO-0010 | 2026-08-03 | plan006-evidence-retrieval | 기준선에 지연 데이터가 없어 요구된 전후 비교가 불가능했다 | 해결 | 승격 안 함 |
