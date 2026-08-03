@@ -10,6 +10,7 @@
 | [0004](0004-resolve-as-inspection-stage.md) | 정규화를 순수 함수로 떼고 그 산출물은 조사 전용으로 둔다 | 채택 |
 | [0005](0005-curation-in-relational-store.md) | 사람이 내린 Concept 판단을 관계형 저장소에 둔다 | 채택 |
 | [0006](0006-source-backed-evaluation-skill.md) | 대표 업무 흐름을 원천 근거 기반 평가 스킬로 반복 측정한다 | 채택 |
+| [0007](0007-searchable-source-text.md) | 원천 텍스트를 검색 가능한 분량으로 보존한다 | 채택 |
 
 새 ADR 은 다음 번호로 파일을 만들고 이 표 **끝에 행을 추가**한다.
 기존 행을 재배열하거나 중간에 끼워 넣지 않는다 — 여러 작업이 병행될 때 병합이 깔끔해진다.
