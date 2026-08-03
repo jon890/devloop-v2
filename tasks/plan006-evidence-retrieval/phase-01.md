@@ -1,7 +1,7 @@
 # Phase 01 — 원천 텍스트를 보존하고 훅 머리말을 벗긴다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 
@@ -26,7 +26,7 @@
 
 ---
 
-## 작업 항목 (4)
+## 작업 항목 (5)
 
 ### 1. `apps/pipeline/src/parse/parse.const.ts` 를 새로 만든다
 
@@ -54,11 +54,15 @@ export function stripGitHubHookHeader(text: string): string;
 훅 머리말은 두 줄 고정 형태다.
 
 ```
-[[<레포>](<레포 url>)] <사람> pushes [<커밋>](<커밋 url>) to `<브랜치>`
+[[<레포>](<레포 url>)] <사람> push(es) [<커밋>](<커밋 url>) to `<브랜치>`
 [<제목>](<url>)
 ```
 
-- `isGitHubHookComment` 는 **첫 줄이 위 첫 줄 형태일 때만** 참이다
+동사는 `pushes` 와 `push` 둘 다 나온다. 실측 훅 359건 중 356건이 복수형이고 3건이 단수형이다
+(`18.json` 2건, `25.json` 1건). 정규식은 `push(?:es)?` 로 쓴다 —
+`pushes?` 는 `pushe` 뒤의 `s` 가 선택이라는 뜻이라 정작 `push` 를 놓친다.
+
+- `isGitHubHookComment` 는 **첫 줄이 위 첫 줄 형태일 때만** 참이다. 동사만 보고 판정하지 마라
 - `stripGitHubHookHeader` 는 훅이 아니면 원문을 그대로 돌려준다
 - 훅이면 첫 줄과, 이어지는 링크 전용 줄·빈 줄을 벗기고 나머지를 돌려준다
 - 벗긴 결과가 비면 원문을 돌려준다
@@ -66,18 +70,36 @@ export function stripGitHubHookHeader(text: string): string;
 **"앞쪽 링크 줄을 걷어낸다" 는 넓은 규칙을 쓰지 마라.** 사람이 멘션(`[@이름](dooray://...)`)이나
 불릿(`*`)으로 시작한 댓글 317건이 함께 깎이는 것을 실측으로 확인했다. 한 건은 304자가 사라진다.
 
-### 3. `structural-extractor.ts` 가 새 모듈과 상수를 쓰게 한다
+### 3. 저장용 텍스트는 개행을 살려 뽑는다
+
+`raw-reader.ts` 의 `textContent` 는 `\s+` 를 공백 하나로 바꿔 **개행을 지운다.**
+그래서 `addCommentNode` 에 도착하는 값에는 개행이 없고, 위 두 줄 규칙이 한 건도 매칭되지 않는다
+(실측 — 훅 359건 전부 미매칭).
+
+`textContent` 옆에 개행을 남기는 추출을 더한다. HTML 태그는 지우고 줄 안의 공백·탭만 병합한다.
+
+```ts
+export function textContentPreservingLineBreaks(value: unknown): string;
+```
+
+**개행을 살리는 이유는 판정 때문만이 아니다.** 200자만 저장할 때는 상관없었지만 6,000자를 담으면
+마크다운 표·목록·헤딩이 통째로 뭉개진다. 표의 행 경계가 사라지면 값을 다른 행에서 잘못 읽어
+근거를 물어와도 답이 틀린다. 실측 정답 댓글의 조치 내용이 표다.
+
+`taskBodyExcerpt`(`:58-64`)는 이미 원문을 그대로 `slice` 해 개행을 보존한다. 댓글만 어긋나 있었다.
+
+### 4. `structural-extractor.ts` 가 새 모듈과 상수를 쓰게 한다
 
 `taskBodyExcerpt`(`:58-64`)의 `slice(0, 300)` 을 `TASK_BODY_LIMIT` 로 바꾼다.
 
 `addCommentNode`(`:300-310`)의 `commentText.slice(0, 200)` 을
-`stripGitHubHookHeader(commentText).slice(0, COMMENT_EXCERPT_LIMIT)` 로 바꾼다.
+`stripGitHubHookHeader(textContentPreservingLineBreaks(comment)).slice(0, COMMENT_EXCERPT_LIMIT)` 로 바꾼다.
 
-**머리말 벗기기를 `addCommentNode` 밖으로 올리지 마라.** 바로 위 `:296` 의
-`addTextReferences(project, commentText, ...)` 가 같은 문자열로 업무 참조를 뽑는다.
+**개행 보존 추출과 머리말 벗기기를 `addCommentNode` 밖으로 올리지 마라.** 호출부 `:296` 의
+`addTextReferences(project, commentText, ...)` 는 지금의 `textContent` 값을 그대로 받아야 한다.
 가공한 값을 넘기면 `REFERENCES` 328건이 조용히 바뀐다. 어렵게 오탐을 정리한 값이다.
 
-### 4. 잘린 건수를 요약에 출력한다
+### 5. 잘린 건수를 요약에 출력한다
 
 상한을 넘겨 잘린 업무 본문과 댓글의 건수를 `parse-structure` 요약에 넣는다.
 조용한 손실을 막는 것이 목적이다. 기존 요약 출력 형식을 따르고 새 형식을 만들지 마라.
@@ -89,6 +111,8 @@ export function stripGitHubHookHeader(text: string): string;
 | 파일 | 변경 |
 | --- | --- |
 | `apps/pipeline/src/parse/parse.const.ts` | 신규 |
+| `apps/pipeline/src/raw-reader.ts` | 수정 — 개행 보존 추출 추가 |
+| `apps/pipeline/src/raw-reader.test.ts` | 신규 |
 | `apps/pipeline/src/parse/github-hook-comment.ts` | 신규 |
 | `apps/pipeline/src/parse/github-hook-comment.test.ts` | 신규 |
 | `apps/pipeline/src/parse/structural-extractor.ts` | 수정 |
@@ -107,6 +131,7 @@ export function stripGitHubHookHeader(text: string): string;
 - 불릿으로 시작하는 사람 댓글이 바뀌지 않는다
 - 훅 머리말만 있고 본문이 없으면 원문을 유지한다
 - 상한 경계 — 6,000자 이하는 온전히, 초과는 6,000자로 잘린다
+- 개행 보존 추출이 마크다운 표를 행 단위로 남기고 `textContent` 와 결과가 다르다
 
 ```bash
 # cwd: 저장소 루트
@@ -130,6 +155,7 @@ pnpm --filter pipeline parse-structure --project tc-ocr
 - `REFERENCES` 관계 수가 328 로 불변이다
 - `excerpt` 가 200자를 넘는 노드가 나타난다
 - 훅 댓글의 `excerpt` 가 `[[` 로 시작하지 않는다
+- `excerpt` 에 개행이 남고, 마크다운 표가 든 `excerpt` 의 표가 행 단위로 보존된다
 
 **변이 검증** — `stripGitHubHookHeader` 의 훅 판정을 무력화해 항상 참을 돌려주게 만들고,
 사람 댓글 보존 테스트가 실제로 실패하는지 확인한 뒤 원복한다.
@@ -143,4 +169,7 @@ pnpm --filter pipeline parse-structure --project tc-ocr
   버리면 그 문항이 영구히 답할 수 없게 된다
 - **판정 규칙을 전용 모듈로 뺀 이유** — 넓은 규칙이 사람 댓글 317건을 깎을 뻔했다.
   규칙 단위로 테스트를 붙일 대상이 있어야 오탐이 드러난다
+- **규칙은 원천 JSON 이 아니라 `addCommentNode` 에 실제로 들어오는 값을 기준으로 정한다.**
+  원천은 두 줄이지만 `textContent` 를 지나면 한 줄이 된다. 스펙을 도착 형태로 검증하지 않아
+  줄 단위 규칙이 전부 미매칭되는 상태를 한 번 만들었다
 - 이 phase 가 Phase 02 의 전제다. 검색 인덱스를 걸어도 색인할 텍스트가 200자면 같은 맹점이 남는다
