@@ -68,16 +68,36 @@ function axisChanges(baseline, candidate) {
   };
 }
 
+/**
+ * 같은 문항의 정답 규모가 달라졌는지 본다. 달라졌으면 기준 변경이므로 개선·회귀로 분류할 수 없다.
+ * 요약 리포트가 담는 `requiredEvidenceCount`·`supportingEvidenceCount` 로 판정한다.
+ */
+function goldChanged(before, after) {
+  return (
+    (before.requiredEvidenceCount ?? null) !== (after.requiredEvidenceCount ?? null) ||
+    (before.supportingEvidenceCount ?? null) !== (after.supportingEvidenceCount ?? null)
+  );
+}
+
+/**
+ * 평가 세트는 시간이 지나며 자란다. 세트 해시가 다르다고 비교를 거부하면 문항을 더할 때마다
+ * 비교선이 끊기므로, **문항 id 교집합**으로 비교하고 더해진·빠진 문항을 명시한다.
+ *
+ * 다만 같은 문항의 gold 가 바뀐 경우는 다르다. 그건 기준 변경이라 개선·회귀 판정에 쓸 수 없으므로
+ * `criteriaChanged` 로 따로 빼서 숫자에 섞이지 않게 한다.
+ */
 function compareSummaries(baseline, candidate) {
   const baselineHash = resolveSuiteHash(baseline, "baseline");
   const candidateHash = resolveSuiteHash(candidate, "candidate");
-  if (baselineHash !== candidateHash) {
-    throw new Error(`suiteHash differs: baseline=${baselineHash} candidate=${candidateHash}`);
-  }
   const baselineQuestions = questionMap(baseline);
   const candidateQuestions = questionMap(candidate);
   const result = {
-    suiteHash: baselineHash,
+    baselineSuiteHash: baselineHash,
+    candidateSuiteHash: candidateHash,
+    suiteChanged: baselineHash !== candidateHash,
+    added: [],
+    removed: [],
+    criteriaChanged: [],
     improved: [],
     regressed: [],
     unchanged: [],
@@ -89,9 +109,11 @@ function compareSummaries(baseline, candidate) {
   for (const [id, before] of baselineQuestions) {
     const after = candidateQuestions.get(id);
     if (!after) {
-      const axes = { resolved: [], added: [] };
-      result.review.push(id);
-      result.failureBoundaryChanges.push({ id, from: before.failureBoundary ?? "NONE", to: "MISSING", axes });
+      result.removed.push(id);
+      continue;
+    }
+    if (goldChanged(before, after)) {
+      result.criteriaChanged.push(id);
       continue;
     }
     const rankBefore = verdictRank(before.finalVerdict);
@@ -121,16 +143,11 @@ function compareSummaries(baseline, candidate) {
 
   for (const id of candidateQuestions.keys()) {
     if (!baselineQuestions.has(id)) {
-      const axes = axisChanges({}, candidateQuestions.get(id));
-      result.review.push(id);
-      if (axes.resolved.length > 0 || axes.added.length > 0) {
-        result.axisChanges.push({ id, ...axes });
-      }
-      result.failureBoundaryChanges.push({ id, from: "MISSING", to: candidateQuestions.get(id).failureBoundary ?? "NONE", axes });
+      result.added.push(id);
     }
   }
 
-  for (const key of ["improved", "regressed", "unchanged", "review"]) {
+  for (const key of ["added", "removed", "criteriaChanged", "improved", "regressed", "unchanged", "review"]) {
     result[key].sort();
   }
   result.axisChanges.sort((left, right) => left.id.localeCompare(right.id));

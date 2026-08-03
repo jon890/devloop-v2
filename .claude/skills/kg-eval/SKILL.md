@@ -49,5 +49,5 @@ description: 지식그래프 검색 품질을 원천 근거 기반 gold 세트�
 - `references/result-contract.md`: 평가 세트, 원시 실행 결과, 요약 결과 JSON 계약.
 - `scripts/validate-suite.mjs`: 평가 세트가 원천 데이터와 자기 참조 계약을 만족하는지 검증한다.
 - `scripts/run.mjs`: 평가 세트를 직렬 반복 실행하고, 조건이 같은 기존 원시 결과에서 완료 회차를 건너뛰어 재개한다.
-- `scripts/compare.mjs`: 같은 질문 세트 해시의 요약 JSON 두 개를 문항별 판정과 실패 경계 기준으로 비교한다.
+- `scripts/compare.mjs`: 요약 JSON 두 개를 **문항 id 교집합**으로 비교한다. 세트가 자라도 비교선이 끊기지 않고, 추가·삭제 문항과 gold 가 바뀐 문항을 따로 나열한다.
 - `tests/*.test.mjs`: 세트 검증, 실행·재개·잠금·중단 저장, 비교 분류 계약을 검증한다.

@@ -164,7 +164,21 @@
 
 ## 비교 결과
 
-`compare.mjs`는 같은 세트 해시의 요약 JSON 두 개만 비교한다.
-결과 최상위 객체는 `improved`, `regressed`, `unchanged`, `review`, `axisChanges`, `failureBoundaryChanges`를 가진다.
-`axisChanges`는 실패 경계 변화 여부와 독립적으로 문항별 `failedAxes`의 추가·해소를 기록한다.
-`failureBoundaryChanges`는 실패 경계가 달라진 문항만 기록한다.
+`compare.mjs`는 **문항 id 교집합**으로 비교한다. 세트가 자라도 비교선이 끊기지 않게 하기 위해서다.
+세트 해시가 다르다고 거부하지 않고 `suiteChanged`로 표시한다.
+
+| 필드 | 의미 |
+| --- | --- |
+| `baselineSuiteHash`·`candidateSuiteHash`·`suiteChanged` | 두 세트가 같은 내용인지 |
+| `added`·`removed` | 한쪽에만 있는 문항. 조용히 빠지지 않게 나열한다 |
+| `criteriaChanged` | 같은 문항인데 gold 규모가 달라졌다. **개선·회귀로 세지 않는다** |
+| `improved`·`regressed`·`unchanged`·`review` | `finalVerdict` 등급 비교 |
+| `axisChanges` | 실패 경계 변화와 독립적으로 문항별 `failedAxes`의 추가·해소 |
+| `failureBoundaryChanges` | 실패 경계가 달라진 문항만 |
+
+`criteriaChanged` 판정은 `requiredEvidenceCount`·`supportingEvidenceCount` 비교다.
+**문항이 추가된 것과 기존 문항의 정답이 바뀐 것은 다르게 다뤄야 한다** — 앞은 비교 가능하고 뒤는 아니다.
+
+의미 판정을 하지 않은 측정에서는 `improved`·`regressed`·`unchanged` 버킷을 근거로 쓰지 마라.
+그 버킷은 `finalVerdict` 등급 비교이고, 판정하지 않은 문항은 `REVIEW`로 두기 때문이다.
+그럴 때 의미 있는 근거는 `failureBoundaryChanges`와 `axisChanges`뿐이다.
