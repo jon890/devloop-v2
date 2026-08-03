@@ -6,7 +6,15 @@ import type { z } from "zod";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { LLM_CLI, LlmCli } from "../llm-cli";
 import { Neo4jService } from "../neo4j.service";
-import { ANCHOR_CANDIDATE_LIMIT, ANCHOR_LABEL_QUOTAS, EVIDENCE_NODE_LIMIT, FULLTEXT_INDEXES } from "./query.const";
+import {
+  ANCHOR_CANDIDATE_LIMIT,
+  ANCHOR_LABEL_QUOTAS,
+  ANSWER_EVIDENCE_PROMPT_BUDGET,
+  ANSWER_EVIDENCE_RELATIONSHIP_RESERVE,
+  EVIDENCE_NODE_CEILING,
+  EVIDENCE_SERIALIZED_BUDGET,
+  FULLTEXT_INDEXES,
+} from "./query.const";
 import { AnchorResponseSchema, AnswerResponseSchema, CypherResponseSchema } from "./query.schema";
 
 export interface FulltextMatch {
@@ -259,6 +267,8 @@ export class QueryService {
       '예시 Cypher: MATCH (t:Task)-[typeTag:TAGGED]->(:Concept {name:"개선"}) WHERE typeTag.dimension = "0" MATCH (t)-[groupTag:TAGGED]->(c:Concept) WHERE groupTag.dimension = "2" RETURN c.name, count(t)',
       "집계 질의의 Cypher는 집계 결과 행만 반환하라. 집계 뒤 근거 node/path를 재확장하거나 근거 수집용 LIMIT를 같은 쿼리에 넣지 마라. LIMIT는 집계 그룹에 적용한다.",
       "비집계 질의는 가능하면 node, relationship, path를 RETURN해서 근거 그래프를 포함하라.",
+      "질문이 검증·조치·경과·근거를 묻거나 특정 Task 번호를 지목하면, **지목된 모든 Task 의 댓글을 함께** 확장하라. 한 Task 의 number 목록을 만들어 MATCH (t:Task) WHERE t.number IN [...] OPTIONAL MATCH (t)-[hasComment:HAS_COMMENT]->(comment:Comment) 형태로 쓴다. 업무 하나만 댓글 확장하면 다른 업무의 근거 댓글이 아예 조회되지 않는다.",
+      "실측 사례 — 497의 변경이 499에서 어떻게 검증됐는지 묻는 질문에 499의 댓글만 확장해 497의 근거 댓글 2건을 놓쳤다. 두 업무를 number 목록에 함께 넣어야 한다.",
       "fulltext 검색으로 찾은 순위화된 anchor 후보를 우선 사용하라. 관련 anchor는 label과 key에 맞는 실제 노드로 제한하고, display를 질문 용어 해석에 활용하라.",
       `Anchor candidates (label/key/display; Task includes decisionCount): ${JSON.stringify(anchorSummaries(anchorCandidates))}`,
       retry ? `이전 Cypher는 오류가 났다. 오류를 반영해 한 번만 고쳐라.\nPrevious: ${retry.previousCypher}\nError: ${retry.error}` : "",
@@ -354,7 +364,8 @@ export class QueryService {
       "여러 Task 후보의 Decision이 함께 조회되었다면 행 순서나 fulltext 1위만으로 단정하지 말고, Task subject·Decision summary·Comment excerpt를 질문과 비교해 가장 관련성 높은 근거로 답하라.",
       `Question: ${question}`,
       `Rows: ${JSON.stringify(rows, jsonSafeReplacer)}`,
-      `Evidence: ${JSON.stringify(evidence).slice(0, 20_000)}`,
+      "Evidence 의 omittedNodes·omittedRelationships 는 분량 때문에 프롬프트에서 빠진 근거 수다. 0이 아니면 근거가 더 있다는 뜻이므로, 관계가 비어 있다고 관계가 없다고 단정하지 마라.",
+      `Evidence: ${buildAnswerEvidencePayload(evidence)}`,
     ].join("\n\n");
     return (
       await this.completeStructured(prompt, AnswerResponseSchema, {
@@ -441,6 +452,52 @@ export function promoteCommentAnchors(matches: FulltextMatch[], parents: Readonl
     promoted.push(effective);
   }
   return promoted;
+}
+
+/**
+ * 우선순위로 정렬된 항목을 직렬화 길이 예산과 개수 상한 안에서 **앞에서부터** 담는다.
+ *
+ * 예산에 안 맞는 항목을 만나면 멈춘다 (건너뛰지 않는다). 건너뛰면 버린 항목보다 우선순위가
+ * 낮은 짧은 항목이 그 자리를 채워 정렬이 뒤집힌다 — 본문 있는 Comment 를 버리고 본문 없는
+ * Concept 태그를 담는 일이 생긴다. 그건 이 예산 방식이 없애려던 실패 유형이다.
+ *
+ * 첫 항목은 예산을 넘어도 담는다. 근거가 0건이 되는 것보다 낫다.
+ */
+export function takeWithinBudget<T>(items: readonly T[], budget: number, ceiling: number): T[] {
+  const taken: T[] = [];
+  let used = 0;
+  for (const item of items) {
+    if (taken.length >= ceiling) break;
+    const cost = JSON.stringify(item).length;
+    if (taken.length > 0 && used + cost > budget) break;
+    taken.push(item);
+    used += cost;
+  }
+  return taken;
+}
+
+/**
+ * 답변 프롬프트에 담을 근거를 만든다. 직렬화 결과를 문자 단위로 자르면 JSON 구조가 깨지므로
+ * **항목을 하나씩 담아** 예산에 맞춘다.
+ *
+ * **노드에 예산을 먼저 준다.** 관계 비용을 전부 먼저 빼면 관계가 예산을 넘는 회차에서 노드
+ * 예산이 0이 되어 첫 노드만 담기고, 그 뒤 관계도 끝점이 없어 전부 걸러진다. 예산을 관계에
+ * 예약해 놓고 관계까지 버리는 이중 낭비다 — 실측으로 9회 중 3회가 그 경로였다.
+ *
+ * 그래서 관계에는 예산의 일부만 예약하고, 노드를 담은 뒤 남은 여유로 관계를 채운다.
+ */
+export function buildAnswerEvidencePayload(evidence: NeighborsResponse, budget = ANSWER_EVIDENCE_PROMPT_BUDGET): string {
+  const reserve = Math.min(JSON.stringify(evidence.relationships).length, Math.floor(budget * ANSWER_EVIDENCE_RELATIONSHIP_RESERVE));
+  const nodes = takeWithinBudget(evidence.nodes, budget - reserve, evidence.nodes.length);
+  const selected = new Set(nodes.map((node) => node.id));
+  const reachable = evidence.relationships.filter((relationship) => selected.has(relationship.startId) && selected.has(relationship.endId));
+  const relationships = takeWithinBudget(reachable, Math.max(0, budget - JSON.stringify(nodes).length), reachable.length);
+  return JSON.stringify({
+    nodes,
+    relationships,
+    omittedNodes: evidence.nodes.length - nodes.length,
+    omittedRelationships: evidence.relationships.length - relationships.length,
+  });
 }
 
 export function rankAnchorCandidates(resultSets: FulltextMatch[][], limit = ANCHOR_CANDIDATE_LIMIT): GraphNode[] {
@@ -545,9 +602,11 @@ export function refineQueryEvidence(
           (relationship.endId === anchor.id && baseNodeIds.has(relationship.startId)),
       ),
   );
-  const nodes = uniqueNodes([...base.nodes, ...connectedAnchors])
-    .sort((left, right) => compareEvidenceNodes(left, right, answerNodeIds))
-    .slice(0, EVIDENCE_NODE_LIMIT);
+  const nodes = takeWithinBudget(
+    uniqueNodes([...base.nodes, ...connectedAnchors]).sort((left, right) => compareEvidenceNodes(left, right, answerNodeIds)),
+    EVIDENCE_SERIALIZED_BUDGET,
+    EVIDENCE_NODE_CEILING,
+  );
   const selectedNodeIds = new Set(nodes.map((node) => node.id));
   const relationships = uniqueRelationships(base.relationships)
     .filter((relationship) => selectedNodeIds.has(relationship.startId) && selectedNodeIds.has(relationship.endId))
@@ -570,12 +629,15 @@ function compareEvidenceRelationships(left: GraphRel, right: GraphRel, answerNod
   return rightAnswerEndpoints - leftAnswerEndpoints || left.id.localeCompare(right.id);
 }
 
+// Comment 는 결정의 근거와 조치 내용을 담는 노드다. 평가 세트의 필수 근거 29건 중 14건이 댓글인데
+// 예전에는 Concept 뒤 최하위여서 예산이 찰 때 가장 먼저 버려졌다. Concept 은 태그성 노드라 본문이 없다.
 function evidenceLabelPriority(label: GraphNode["label"]): number {
   if (label === "Task") return 0;
   if (label === "Decision") return 1;
-  if (label === "Wiki") return 2;
-  if (label === "Concept") return 3;
-  return 4;
+  if (label === "Comment") return 2;
+  if (label === "Wiki") return 3;
+  if (label === "Concept") return 4;
+  return 5;
 }
 
 function uniqueRelationships(relationships: GraphRel[]): GraphRel[] {

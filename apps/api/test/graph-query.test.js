@@ -12,7 +12,7 @@ function node(id, label, display = id) {
   return { id, label, key: id, display, properties: {} };
 }
 
-test('query evidence prioritizes answer nodes, filters orphan anchors, and caps nodes at 30', () => {
+test('query evidence prioritizes answer nodes, filters orphan anchors, and keeps short nodes within budget', () => {
   const answerNodes = [
     node('answer-concept', 'Concept'),
     node('answer-task', 'Task'),
@@ -42,7 +42,9 @@ test('query evidence prioritizes answer nodes, filters orphan anchors, and caps 
     [connectedAnchor, node('orphan-anchor', 'Task')],
   );
 
-  assert.equal(evidence.nodes.length, 30);
+  // 상한이 개수(30)에서 직렬화 예산으로 바뀌었다. 본문이 없는 짧은 노드는 예산에 걸리지 않으므로
+  // 답변 노드 2 + 보강 35 + 연결된 앵커 1 = 38건이 모두 남는다. 고아 앵커만 빠진다.
+  assert.equal(evidence.nodes.length, 38);
   assert.deepEqual(
     evidence.nodes.slice(0, 2).map((item) => item.id),
     ['answer-task', 'answer-concept'],
