@@ -45,11 +45,14 @@ export class QueryService {
       diagnostics.push(`anchor 검색 실패(${terms[index]}): ${formatError(result.reason)}`);
       return [];
     });
-    let promotedSearchResults = fulfilledSearchResults;
+    let promotedSearchResults: FulltextMatch[][];
     try {
       promotedSearchResults = await this.promoteCommentHits(fulfilledSearchResults);
     } catch (error) {
       diagnostics.push(`댓글 히트 승격 실패: ${formatError(error)}`);
+      // 원본으로 되돌리지 않는다. 되돌리면 Comment 가 앵커 목록에 남아 라벨 정원이 없는 채로
+      // 슬롯을 잠식한다. 승격하지 못한 댓글 히트는 버리는 것이 이 단계의 규칙이다.
+      promotedSearchResults = dropCommentHits(fulfilledSearchResults);
     }
     const anchors = rankAnchorCandidates(promotedSearchResults, ANCHOR_CANDIDATE_LIMIT);
     let decisionCounts: ReadonlyMap<string, number> | undefined;
@@ -397,6 +400,16 @@ function normalizeTaskCitations(answer: string, answerNodes: GraphNode[]): strin
     /(?:(?:Task|업무)[ \t]+)?(?<![\w/])(?<!Task\n)(?<!Task\r\n)(?<!업무\n)(?<!업무\r\n)#(\d+)(?![\w.]|번)/gi,
     (reference, taskNumber: string) => (taskNumbers.has(taskNumber) ? `Task #${taskNumber}` : reference),
   );
+}
+
+/**
+ * 부모 조회가 실패했을 때 쓰는 안전 기본값이다. `Comment` 히트만 버리고 나머지는 그대로 둔다.
+ *
+ * `ANCHOR_LABEL_QUOTAS` 에 `Comment` 항목이 없어 `max` 가 없으므로, 앵커 목록에 `Comment` 가
+ * 남으면 backfill 이 제한 없이 채워 슬롯을 잠식한다.
+ */
+export function dropCommentHits(resultSets: FulltextMatch[][]): FulltextMatch[][] {
+  return resultSets.map((matches) => matches.filter((match) => match.node.label !== "Comment"));
 }
 
 /**

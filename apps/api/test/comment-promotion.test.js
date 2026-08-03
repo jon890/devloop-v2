@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const { promoteCommentAnchors, rankAnchorCandidates } = require('../dist/query/query.service');
+const { dropCommentHits, promoteCommentAnchors, rankAnchorCandidates } = require('../dist/query/query.service');
 const { displayFor } = require('../dist/neo4j/neo4j.service');
 const { COMMENT_DISPLAY_LIMIT } = require('../dist/neo4j/neo4j.const');
 
@@ -85,6 +85,27 @@ test('댓글 히트를 최하위로 넣으면 융합 1위가 바뀐다 — 순�
   const anchors = rankAnchorCandidates([demoted], 8);
 
   assert.equal(anchors[0].id, 't-noise', '최하위로 넣으면 엉뚱한 업무가 1위가 된다');
+});
+
+// 부모 조회가 실패해도 Comment 가 앵커 목록에 남으면 안 된다.
+// ANCHOR_LABEL_QUOTAS 에 Comment 항목이 없어 max 가 없으므로 backfill 이 제한 없이 채운다.
+test('승격이 실패하면 Comment 히트를 버리고 나머지는 남긴다', () => {
+  const resultSets = [
+    [match('c-1', 'Comment', 9), match('t-1', 'Task', 5)],
+    [match('w-1', 'Wiki', 3), match('c-2', 'Comment', 8)],
+  ];
+
+  const dropped = dropCommentHits(resultSets);
+
+  assert.deepEqual(
+    dropped.map((set) => set.map((entry) => entry.node.id)),
+    [['t-1'], ['w-1']],
+  );
+  assert.equal(
+    dropped.flat().some((entry) => entry.node.label === 'Comment'),
+    false,
+    '실패 경로에서도 Comment 앵커가 남지 않는다',
+  );
 });
 
 test('displayFor 는 긴 Comment 를 자르고 다른 라벨은 그대로 둔다', () => {
