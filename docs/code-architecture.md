@@ -106,7 +106,7 @@ repository는 행 단위 조회·삽입·삭제만 수행하고, 전달받은 `R
 | `neo4j/` | `sync-neo4j`·`apply-schema` | DB 를 건드리는 것만 모은다 |
 | `config/` | — | 환경변수 검증과 주입 |
 | `llm/` | — | LLM CLI 어댑터 (codex·claude) |
-| `raw-reader.ts` | — | 원본 읽기. `parse` 와 `infer` 가 함께 쓴다 |
+| `raw-reader.ts` | — | 원본 읽기. `parse` 와 `infer` 가 함께 쓴다.<br>텍스트 추출이 두 종류다 — 참조 추출용(개행을 공백으로 병합)과 저장용(개행 보존) |
 
 `raw-reader.ts` 가 루트에 있는 이유 — 두 단계가 공용으로 쓰므로 한쪽에 넣으면 의존이 역류한다.
 
