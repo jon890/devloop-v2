@@ -28,3 +28,6 @@ export const EVIDENCE_SERIALIZED_BUDGET = 60_000;
 export const EVIDENCE_NODE_CEILING = 80;
 // 답변 합성 프롬프트에 담는 근거 예산이다. 노드 단위로 담아 JSON 구조를 깨지 않는다.
 export const ANSWER_EVIDENCE_PROMPT_BUDGET = 20_000;
+// 관계에 예약하는 몫이다. 관계 비용을 전부 먼저 빼면 관계가 예산을 넘는 회차에서 노드 예산이
+// 0이 되어 첫 노드만 담긴다 (실측 9회 중 3회). 노드가 답변 내용을 나르므로 노드를 먼저 채운다.
+export const ANSWER_EVIDENCE_RELATIONSHIP_RESERVE = 0.2;

@@ -10,6 +10,7 @@ import {
   ANCHOR_CANDIDATE_LIMIT,
   ANCHOR_LABEL_QUOTAS,
   ANSWER_EVIDENCE_PROMPT_BUDGET,
+  ANSWER_EVIDENCE_RELATIONSHIP_RESERVE,
   EVIDENCE_NODE_CEILING,
   EVIDENCE_SERIALIZED_BUDGET,
   FULLTEXT_INDEXES,
@@ -361,6 +362,7 @@ export class QueryService {
       "여러 Task 후보의 Decision이 함께 조회되었다면 행 순서나 fulltext 1위만으로 단정하지 말고, Task subject·Decision summary·Comment excerpt를 질문과 비교해 가장 관련성 높은 근거로 답하라.",
       `Question: ${question}`,
       `Rows: ${JSON.stringify(rows, jsonSafeReplacer)}`,
+      "Evidence 의 omittedNodes·omittedRelationships 는 분량 때문에 프롬프트에서 빠진 근거 수다. 0이 아니면 근거가 더 있다는 뜻이므로, 관계가 비어 있다고 관계가 없다고 단정하지 마라.",
       `Evidence: ${buildAnswerEvidencePayload(evidence)}`,
     ].join("\n\n");
     return (
@@ -450,15 +452,23 @@ export function promoteCommentAnchors(matches: FulltextMatch[], parents: Readonl
   return promoted;
 }
 
-/** 정렬된 노드를 직렬화 길이 예산과 개수 상한 안에서 앞에서부터 담는다. 첫 노드는 예산을 넘어도 담는다. */
-export function takeWithinBudget(nodes: GraphNode[], budget: number, ceiling: number): GraphNode[] {
-  const taken: GraphNode[] = [];
+/**
+ * 우선순위로 정렬된 항목을 직렬화 길이 예산과 개수 상한 안에서 **앞에서부터** 담는다.
+ *
+ * 예산에 안 맞는 항목을 만나면 멈춘다 (건너뛰지 않는다). 건너뛰면 버린 항목보다 우선순위가
+ * 낮은 짧은 항목이 그 자리를 채워 정렬이 뒤집힌다 — 본문 있는 Comment 를 버리고 본문 없는
+ * Concept 태그를 담는 일이 생긴다. 그건 이 예산 방식이 없애려던 실패 유형이다.
+ *
+ * 첫 항목은 예산을 넘어도 담는다. 근거가 0건이 되는 것보다 낫다.
+ */
+export function takeWithinBudget<T>(items: readonly T[], budget: number, ceiling: number): T[] {
+  const taken: T[] = [];
   let used = 0;
-  for (const node of nodes) {
+  for (const item of items) {
     if (taken.length >= ceiling) break;
-    const cost = JSON.stringify(node).length;
-    if (taken.length > 0 && used + cost > budget) continue;
-    taken.push(node);
+    const cost = JSON.stringify(item).length;
+    if (taken.length > 0 && used + cost > budget) break;
+    taken.push(item);
     used += cost;
   }
   return taken;
@@ -466,14 +476,26 @@ export function takeWithinBudget(nodes: GraphNode[], budget: number, ceiling: nu
 
 /**
  * 답변 프롬프트에 담을 근거를 만든다. 직렬화 결과를 문자 단위로 자르면 JSON 구조가 깨지므로
- * **노드를 하나씩 담아** 예산에 맞춘다. 관계는 살아남은 노드 사이의 것만 남긴다.
+ * **항목을 하나씩 담아** 예산에 맞춘다.
+ *
+ * **노드에 예산을 먼저 준다.** 관계 비용을 전부 먼저 빼면 관계가 예산을 넘는 회차에서 노드
+ * 예산이 0이 되어 첫 노드만 담기고, 그 뒤 관계도 끝점이 없어 전부 걸러진다. 예산을 관계에
+ * 예약해 놓고 관계까지 버리는 이중 낭비다 — 실측으로 9회 중 3회가 그 경로였다.
+ *
+ * 그래서 관계에는 예산의 일부만 예약하고, 노드를 담은 뒤 남은 여유로 관계를 채운다.
  */
 export function buildAnswerEvidencePayload(evidence: NeighborsResponse, budget = ANSWER_EVIDENCE_PROMPT_BUDGET): string {
-  const relationshipCost = JSON.stringify(evidence.relationships).length;
-  const nodes = takeWithinBudget(evidence.nodes, Math.max(0, budget - relationshipCost), evidence.nodes.length);
+  const reserve = Math.min(JSON.stringify(evidence.relationships).length, Math.floor(budget * ANSWER_EVIDENCE_RELATIONSHIP_RESERVE));
+  const nodes = takeWithinBudget(evidence.nodes, budget - reserve, evidence.nodes.length);
   const selected = new Set(nodes.map((node) => node.id));
-  const relationships = evidence.relationships.filter((relationship) => selected.has(relationship.startId) && selected.has(relationship.endId));
-  return JSON.stringify({ nodes, relationships, omittedNodes: evidence.nodes.length - nodes.length });
+  const reachable = evidence.relationships.filter((relationship) => selected.has(relationship.startId) && selected.has(relationship.endId));
+  const relationships = takeWithinBudget(reachable, Math.max(0, budget - JSON.stringify(nodes).length), reachable.length);
+  return JSON.stringify({
+    nodes,
+    relationships,
+    omittedNodes: evidence.nodes.length - nodes.length,
+    omittedRelationships: evidence.relationships.length - relationships.length,
+  });
 }
 
 export function rankAnchorCandidates(resultSets: FulltextMatch[][], limit = ANCHOR_CANDIDATE_LIMIT): GraphNode[] {
