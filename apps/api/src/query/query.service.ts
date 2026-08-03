@@ -6,7 +6,14 @@ import type { z } from "zod";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { LLM_CLI, LlmCli } from "../llm-cli";
 import { Neo4jService } from "../neo4j.service";
-import { ANCHOR_CANDIDATE_LIMIT, ANCHOR_LABEL_QUOTAS, EVIDENCE_NODE_LIMIT, FULLTEXT_INDEXES } from "./query.const";
+import {
+  ANCHOR_CANDIDATE_LIMIT,
+  ANCHOR_LABEL_QUOTAS,
+  ANSWER_EVIDENCE_PROMPT_BUDGET,
+  EVIDENCE_NODE_CEILING,
+  EVIDENCE_SERIALIZED_BUDGET,
+  FULLTEXT_INDEXES,
+} from "./query.const";
 import { AnchorResponseSchema, AnswerResponseSchema, CypherResponseSchema } from "./query.schema";
 
 export interface FulltextMatch {
@@ -354,7 +361,7 @@ export class QueryService {
       "여러 Task 후보의 Decision이 함께 조회되었다면 행 순서나 fulltext 1위만으로 단정하지 말고, Task subject·Decision summary·Comment excerpt를 질문과 비교해 가장 관련성 높은 근거로 답하라.",
       `Question: ${question}`,
       `Rows: ${JSON.stringify(rows, jsonSafeReplacer)}`,
-      `Evidence: ${JSON.stringify(evidence).slice(0, 20_000)}`,
+      `Evidence: ${buildAnswerEvidencePayload(evidence)}`,
     ].join("\n\n");
     return (
       await this.completeStructured(prompt, AnswerResponseSchema, {
@@ -441,6 +448,32 @@ export function promoteCommentAnchors(matches: FulltextMatch[], parents: Readonl
     promoted.push(effective);
   }
   return promoted;
+}
+
+/** 정렬된 노드를 직렬화 길이 예산과 개수 상한 안에서 앞에서부터 담는다. 첫 노드는 예산을 넘어도 담는다. */
+export function takeWithinBudget(nodes: GraphNode[], budget: number, ceiling: number): GraphNode[] {
+  const taken: GraphNode[] = [];
+  let used = 0;
+  for (const node of nodes) {
+    if (taken.length >= ceiling) break;
+    const cost = JSON.stringify(node).length;
+    if (taken.length > 0 && used + cost > budget) continue;
+    taken.push(node);
+    used += cost;
+  }
+  return taken;
+}
+
+/**
+ * 답변 프롬프트에 담을 근거를 만든다. 직렬화 결과를 문자 단위로 자르면 JSON 구조가 깨지므로
+ * **노드를 하나씩 담아** 예산에 맞춘다. 관계는 살아남은 노드 사이의 것만 남긴다.
+ */
+export function buildAnswerEvidencePayload(evidence: NeighborsResponse, budget = ANSWER_EVIDENCE_PROMPT_BUDGET): string {
+  const relationshipCost = JSON.stringify(evidence.relationships).length;
+  const nodes = takeWithinBudget(evidence.nodes, Math.max(0, budget - relationshipCost), evidence.nodes.length);
+  const selected = new Set(nodes.map((node) => node.id));
+  const relationships = evidence.relationships.filter((relationship) => selected.has(relationship.startId) && selected.has(relationship.endId));
+  return JSON.stringify({ nodes, relationships, omittedNodes: evidence.nodes.length - nodes.length });
 }
 
 export function rankAnchorCandidates(resultSets: FulltextMatch[][], limit = ANCHOR_CANDIDATE_LIMIT): GraphNode[] {
@@ -545,9 +578,11 @@ export function refineQueryEvidence(
           (relationship.endId === anchor.id && baseNodeIds.has(relationship.startId)),
       ),
   );
-  const nodes = uniqueNodes([...base.nodes, ...connectedAnchors])
-    .sort((left, right) => compareEvidenceNodes(left, right, answerNodeIds))
-    .slice(0, EVIDENCE_NODE_LIMIT);
+  const nodes = takeWithinBudget(
+    uniqueNodes([...base.nodes, ...connectedAnchors]).sort((left, right) => compareEvidenceNodes(left, right, answerNodeIds)),
+    EVIDENCE_SERIALIZED_BUDGET,
+    EVIDENCE_NODE_CEILING,
+  );
   const selectedNodeIds = new Set(nodes.map((node) => node.id));
   const relationships = uniqueRelationships(base.relationships)
     .filter((relationship) => selectedNodeIds.has(relationship.startId) && selectedNodeIds.has(relationship.endId))
@@ -570,12 +605,15 @@ function compareEvidenceRelationships(left: GraphRel, right: GraphRel, answerNod
   return rightAnswerEndpoints - leftAnswerEndpoints || left.id.localeCompare(right.id);
 }
 
+// Comment 는 결정의 근거와 조치 내용을 담는 노드다. 평가 세트의 필수 근거 29건 중 14건이 댓글인데
+// 예전에는 Concept 뒤 최하위여서 예산이 찰 때 가장 먼저 버려졌다. Concept 은 태그성 노드라 본문이 없다.
 function evidenceLabelPriority(label: GraphNode["label"]): number {
   if (label === "Task") return 0;
   if (label === "Decision") return 1;
-  if (label === "Wiki") return 2;
-  if (label === "Concept") return 3;
-  return 4;
+  if (label === "Comment") return 2;
+  if (label === "Wiki") return 3;
+  if (label === "Concept") return 4;
+  return 5;
 }
 
 function uniqueRelationships(relationships: GraphRel[]): GraphRel[] {

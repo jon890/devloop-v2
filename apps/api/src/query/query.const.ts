@@ -20,4 +20,11 @@ export const ANCHOR_LABEL_QUOTAS: Partial<Record<GraphNode["label"], { min?: num
   Wiki: { min: 2, max: 3 },
   Concept: { max: 2 },
 };
-export const EVIDENCE_NODE_LIMIT = 30;
+// 근거는 개수가 아니라 **직렬화 길이**로 자른다. 노드 하나가 200자일 때와 6,000자일 때 비용이
+// 30배 다른데 개수 기준은 둘을 같은 1로 센다. 실측 — 노드 30건 상한에서 정답 댓글이 6회 중 3회
+// 떨어졌고, 그 회차의 직렬화 길이는 34,615자였다 (댓글이 살아남은 회차는 20,392~30,554자).
+export const EVIDENCE_SERIALIZED_BUDGET = 60_000;
+// 화면이 근거 그래프를 그리므로 개수 상한도 함께 둔다. 예산 안이라도 이 수를 넘기지 않는다.
+export const EVIDENCE_NODE_CEILING = 80;
+// 답변 합성 프롬프트에 담는 근거 예산이다. 노드 단위로 담아 JSON 구조를 깨지 않는다.
+export const ANSWER_EVIDENCE_PROMPT_BUDGET = 20_000;
