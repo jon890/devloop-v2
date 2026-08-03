@@ -443,13 +443,14 @@
         }
       ],
       "requiredEvidence": [
-        "comment-483-phase-b",
         "task-496",
         "task-497",
         "task-498",
         "task-499"
       ],
-      "supportingEvidence": [],
+      "supportingEvidence": [
+        "comment-483-phase-b"
+      ],
       "orderedEvents": [
         "task-496",
         "task-497",
