@@ -29,6 +29,20 @@ test('Cypher 프롬프트가 지목된 모든 Task 의 댓글을 확장하라고
   assert.match(prompt, /t\.number IN \[/, 'number 목록 패턴을 보여 준다');
 });
 
+// 실측 회귀다. 7개 업무를 지목한 Cypher 가 6개 OPTIONAL MATCH 를 이어 붙여 행이 곱으로 퍼졌고,
+// 전역 LIMIT 50 이 그것을 잘라 업무 노드를 통째로 잃었다. task-494 를 6회 전부 놓쳤다.
+test('Cypher 프롬프트가 다수 Task 확장을 collect 로 접으라고 지시한다', async () => {
+  const prompts = [];
+  const service = serviceCapturingPrompt(prompts);
+
+  await service.generateCypher('Task 483 부터 506 까지 전체 흐름을 재구성하라', []);
+
+  const prompt = prompts[0];
+  assert.match(prompt, /Task 를 셋 이상 지목하면 OPTIONAL MATCH 를 여러 개 이어 붙이지 마라/);
+  assert.match(prompt, /collect\(DISTINCT/, 'collect 로 접는 형태를 보여 준다');
+  assert.match(prompt, /Task 하나당 한 행/, '업무당 한 행이라는 목표를 밝힌다');
+});
+
 test('Cypher 프롬프트가 근거 그래프를 RETURN 하라는 지시를 유지한다', async () => {
   const prompts = [];
   const service = serviceCapturingPrompt(prompts);

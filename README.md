@@ -14,6 +14,8 @@ Dooray 프로젝트(기본 tc-ocr)의 업무·위키를 수집해 고정 온톨�
 - `docs/data-schema.md` — 저장 계약 (노드·관계·`jsonl`·판단 저장소·삭제 규칙)
 - `docs/adr/` — 코드로 자명하지 않은 장기 기술 결정
 - `docs/EVAL-RUBRIC.md` — 품질 판정 단일 소스 (정적 기준·채점표·통과선)
+- `docs/pitfalls/` — 반복되는 실수 패턴. 활동별로 나눠 두고 그 활동 직전에 읽는다
+- `docs/retrospectives/` — 사건 하나의 관찰·원인·조치와 실행 기록
 - `eval/questions-{human,ai}-<project>.json` — 평가 질문 gold 단일 소스 (기대 근거 포함)
 - `eval/suites/` — 원천 근거 기반 평가 세트 (`kg-eval` 러너 입력)
 - `eval/` — 정적 점검 쿼리·평가 리포트
