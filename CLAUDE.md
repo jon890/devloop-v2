@@ -438,6 +438,18 @@ REGISTRY_DATABASE_URL=postgresql://devloop:devloop-test-password@localhost:15435
   측정 쪽은 근거 6~29건을 받는데 브라우저 질의만 0건이 반복됐다
 - **playwright 의 `fill()` 은 React onChange 를 우회한다.** 입력값이 state 에 반영되지 않아 **이전 질문이 재전송**된다.
   질의 화면을 검증할 때는 `slowly: true`(= `pressSequentially`)를 쓴다
+- **측정용 API 를 `pnpm api` 로 백그라운드에 띄우지 마라.** `pnpm` 이 자식 프로세스 출력을
+  파이프로 중계하므로, 띄운 셸이 끝나면 파이프가 끊기고 API 가 다음 로그 쓰기에서 `EPIPE` 로 죽는다.
+    - 실측 — 36회 측정 중 **35회가 `fetch failed`** 로 날아갔다. 첫 회차만 성공했고 로그 끝에
+      `Error: write EPIPE` 가 남아 있었다. Nest 는 정상 기동했으므로 기동 실패로 보이지 않는다
+    - `node dist/main.js` 를 직접 띄운다. `.env` 를 셸에 먼저 적재해야 설정 검증을 통과한다
+
+      ```bash
+      # cwd: 저장소 루트
+      cd apps/api && set -a && . ../../.env && set +a && nohup node dist/main.js >| /tmp/api.log 2>&1 &
+      ```
+
+    - **API 기동과 측정을 같은 명령에 묶지 마라.** 기동 → 준비 확인 → 측정을 각각 나눈 호출로 한다
 
 ### 캔버스 렌더 검증은 좌상단만 보지 마라
 
