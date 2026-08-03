@@ -24,6 +24,7 @@ worktrees/
 # 로그·임시
 *.log
 .DS_Store
+eval/runs/
 eval/reports/*.tmp.md
 
 # 세션 상태

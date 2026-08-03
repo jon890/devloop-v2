@@ -273,7 +273,44 @@ LLM 캐시가 있어 추출 재실행은 불필요하다.
 
 ## 평가 gold 의 구조
 
-평가 세트는 이 저장소에 포함되지 않는다. 형식만 기록한다.
+평가 세트는 `eval/suites/`에 저장한다.
+질문만 있는 기존 은행은 보존하고, 대표 업무 흐름처럼 회귀 기준으로 쓸 문항은 원천 근거와 함께 세트로 승격한다.
+
+세트 최상위에는 다음 값을 둔다.
+
+| 필드 | 의미 |
+| --- | --- |
+| `schemaVersion` | 형식 변경을 구분하는 버전 |
+| `project` | 원천 프로젝트 |
+| `flowId` | 대표 업무 흐름의 안정된 식별자 |
+| `title` | 사람이 읽는 흐름 이름 |
+| `sourceSnapshot` | gold를 확인한 원천 적재 시점 |
+| `questions` | 평가 문항 목록 |
+
+각 문항은 다음 계약을 따른다.
+
+| 필드 | 의미 |
+| --- | --- |
+| `id` | 세트 안에서 안정된 문항 식별자 |
+| `audience` | `human` 또는 `ai` |
+| `difficulty` | `L1`부터 `L5` |
+| `question` | `/api/query`에 보낼 자연어 질문 |
+| `answerability` | `answerable` 또는 `insufficient-source` |
+| `sourceRefs` | 정답을 확인한 업무·댓글·위키 식별자 |
+| `graphChecks` | 검색 전 `/api/graph/samples?label=<Task\|Comment>&offset=<n>&limit=100`와 이웃 조회로 확인할 노드·관계 |
+| `requiredEvidence` | 전부 검색돼야 하는 근거 식별자 |
+| `supportingEvidence` | 답을 보강하는 근거 식별자 |
+| `orderedEvents` | 순서가 중요한 근거 식별자 배열 |
+| `expectedClaims` | 원천이 직접 지지하는 핵심 주장 |
+| `forbiddenClaims` | 원천에 없는 인과·동일성 주장 |
+
+`answerability=insufficient-source`인 문항은 `requiredEvidence`를 요구하지 않는다.
+대신 답변이 근거 부족을 명시하고 `forbiddenClaims`를 만들지 않아야 통과한다.
+
+`sourceRefs`의 그래프 기준 노드는 fulltext 검색이 아니라 라벨별 샘플 페이지에서 찾는다.
+`type=post`는 `Task` 라벨과 업무 번호 문자열 key를,
+`type=comment`는 `Comment` 라벨과 댓글 id 문자열 key를 정확히 비교한다.
+`/api/graph/search`는 `Task.subject`·`Wiki.subject`·`Concept.name` fulltext 검색 전용이라 숫자 key 해석에 쓰지 않는다.
 
 문항의 정답 목록을 두 등급으로 나눈다.
 
@@ -291,3 +328,29 @@ LLM 캐시가 있어 추출 재실행은 불필요하다.
 - 보강이 0개인 문항은 비율 판정을 생략한다
 
 자세한 판정 기준은 `docs/EVAL-RUBRIC.md` 가 단일 소스다.
+
+## 평가 실행 결과
+
+원시 실행 결과는 `eval/runs/`에 두고 커밋하지 않는다.
+조직 내부 원문과 질의 응답 전문이 들어갈 수 있기 때문이다.
+비교에 필요한 요약만 `eval/reports/`에 JSON과 Markdown으로 함께 남긴다.
+
+원시 결과는 다음 실행 조건을 고정한다.
+
+- 대상 커밋과 단계 이름
+- 평가 세트 경로와 내용 해시
+- API 기준 URL
+- 호출자가 선언한 질의 모델 표기
+- 반복 횟수
+- 문항·회차별 시작 시각, 지연 시간, HTTP 상태, `answer`·`evidence`·`cypher`
+
+API는 실제 모델 식별자를 응답하지 않는다.
+따라서 모델 표기는 호출자가 실행 조건으로 선언한 값이며, 서버가 증명한 값처럼 취급하지 않는다.
+
+요약 결과는 문항마다 다음 판정을 분리한다.
+
+- 결정적 검사 결과
+- 두 독립 의미 판정 결과
+- 반복 간 안정성
+- 최종 `PASS`, `FAIL`, `REVIEW`
+- 실패 경계인 `SOURCE`, `GRAPH`, `RETRIEVAL`, `ANSWER`
