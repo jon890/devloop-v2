@@ -14,3 +14,5 @@
 | RETRO-0010 | 2026-08-03 | plan006-evidence-retrieval | 기준선에 지연 데이터가 없어 요구된 전후 비교가 불가능했다 | 해결 | 승격 안 함 |
 | RETRO-0011 | 2026-08-04 | plan010-persistent-llm-transport | team-lead 가 기준값 측정을 main 워킹 트리에서 돌렸다 | 해결 | 검토 중 |
 | RETRO-0012 | 2026-08-04 | plan010-persistent-llm-transport | 팀원 회신이 수 분 늦게 도착해 무응답으로 오판했다 | 해결 | 검토 중 |
+| RETRO-0013 | 2026-08-04 | plan010-persistent-llm-transport | 가짜 서버가 stdout 을 써서 실제 서버의 stderr 배너를 못 잡았다 | 해결 | 검토 중 |
+| RETRO-0014 | 2026-08-04 | plan010-persistent-llm-transport | 지운 테스트가 옛 dist 산출물로 계속 돌았다 | 해결 | 검토 중 |
