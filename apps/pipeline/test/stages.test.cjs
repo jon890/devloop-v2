@@ -7,7 +7,6 @@ const test = require('node:test');
 
 const { ConceptDictionarySchema, OntologyNodeSchema, OntologyRelationshipSchema } = require('@devloop/shared');
 const { ClaudeCliAdapter } = require('../dist/llm/claude-cli.adapter');
-const { CodexCliAdapter } = require('../dist/llm/codex-cli.adapter');
 const { LlmResultSchema } = require('../dist/llm/llm-cli');
 const { removeConflictingAliases, seedConcepts } = require('../dist/concepts/concept-seeder');
 const { normalizeConceptKey } = require('@devloop/shared');
@@ -785,18 +784,11 @@ test('CLI 실패는 문서별 최대 3회 후 실패 목록에 기록한다', as
   assert.deepEqual(JSON.parse(await readFile(result.failureReportPath, 'utf8')), result.failed);
 });
 
-test('Codex·Claude CLI 어댑터가 고정 인자와 elapsedMs 계약을 지킨다', async () => {
+// codex 경로는 상주 app-server 를 쓴다. 그 계약 검증은 `@devloop/llm` 이 갖는다.
+test('Claude CLI 어댑터가 고정 인자와 elapsedMs 계약을 지킨다', async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'wp2-cli-test-'));
   const argsFile = path.join(temporary, 'args.json');
-  const codexPath = path.join(temporary, 'codex');
   const claudePath = path.join(temporary, 'claude');
-  await writeFile(codexPath, `#!/usr/bin/env node
-const fs = require('node:fs');
-const args = process.argv.slice(2);
-fs.writeFileSync(process.env.WP2_ARGS_FILE, JSON.stringify(args));
-const outputIndex = args.indexOf('--output-last-message');
-fs.writeFileSync(args[outputIndex + 1], '{"nodes":[],"relationships":[]}');
-`, 'utf8');
   await writeFile(claudePath, `#!/usr/bin/env node
 const fs = require('node:fs');
 fs.writeFileSync(process.env.WP2_ARGS_FILE, JSON.stringify(process.argv.slice(2)));
@@ -805,25 +797,11 @@ process.stdin.setEncoding('utf8');
 process.stdin.on('data', (chunk) => { input += chunk; });
 process.stdin.on('end', () => process.stdout.write(JSON.stringify({ result: input, usage: { input_tokens: 2, output_tokens: 3 } })));
 `, 'utf8');
-  await Promise.all([chmod(codexPath, 0o755), chmod(claudePath, 0o755)]);
+  await chmod(claudePath, 0o755);
   const previousPath = process.env.PATH;
   process.env.PATH = `${temporary}:${previousPath}`;
   process.env.WP2_ARGS_FILE = argsFile;
   try {
-    const codex = LlmResultSchema.parse(await new CodexCliAdapter().complete('codex prompt', { model: 'codex-model', effort: 'low' }));
-    assert.equal(codex.text, '{"nodes":[],"relationships":[]}');
-    const codexArgs = JSON.parse(await readFile(argsFile, 'utf8'));
-    assert.deepEqual(codexArgs.slice(0, 5), ['exec', '--sandbox', 'read-only', '--ephemeral', '--output-last-message']);
-    assert.match(codexArgs[5], /devloop-codex-.+\/last-message\.json$/);
-    assert.deepEqual(codexArgs.slice(6), [
-      '-m', 'codex-model', '-c', 'model_reasoning_effort=low', 'codex prompt',
-    ]);
-
-    await new CodexCliAdapter().complete('override prompt', { model: 'codex-model', effort: 'high' });
-    assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')).slice(6), [
-      '-m', 'codex-model', '-c', 'model_reasoning_effort=high', 'override prompt',
-    ]);
-
     const claude = LlmResultSchema.parse(await new ClaudeCliAdapter().complete('claude prompt', {
       model: 'claude-model',
       effort: 'high',

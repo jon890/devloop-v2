@@ -11,6 +11,7 @@
     "test:e2e": "pnpm --filter @devloop/shared build && pnpm --filter pipeline build && pnpm build && node test/run-e2e.js"
   },
   "dependencies": {
+    "@devloop/llm": "workspace:*",
     "@devloop/shared": "workspace:*",
     "@nestjs/common": "^11.1.0",
     "@nestjs/config": "^4.0.4",

@@ -89,15 +89,22 @@ function cleanEnv() {
   return env;
 }
 
-/** 자식 프로세스에서 AppModule 을 띄워 확정된 설정을 돌려받는다. */
+/**
+ * 자식 프로세스에서 app.module 을 로드한 뒤 확정된 설정을 돌려받는다.
+ *
+ * 검증 대상은 **로드 순서**다 — 가드가 app.module 보다 먼저 들어와야 테스트 DB 를 문다.
+ * 그래서 app.module 은 require 만 하고 띄우는 것은 ApiConfigModule 이다.
+ * AppModule 을 띄우면 LLM_CLI 프로바이더가 상주 `codex app-server` 를 실제로 기동한다 —
+ * 설정을 읽는 테스트가 LLM 서버에 매달릴 이유가 없다.
+ */
 function resolveAppConfig({ preload }) {
   const script = [
     preload ? `require(${JSON.stringify(guardPath)});` : '',
     "require('reflect-metadata');",
+    "require('./dist/app.module');",
     "const { NestFactory } = require('@nestjs/core');",
-    "const { AppModule } = require('./dist/app.module');",
-    "const { API_CONFIG } = require('./dist/config');",
-    'NestFactory.createApplicationContext(AppModule, { logger: false })',
+    "const { API_CONFIG, ApiConfigModule } = require('./dist/config');",
+    'NestFactory.createApplicationContext(ApiConfigModule, { logger: false })',
     '  .then(async (app) => {',
     '    process.stdout.write(JSON.stringify(app.get(API_CONFIG)));',
     '    await app.close();',

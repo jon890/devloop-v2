@@ -20,6 +20,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@devloop/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@devloop/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -54,6 +57,9 @@ importers:
 
   apps/pipeline:
     dependencies:
+      '@devloop/llm':
+        specifier: workspace:*
+        version: link:../../packages/llm
       '@devloop/registry':
         specifier: workspace:*
         version: link:../../packages/registry

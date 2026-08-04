@@ -4,10 +4,13 @@ import { resolve } from "node:path";
 export const API_CONFIG = Symbol("API_CONFIG");
 
 /**
- * 저장소 루트의 .env 경로.
+ * 저장소 루트.
  * src/config 와 dist/config 모두 루트에서 네 단계 아래라 같은 상대 경로가 성립한다.
+ * 상주 `codex app-server` 의 읽기 범위(`cwd`)도 이 경로다.
  */
-export const ROOT_ENV_PATH = resolve(__dirname, "../../../..", ".env");
+export const REPO_ROOT = resolve(__dirname, "../../../..");
+
+export const ROOT_ENV_PATH = resolve(REPO_ROOT, ".env");
 
 export const DEFAULT_PORT = 3000;
 export const DEFAULT_NEO4J_DATABASE = "neo4j";

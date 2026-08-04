@@ -24,4 +24,8 @@ export type LlmResult = z.infer<typeof LlmResultSchema>;
 
 export interface LlmCli {
   complete(prompt: string, opts?: LlmOptions): Promise<LlmResult>;
+  /**
+   * 상주 어댑터만 구현한다. 호출자는 `await cli.close?.()` 로 부르므로 provider 분기가 필요 없다.
+   */
+  close?(): Promise<void>;
 }
