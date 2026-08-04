@@ -113,6 +113,8 @@ importers:
         specifier: ^19.1.0
         version: 19.2.3(@types/react@19.2.17)
 
+  packages/llm: {}
+
   packages/registry:
     dependencies:
       '@devloop/shared':

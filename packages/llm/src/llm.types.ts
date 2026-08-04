@@ -1,0 +1,32 @@
+/** JSON-RPC 메시지를 주고받는 통로. WebSocket 구현과 테스트용 메모리 구현이 이 계약을 만족한다. */
+export interface JsonRpcTransport {
+  send(message: unknown): void;
+  onMessage(handler: (message: unknown) => void): void;
+  close(): void;
+}
+
+/** 자식으로 띄운 `codex app-server` 하나를 가리킨다. */
+export interface AppServerHandle {
+  readonly url: string;
+  close(): Promise<void>;
+}
+
+export interface LlmCompleteOptions {
+  /** 필수다. 빠지면 CLI 기본 모델로 조용히 돌아가는 사고가 있었다 (ADR 0003). */
+  model: string;
+  effort?: string;
+  timeoutMs?: number;
+  /** Phase 04 가 채운다. 지금은 인자로만 열어 두고 전달하지 않는다. */
+  outputSchema?: Record<string, unknown>;
+}
+
+export interface LlmCompleteResult {
+  text: string;
+  elapsedMs: number;
+}
+
+/** 호출자가 들고 다니는 것은 이것 하나다. `close()` 는 자기가 띄운 서버와 전송을 함께 닫는다. */
+export interface LlmTransport {
+  complete(prompt: string, opts: LlmCompleteOptions): Promise<LlmCompleteResult>;
+  close(): Promise<void>;
+}
