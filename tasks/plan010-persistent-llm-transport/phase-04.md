@@ -65,7 +65,11 @@ export const AnswerResponseSchema = z.object({ answer: z.string().trim().min(1) 
 
 ### 3. 프롬프트에서 형식 지시만 뺀다
 
-**형식 문구는 정확히 5줄이다.** 전수 확인했다.
+**아래 표의 5줄을 뺀다.** 전수 확인했다.
+
+형식 지시를 담은 줄은 표의 5줄 외에 재시도 프롬프트 `:427` 이 하나 더 있어 모두 6줄이다.
+`:427` 은 아래 4번이 재시도 경로째로 지우므로 여기서는 다루지 않는다.
+`grep -c "JSON 하나만"` 은 `:238` 이 그 문구를 담지 않아 **5건**으로 나온다 — 줄 수와 다르다.
 
 | 위치 | 문구 |
 | --- | --- |
@@ -78,7 +82,9 @@ export const AnswerResponseSchema = z.object({ answer: z.string().trim().min(1) 
 **두 줄(`:256`·`:297`)에는 내용 지시가 섞여 있다.** 통째로 지우면 내용이 함께 사라진다.
 
 - `LIMIT 50` 의 **명시 지시는 이 두 줄에만 있다.** 지우면 few-shot 예시(`:265`·`:274`)에만 남는다.
-  행 상한을 요구하는 내용 지시 한 줄을 대신 적어라
+  행 상한을 요구하는 내용 지시 한 줄을 대신 적어라.
+  **그 문구를 `반환 행은 50개를 넘기지 마라` 로 고정한다** — 아래 검증이 이 문구를 grep 으로 세므로
+  임의로 바꾸면 검증이 통과하지 못한다. 두 프롬프트(`:256` 쪽과 `:297` 쪽) 양쪽에 넣는다
 - `:297` 의 `RETURN nodes, relationships, paths` 는 같은 프롬프트의 다른 줄
   ("관련 node, relationship, path만 별도로 반환하라") 이 이미 담고 있어 중복이다
 
@@ -93,8 +99,17 @@ export const AnswerResponseSchema = z.object({ answer: z.string().trim().min(1) 
 **zod 검증은 남긴다.** 서버가 형식을 보장하더라도 검증을 지우면 계약이 깨졌을 때 조용히
 넘어간다. 검증 실패는 **즉시 오류로 올린다** — 재시도로 덮으면 계약 결함이 드러나지 않는다.
 
-Cypher 실행 실패 시의 재생성(`:308` 경로)은 **그대로 둔다.** 그건 형식 문제가 아니라
+Cypher 실행 실패 시의 재생성은 **그대로 둔다.** 그건 형식 문제가 아니라
 Cypher 가 실행되지 않은 것이라 성격이 다르다.
+
+그 경로는 세 곳이다. `:308` 이 아니다 — `:308` 은 `generateEvidenceCypher`(`:289` 선언)의
+`completeStructured` 호출이라 재생성과 무관하다.
+
+| 위치 | 내용 |
+| --- | --- |
+| `:94` | 실행 실패를 보고 `generateCypher` 를 다시 부르는 호출부 |
+| `:249`·`:252` | `generateCypher` 의 `retry` 인자 선언 |
+| `:278` | `retry` 가 있을 때 프롬프트에 붙는 재시도 지시 |
 
 ---
 
@@ -104,7 +119,8 @@ Cypher 가 실행되지 않은 것이라 성격이 다르다.
 | --- | --- |
 | `apps/api/src/query/query.schema.ts` | 수정 — 응답 스키마 3개를 v4 로 |
 | `apps/api/src/query/query.service.ts` | 수정 — 프롬프트 5줄, `completeStructured` |
-| `apps/api/test/cypher-prompt.test.js` | 수정 — 프롬프트 검증이 있으면 맞춘다 |
+| `apps/api/test/cypher-prompt.test.js` | 수정 — 프롬프트 검증이 있으면 맞추고, 행 상한 단정을 더한다 |
+| `apps/api/test/llm-cli.test.js` | 영향 확인 — 프롬프트 포착 단정 5건이 있다. 형식 문구를 단정하는 것은 없으므로(`grep "JSON 하나만" apps/api/test` 는 0건) 깨질 가능성은 낮다. 새 단정은 여기 넣지 않는다 |
 
 ## 검증
 
@@ -124,11 +140,15 @@ pnpm format:check
 grep -n "JSON 하나만" apps/api/src/query/query.service.ts
 ```
 
-내용이 안 사라졌는지도 센다. **행 상한 지시가 한 줄 이상 남아야 한다.**
+내용이 안 사라졌는지도 센다. **`grep -c "LIMIT"` 을 쓰지 마라** — 현재 15건 중 형식 문구는
+`:256`·`:297` 둘뿐이고 나머지 13건은 식별자(`ANCHOR_CANDIDATE_LIMIT` 등)와 few-shot 예시·내부
+Cypher 다. 두 줄을 지워도 13건이 남아 **행 상한 지시를 아예 안 적어도 "1 이상" 이 통과한다.**
+
+대신 위 3번이 고정한 문구를 직접 센다. **출력이 2줄이어야 한다** (두 프롬프트 각 1줄).
 
 ```bash
 # cwd: 저장소 루트
-grep -c "LIMIT" apps/api/src/query/query.service.ts
+grep -n "반환 행은 50개를 넘기지 마라" apps/api/src/query/query.service.ts
 ```
 
 새 테스트가 덮어야 할 것이다.
@@ -136,7 +156,10 @@ grep -c "LIMIT" apps/api/src/query/query.service.ts
 - 세 스키마가 JSON Schema 로 변환되고 `required` 와 길이 제약이 담긴다
 - `completeStructured` 가 검증 실패 시 **재시도하지 않고 즉시 오류를 올린다**
 - 어댑터 호출 인자에 `outputSchema` 가 실린다
-- 프롬프트에 형식 문구가 없고 내용 지시는 남아 있다
+- 프롬프트에 형식 문구가 없고 내용 지시는 남아 있다.
+  **행 상한 지시는 프롬프트 포착 테스트로 단정한다** — grep 은 사람이 돌려야 하고
+  회귀를 자동으로 못 잡는다. `apps/api/test/cypher-prompt.test.js` 가 이미 `llmCli` 를
+  대역으로 넣어 프롬프트를 포착하는 패턴을 쓰므로 거기에 단정을 더한다
 
 **변이 검증** — `outputSchema` 전달을 빼고 해당 테스트가 실제로 실패하는지 확인한 뒤 원복한다.
 

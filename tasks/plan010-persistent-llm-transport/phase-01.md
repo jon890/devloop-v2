@@ -143,6 +143,21 @@ export interface LlmCompleteResult {
 `outputSchema` 는 **인자로만 열어 두고 이 phase 에서 쓰지 않는다.** Phase 04 가 채운다.
 `model` 을 필수로 둔다 — 빠지면 CLI 기본 모델로 조용히 돌아가는 사고가 이미 있었다 (ADR 0003).
 
+**어댑터가 서버 handle 을 소유하고 `close()` 를 노출한다.** 이게 공개 계약이다.
+
+```ts
+export interface LlmTransport {
+  complete(prompt: string, opts: LlmCompleteOptions): Promise<LlmCompleteResult>;
+  close(): Promise<void>;
+}
+```
+
+`close()` 는 자기가 띄운 서버와 전송을 함께 닫는다. 호출자는 어댑터 하나만 들고 다니면 된다.
+
+handle 을 호출자에게 따로 돌려주는 형태(`{ adapter, handle }`)를 쓰지 않는 이유다.
+그러면 두 앱의 생성 지점이 각각 handle 을 보관할 자리를 만들어야 하고, 보관을 빠뜨리면
+**서버를 죽일 대상이 사라져도 컴파일이 통과한다.** 어댑터가 소유하면 그 실수가 불가능하다.
+
 `index.ts` 는 위 타입과 `startAppServer`, 어댑터 클래스만 내보낸다.
 프로토콜 내부 구조를 밖으로 내보내지 않는다.
 
@@ -158,6 +173,8 @@ export interface LlmCompleteResult {
 - `thread/start` 인자에 `sandbox: "read-only"`·`approvalPolicy: "never"` 가 들어간다
 - `model` 이 없으면 호출을 거부한다
 - 시간이 초과되면 `turn/interrupt` 를 보낸 뒤 거부한다
+- `close()` 가 서버 자식 프로세스를 죽이고, 두 번 불려도 안전하다 (호출자가 종료 훅과 정상 경로
+  양쪽에서 부를 수 있다)
 
 생명주기는 **가짜 실행 파일**로 검증한다. `apps/api/test/llm-cli.test.js` 가 임시 디렉터리에
 가짜 `codex` 를 쓰고 `PATH` 를 앞에 붙이는 방식을 이미 쓴다 — 그 패턴을 따른다.
@@ -192,10 +209,28 @@ pnpm format:check
 ```
 
 `pnpm -r build` 가 새 패키지를 함께 빌드하는지 확인한다.
-이 phase 는 아직 아무도 이 패키지를 의존하지 않으므로 **기존 테스트 개수는 변하지 않아야 한다.**
 
-**변이 검증** — `turn/completed` 대기를 없애고 `turn/start` 응답만으로 완료로 만든 뒤
-해당 테스트가 실제로 실패하는지 확인하고 원복한다. 이게 이 계층에서 가장 틀리기 쉬운 지점이다.
+이 phase 는 아직 아무도 이 패키지를 의존하지 않으므로 **기존 테스트 개수가 그대로여야 한다.**
+절대값으로 확인한다 — 변경 전은 **api 75, pipeline 163(5 건너뜀)** 이다
+(`docs/pitfalls/testing.md` 와 일치하는 실측).
+
+```bash
+# cwd: 저장소 루트
+pnpm --filter api test
+pnpm --filter pipeline test
+```
+
+새 패키지 테스트 개수는 별도로 센다. `pnpm --filter @devloop/llm test` 가 0건이면 test glob 이
+파일을 못 잡은 것이다 — `test` 스크립트가 없으면 exit 0 으로 조용히 통과한다.
+`packages/registry` 에는 `test` 스크립트가 없으므로 이 스크립트는 본뜨는 것이 아니라 신설이다.
+
+**변이 검증** — 둘 다 확인하고 원복한다. 테스트가 있다는 것과 그 테스트가 무언가를 보호한다는
+것은 다르다 (`docs/pitfalls/testing.md`).
+
+| 무력화할 것 | 왜 |
+| --- | --- |
+| `turn/completed` 대기를 없애고 `turn/start` 응답만으로 완료 판정 | 이 계층에서 가장 틀리기 쉬운 지점이다. 실패를 성공으로 읽는다 |
+| `close()` 를 no-op 으로 바꾼다 | handle 소유가 이 phase 의 새 공개 계약이다. 안 죽이면 자식이 남는다 |
 
 ## 의도 메모 (왜)
 

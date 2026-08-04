@@ -43,7 +43,7 @@ Phase 02 는 프롬프트를 안 건드렸다. 그래서 이 측정은 **전송 
 ```bash
 # cwd: 저장소 루트
 pnpm -r build
-cd apps/api && set -a && . ../../.env && set +a && nohup node dist/main.js >| /tmp/api-plan010.log 2>&1 &
+cd apps/api && set -a && . ../../.env && set +a && nohup node dist/main.js >| /tmp/api-plan010-p03.log 2>&1 &
 ```
 
 기동 로그에서 app-server 주소가 찍혔는지 확인한 뒤, **별도 호출로** 측정을 돌린다.

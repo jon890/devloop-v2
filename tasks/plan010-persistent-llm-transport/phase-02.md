@@ -51,8 +51,16 @@ Phase 01 이 만든 전송 계층으로 두 앱의 호출자를 옮긴다. **프
 
 - 서버는 **기동 시 띄운다.** 첫 질의에서 늦게 띄우지 않는다 — 그러면 첫 질의만 느리고,
   실패했을 때 원인이 "서버 없음" 인지 "질의 오류" 인지 흐려진다
+- `createLlmCli` 가 동기 factory 이므로 배선을 정해야 한다. **비동기 factory 로 바꾼다** —
+  `useFactory` 가 `Promise` 를 반환할 수 있으므로 `OnModuleInit` 로 나누지 않는다.
+  나누면 어댑터가 서버 없이 먼저 만들어져 "준비 실패 시 기동 실패" 조건이 흐려진다
+- `startAppServer` 의 `cwd` 는 파이프라인과 같은 이유로 **저장소 루트**를 넘긴다
 - 준비 확인에 실패하면 **기동을 실패시킨다** (ADR 0003 과 같은 결)
-- 프로세스가 끝날 때 서버를 죽인다. NestJS 종료 훅에 붙인다
+- 프로세스가 끝날 때 서버를 죽인다. NestJS 종료 훅에 붙인다.
+  **죽일 대상은 어댑터 자신이다** — Phase 01 의 상주 어댑터가 handle 을 소유하고 `close()` 를
+  노출하므로, 종료 훅은 `LLM_CLI` 로 주입된 어댑터의 `close()` 를 부른다.
+  `LlmCli` 계약에 `close?(): Promise<void>` 를 **옵셔널로** 더해 `claude` 어댑터는 구현하지 않게 한다.
+  호출자는 `await cli.close?.()` 로 부르므로 provider 분기가 필요 없다
 - `provider === "claude"` 면 서버를 띄우지 않는다. 안 쓰는 프로세스를 띄우면 안 된다
 
 ### 3. 파이프라인 어댑터를 갈아 끼운다
@@ -67,8 +75,24 @@ Phase 01 이 만든 전송 계층으로 두 앱의 호출자를 옮긴다. **프
 | `llm-cli.ts` (`LlmCli`·`LlmOptionsSchema`) | 유지한다. 단계 코드가 이 계약으로 부른다 |
 | `index.ts` | 내보내는 목록을 맞춘다 |
 
+**`apps/pipeline/src/main.ts` 도 함께 고친다.** 어댑터 파일만 지우면 빌드가 깨진다.
+
+- `:11` 이 `CodexCliAdapter` 를 import 하고, `:16-20` 의 동기 함수 `llmAdapter(provider)` 가
+  `:17` 에서 그것을 생성한다. **이 파일이 유일한 생성 지점이다**
+- `llmAdapter()` 는 `infer-knowledge` 단계 블록 안에서만 불린다 (`:87` 의 `llm:` 인자).
+  그래서 **서버 생명주기의 자리도 그 블록이다** — LLM 을 쓰지 않는 단계
+  (`fetch-dooray`·`seed-concepts`·`parse-structure`·레지스트리 명령)는 서버를 띄우지 않는다
+- `startAppServer` 가 비동기이므로 `llmAdapter` 를 `async` 로 바꾸고 호출부에 `await` 를 붙인다
+- **서버를 죽이는 것은 어댑터다.** 어댑터가 handle 을 소유하므로 `llmAdapter` 가 handle 을 따로
+  돌려줄 필요가 없다. `infer-knowledge` 블록에서 어댑터를 변수에 받아 `extractLlm` 이 끝난 뒤
+  `finally` 로 `await cli.close?.()` 를 부른다.
+  **`finally` 를 빠뜨리면 추출이 예외로 끝날 때 자식 `codex app-server` 가 남는다** —
+  남은 프로세스가 사고로 이어진 이력이 있다 (`docs/pitfalls/process-cleanup.md`)
+- `startAppServer` 의 `cwd` 는 **저장소 루트**를 넘긴다. `sandbox: "read-only"` 라 모델이 파일을
+  쓰지 못하고 읽기 범위만 정한다. 데이터 디렉터리를 넘기면 프롬프트가 참조할 수 있는 범위가 좁아진다
+
 파이프라인 CLI 는 **한 번 실행에 여러 호출**을 한다. 서버를 호출마다 띄우면 이득이 사라진다.
-명령 시작에 한 번 띄우고 끝날 때 죽인다.
+`infer-knowledge` 시작에 한 번 띄우고 그 단계가 끝날 때 죽인다.
 
 지금 `buildCodexArgs` 가 넘기는 값과 상주 모드의 대응이다. 실측으로 확인했다.
 
@@ -102,7 +126,7 @@ Phase 01 이 만든 전송 계층으로 두 앱의 호출자를 옮긴다. **프
 
 ```bash
 # cwd: 저장소 루트
-cd apps/api && set -a && . ../../.env && set +a && nohup node dist/main.js >| /tmp/api-plan010.log 2>&1 &
+cd apps/api && set -a && . ../../.env && set +a && nohup node dist/main.js >| /tmp/api-plan010-p02.log 2>&1 &
 # 기동 로그에 서버 주소가 찍히는지 확인한 뒤
 curl -s -X POST localhost:3000/api/query -H 'content-type: application/json' \
   -d '{"question":"API 게이트웨이 요청 크기 제한은 어떻게 결정됐나"}' | head -c 400
@@ -115,6 +139,37 @@ curl -s -X POST localhost:3000/api/query -H 'content-type: application/json' \
 확인 후 프로세스를 정리한다. 남겨 두면 다음에 무엇이 살아 있는지 헷갈린다
 (`docs/pitfalls/process-cleanup.md`).
 
+API 를 죽인 뒤 **자식 서버가 함께 사라졌는지 센다. 출력이 0줄이어야 한다.**
+
+```bash
+# cwd: 저장소 루트
+pgrep -f 'app-server --listen ws://'
+```
+
+**`pgrep -f 'codex app-server'` 를 쓰지 마라 — 절대 0 이 되지 않는다.**
+Codex 앱과 편집기 확장이 자기 `app-server` 를 상시로 띄우고 있다 (실측 3건).
+**남의 것은 `ws://` 로 listen 하지 않는다** — 둘은 `--listen stdio://` 고 하나는 `--listen` 이 아예 없다.
+이 저장소가 띄우는 것만 `--listen ws://` 다.
+**남의 프로세스를 죽이지 마라.** 세는 것도 `ws://` 로 한정한다.
+
+**파이프라인 경로도 실제로 한 번 돌린다.** API 만 확인하면 이 phase 가 바꾼 두 배선 중 하나가
+미검증으로 머지된다. 캐시 537건이 채워져 있어 당장은 `infer-knowledge` 를 돌리지 않으므로,
+결함이 있으면 **다음에 캐시가 무효화되는 날 처음 드러난다.**
+
+전체 실행은 LLM 537회라 지불할 값이 아니지만 문서 한 건만 돌리는 길이 있다 —
+`apps/pipeline/src/cli-options.ts:9-10` 의 `--docs` 가 `main.ts:90` 의 `docFilter` 로 들어간다.
+
+```bash
+# cwd: 저장소 루트
+pnpm --filter pipeline infer-knowledge --project tc-ocr --docs Task:483
+pgrep -f 'app-server --listen ws://'
+```
+
+- 캐시가 맞으면 LLM 호출이 0회일 수 있다. 그때도 **서버 기동과 종료가 로그에 찍히는지** 확인한다 —
+  이 검증의 대상은 추출 결과가 아니라 `llmAdapter` 의 `async` 전환과 `finally` 의 `close?.()` 다
+- 두 번째 명령이 **0줄이어야 한다.** 남으면 `finally` 가 안 걸린 것이다
+- 이 검증을 건너뛰었으면 **"파이프라인 전송 경로는 실제 실행으로 검증되지 않았다" 를 보고에 적는다**
+
 ---
 
 ## Critical Files
@@ -126,6 +181,7 @@ curl -s -X POST localhost:3000/api/query -H 'content-type: application/json' \
 | `apps/api/package.json` | 수정 — `@devloop/llm` 의존, 테스트 목록 |
 | `apps/api/test/llm-cli.test.js` | 수정 |
 | `apps/pipeline/src/llm/codex-cli.adapter.ts` | 제거 |
+| `apps/pipeline/src/main.ts` | 수정 — `llmAdapter` 의 codex 분기, 서버 생명주기 |
 | `apps/pipeline/src/llm/index.ts` | 수정 |
 | `apps/pipeline/src/llm/cli-adapter.test.ts` | 수정 |
 | `apps/pipeline/package.json` | 수정 — `@devloop/llm` 의존 |
@@ -148,8 +204,16 @@ pnpm format:check
 grep -rn '"exec"' apps/api/src apps/pipeline/src --include='*.ts'
 ```
 
-API 테스트 개수는 codex 인자 검증이 빠지므로 **줄어들 수 있다.** 줄어든 만큼이 지운 것과
-맞는지 확인한다. 파이프라인 테스트도 같다.
+테스트 개수를 **절대값으로 확인한다.** 변경 전은 api 75, pipeline 163(5 건너뜀)이다
+(`docs/pitfalls/testing.md` 와 일치하는 실측). "줄어들 수 있다" 로 두면 조용한 감소를 구분할 수 없다.
+
+| 대상 | 변경 전 | 기대 | 근거 |
+| --- | ---: | --- | --- |
+| pipeline | 163 (5 건너뜀) | **160** (5 건너뜀 유지) | `buildCodexArgs` 테스트 3건 제거 |
+| api | 75 | 지운 단정 수만큼 감소 | `llm-cli.test.js` 의 codex 인자 단정을 정리한다 |
+
+api 는 지우는 단정 수가 구현하며 정해지므로 **실제 개수를 보고에 적고, 감소분이 지운 단정 수와
+맞는지 확인한다.** 그 외 이유로 줄었으면 무언가 실행되지 않는 것이다.
 
 ## 의도 메모 (왜)
 
