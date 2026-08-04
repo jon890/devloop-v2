@@ -34,7 +34,7 @@ Phase 03 과 **같은 세트·같은 모델·같은 반복 수**로 돌린다. �
 node .claude/skills/kg-eval/scripts/run.mjs \
   --suite eval/suites/tc-ocr-api-gateway.json \
   --stage plan010-outputschema \
-  --api-base-url http://localhost:3000 \
+  --api-base-url http://localhost:3100 \
   --query-model gpt-5.6-terra \
   --out eval/runs/plan010-schema-1.json
 ```
@@ -43,6 +43,9 @@ node .claude/skills/kg-eval/scripts/run.mjs \
 
 API 기동은 Phase 03 의 방식을 쓰되 **로그 경로를 `/tmp/api-plan010-p05.log` 로 바꾼다.**
 Phase 03 과 같은 경로를 쓰면 그 측정의 로그가 지워져 원인을 되짚을 수 없다.
+
+포트도 Phase 03 과 같이 **3100** 을 쓴다. 3000 은 다른 워킹 트리의 API 가 점유하고 있어,
+거기에 질의하면 이 plan 의 코드가 아닌 것을 재게 된다. 리스너 cwd 확인도 그 phase 와 같이 한다.
 
 ### 2. 세 구간을 나란히 놓는다
 

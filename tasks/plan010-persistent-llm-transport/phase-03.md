@@ -40,20 +40,39 @@ Phase 02 는 프롬프트를 안 건드렸다. 그래서 이 측정은 **전송 
 
 ### 2. 같은 코드로 두 번 측정한다
 
+**포트 3000 을 쓰지 마라.** 다른 워킹 트리의 API 가 점유하고 있다 (실측: main 워킹 트리의
+`node dist/main.js`, 22시간 경과). 3000 으로 띄우면 기동이 실패하고, 그것을 못 알아챈 채 질의하면
+**옛 `codex exec` 코드가 정상 응답을 준다.** 어느 인스턴스에 붙었는지 모르는 상태가 이 저장소에서
+사고로 이어졌다 (`docs/pitfalls/measurement.md`).
+
+`.env` 에 `PORT` 줄이 없어 환경변수로 덮을 수 있다. 코드를 고칠 필요가 없다.
+
 ```bash
 # cwd: 저장소 루트
+rm -rf apps/api/dist apps/pipeline/dist packages/llm/dist
 pnpm -r build
-cd apps/api && set -a && . ../../.env && set +a && nohup node dist/main.js >| /tmp/api-plan010-p03.log 2>&1 &
+cd apps/api && set -a && . ../../.env && set +a && PORT=3100 nohup node dist/main.js >| /tmp/api-plan010-p03.log 2>&1 &
 ```
 
-기동 로그에서 app-server 주소가 찍혔는지 확인한 뒤, **별도 호출로** 측정을 돌린다.
+`dist` 를 먼저 지우는 이유다. `tsc` 는 지운 소스의 산출물을 남기고 파이프라인 test 는 글롭이라
+지운 테스트가 계속 돈다 (`docs/retrospectives/0014-stale-dist-runs-deleted-tests.md`).
+
+기동 로그에서 app-server 주소가 찍혔는지 확인하고, **그 포트의 리스너가 워크트리 것인지도 확인한다.**
+
+```bash
+# cwd: 저장소 루트
+lsof -nP -iTCP:3100 -sTCP:LISTEN
+lsof -a -p <위에서 나온 PID> -d cwd -Fn
+```
+
+cwd 가 워크트리 `apps/api` 여야 한다. 확인한 뒤 **별도 호출로** 측정을 돌린다.
 
 ```bash
 # cwd: 저장소 루트
 node .claude/skills/kg-eval/scripts/run.mjs \
   --suite eval/suites/tc-ocr-api-gateway.json \
   --stage plan010-transport \
-  --api-base-url http://localhost:3000 \
+  --api-base-url http://localhost:3100 \
   --query-model gpt-5.6-terra \
   --out eval/runs/plan010-transport-1.json
 ```
@@ -82,6 +101,22 @@ console.log('건수',v.length,'평균',(avg/1000).toFixed(1)+'초','중위',(v[M
 그 값이 `eval/reports/2026-08-04-plan009-comment-enrich.md` 의 표와 일치한다.
 
 **기준값은 리포트에 있다.** plan009 확인 측정이 회수 실패 2 · `ANSWER` 2 · 평균 지연 59.7초다.
+
+### 지연을 해석할 때 알아야 하는 값
+
+Phase 02 실행자가 실측한 것이다. 이 값을 모르면 "왜 기대만큼 안 줄었나" 를 오해한다.
+
+| 항목 | 값 |
+| --- | --- |
+| 프로세스 기동 (없어진 비용) | 호출당 약 8초 |
+| `thread/start` 마다 기동하는 MCP 서버 | 5개, 호출당 약 3초 |
+
+ADR 0008 은 호출당 12초에서 5초 수준으로 내려간다고 적었다. **그 예측에 MCP 기동 3초는 들어 있지 않다.**
+즉 호출당 기대 절감은 8초가 아니라 약 5초이고, 질의당 호출 3~5회면 15~25초다.
+실측이 그보다 적게 줄었다면 이 값을 먼저 확인하고, 그래도 설명이 안 되면 원인을 분해한다.
+
+`thread/start` 를 호출마다 새로 하는 것은 ADR 0008 의 결정이다 (같은 thread 는 앞 턴을 다음
+프롬프트에 남긴다). **그 결정을 이 phase 에서 뒤집지 마라** — 측정만 하고 보고한다.
 
 ### 4. 회수는 compare.mjs 로 비교한다
 
