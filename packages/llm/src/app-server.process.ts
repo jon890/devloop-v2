@@ -7,7 +7,12 @@ const READY_PROBE_TIMEOUT_MS = 1_000;
 const KILL_GRACE_MS = 2_000;
 const LOG_TAIL_LINES = 40;
 
-/** 서버가 stdout 에 배정된 포트를 알려 준다. 포트를 직접 고르면 이미 쓰는 포트와 부딪힌다. */
+/**
+ * 서버가 배정된 포트를 알려 준다. 포트를 직접 고르면 이미 쓰는 포트와 부딪힌다.
+ *
+ * **stdout·stderr 둘 다 훑는다.** codex-cli 0.146.0 은 이 배너를 stderr 로 쓴다 (실측: stdout 0바이트).
+ * stdout 만 보면 접속 주소를 영원히 못 읽어 제한 시간 뒤 거부한다.
+ */
 const LISTENING_PATTERN = /listening on:\s*(ws:\/\/\S+)/;
 
 export interface StartAppServerOptions {
@@ -104,9 +109,7 @@ export async function startAppServer(opts: StartAppServerOptions): Promise<AppSe
         clearTimeout(deadline);
         settle();
       };
-      child.stdout?.setEncoding("utf8");
-      child.stderr?.setEncoding("utf8");
-      child.stdout?.on("data", (chunk: string) => {
+      const scan = (chunk: string): void => {
         for (const line of logs.push(chunk)) {
           const matched = LISTENING_PATTERN.exec(line);
           if (matched) {
@@ -114,10 +117,11 @@ export async function startAppServer(opts: StartAppServerOptions): Promise<AppSe
             return;
           }
         }
-      });
-      child.stderr?.on("data", (chunk: string) => {
-        logs.push(chunk);
-      });
+      };
+      child.stdout?.setEncoding("utf8");
+      child.stderr?.setEncoding("utf8");
+      child.stdout?.on("data", scan);
+      child.stderr?.on("data", scan);
       child.once("error", (error: Error) => finish(() => reject(error)));
       child.once("exit", (code, signal) => {
         finish(() => reject(new Error(`codex app-server 가 준비되기 전에 종료했다 (code=${code}, signal=${signal}).\n${logs.text()}`)));

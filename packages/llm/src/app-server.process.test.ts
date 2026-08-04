@@ -25,6 +25,12 @@ server.listen(0, "127.0.0.1", () => {
 });
 `;
 
+/**
+ * 배너를 stderr 로 쓰는 서버다. **실제 codex-cli 0.146.0 이 이렇게 동작한다** (stdout 0바이트).
+ * stdout 만 훑으면 접속 주소를 못 읽어 제한 시간 뒤 거부한다.
+ */
+const READY_STDERR_FAKE = READY_FAKE.replaceAll("process.stdout.write", "process.stderr.write");
+
 /** 접속 주소는 알리지만 readyz 가 응답하지 않는 서버다. 포트 1 은 연결이 거부된다. */
 const NEVER_READY_FAKE = `#!/usr/bin/env node
 process.stdout.write("  listening on: ws://127.0.0.1:1\\n");
@@ -78,6 +84,21 @@ test("stdout의 listening 줄에서 접속 주소를 읽고 readyz를 확인한�
     await handle.close();
     await handle.close();
     assert.equal(isAlive(pid), false, "close가 자식 프로세스를 죽여야 한다");
+  });
+});
+
+test("stderr의 listening 줄에서도 접속 주소를 읽는다", async () => {
+  await withFakeCodex(READY_STDERR_FAKE, async ({ cwd, pidFile }) => {
+    const handle = await startAppServer({ cwd, readyTimeoutMs: 5_000 });
+
+    assert.match(handle.url, /^ws:\/\/127\.0\.0\.1:\d+$/);
+    assert.notEqual(new URL(handle.url).port, "0");
+
+    const pid = Number(await readFile(pidFile, "utf8"));
+    assert.equal(isAlive(pid), true);
+
+    await handle.close();
+    assert.equal(isAlive(pid), false);
   });
 });
 
