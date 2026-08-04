@@ -576,8 +576,15 @@ function anchorFallbackCypher(anchors: GraphNode[]): string {
   return `MATCH (n) WHERE elementId(n) IN ${JSON.stringify(anchors.map((anchor) => anchor.id))} RETURN n LIMIT 50`;
 }
 
-function isAggregationCypher(cypher: string): boolean {
-  return /\b(?:count|sum|avg|min|max|collect|percentileCont|percentileDisc|stDev|stDevP)\s*\(/i.test(cypher);
+/**
+ * "집계 결과 행만 반환하고 노드를 안 주는 질의" 인지 본다. 그런 질의는 근거를 별도 Cypher 로 다시 모은다.
+ *
+ * **`collect` 는 여기에 넣지 않는다.** 다수 업무 조회에서 확장을 접으라고 프롬프트가 지시하므로
+ * `collect` 는 이제 일반 질의에도 쓰인다. 넣어 두면 그런 질의가 집계로 오판정돼 LLM 호출이 한 번 더 늘고
+ * 근거를 다시 모으는 우회로를 탄다 — 실측으로 36회 중 32회가 `collect` 만으로 오판정됐고 진짜 집계는 0건이었다.
+ */
+export function isAggregationCypher(cypher: string): boolean {
+  return /\b(?:count|sum|avg|min|max|percentileCont|percentileDisc|stDev|stDevP)\s*\(/i.test(cypher);
 }
 
 function mergeEvidence(left: NeighborsResponse, right: NeighborsResponse): NeighborsResponse {

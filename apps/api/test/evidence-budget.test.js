@@ -91,3 +91,17 @@ test('예산에 안 맞는 항목을 만나면 멈춰 우선순위를 지킨다'
     '뒤쪽 짧은 노드가 예산에 걸린 앞 노드를 추월하지 않는다',
   );
 });
+
+// 실측 회귀다. 다수 업무 조회를 collect 로 접으라는 프롬프트 지시 때문에 일반 질의가 집계로
+// 오판정됐다 — 36회 중 32회이고 진짜 집계는 0건이었다. 집계 경로는 근거를 별도 Cypher 로 다시
+// 모으므로 LLM 호출이 한 번 더 늘고 지연이 44초에서 78초로 올랐다.
+test('collect 만 쓴 질의를 집계로 판정하지 않는다', () => {
+  const { isAggregationCypher } = require('../dist/query/query.service');
+  const folded =
+    'MATCH (t:Task) WHERE t.number IN [483, 494] OPTIONAL MATCH (t)-[:HAS_COMMENT]->(c:Comment) ' +
+    'WITH t, collect(DISTINCT c)[..4] AS comments RETURN t, comments LIMIT 50';
+  assert.equal(isAggregationCypher(folded), false, 'collect 는 집계 신호가 아니다');
+
+  assert.equal(isAggregationCypher('MATCH (t:Task) RETURN count(t)'), true);
+  assert.equal(isAggregationCypher('MATCH (t:Task) RETURN max(t.number)'), true);
+});
