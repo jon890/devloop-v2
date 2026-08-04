@@ -13,3 +13,4 @@
 | RETRO-0009 | 2026-08-03 | plan006-evidence-retrieval | 원천 형태로 스펙을 써서 규칙이 0건 매칭됐다 | 해결 | 승격 |
 | RETRO-0010 | 2026-08-03 | plan006-evidence-retrieval | 기준선에 지연 데이터가 없어 요구된 전후 비교가 불가능했다 | 해결 | 승격 안 함 |
 | RETRO-0011 | 2026-08-04 | plan010-persistent-llm-transport | team-lead 가 기준값 측정을 main 워킹 트리에서 돌렸다 | 해결 | 검토 중 |
+| RETRO-0012 | 2026-08-04 | plan010-persistent-llm-transport | 팀원 회신이 수 분 늦게 도착해 무응답으로 오판했다 | 해결 | 검토 중 |
