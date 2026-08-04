@@ -105,3 +105,34 @@ test('collect 만 쓴 질의를 집계로 판정하지 않는다', () => {
   assert.equal(isAggregationCypher('MATCH (t:Task) RETURN count(t)'), true);
   assert.equal(isAggregationCypher('MATCH (t:Task) RETURN max(t.number)'), true);
 });
+
+// 실측 회귀다. 남은 회수 실패 6건이 전부 "업무는 근거에 왔는데 그 댓글만 빠졌다" 였다.
+// 그 댓글을 LLM 호출 없이 그래프 조회로 채운다.
+test('근거에 온 업무의 댓글을 끌어와 합친다', async () => {
+  const { QueryService } = require('../dist/query/query.service');
+  const { testApiConfig } = require('./helpers/test-config');
+
+  const task = { id: 't-483', label: 'Task', key: '483', display: '483', properties: {} };
+  const comment = { id: 'c-1', label: 'Comment', key: 'c-1', display: 'c-1', properties: { excerpt: 'ㄱ' } };
+  const link = { id: 'r-1', type: 'HAS_COMMENT', startId: 't-483', endId: 'c-1', properties: {} };
+
+  const neo4jService = {
+    async executeRead() {
+      return { nodes: [], relationships: [] }; // 관계 재조회는 빈 결과
+    },
+  };
+  const service = new QueryService(neo4jService, { async complete() {} }, testApiConfig());
+  let asked = null;
+  service.fetchTaskComments = async (nodes) => {
+    asked = nodes.map((node) => node.id);
+    return { nodes: [comment], relationships: [link] };
+  };
+
+  const evidence = await service.buildQueryEvidence({ nodes: [task], relationships: [] }, { nodes: [], relationships: [] }, []);
+
+  assert.deepEqual(asked, ['t-483'], '근거에 온 업무를 넘긴다');
+  assert.ok(
+    evidence.nodes.some((node) => node.id === 'c-1'),
+    '끌어온 댓글이 근거에 남는다',
+  );
+});

@@ -14,6 +14,7 @@ import {
   EVIDENCE_NODE_CEILING,
   EVIDENCE_SERIALIZED_BUDGET,
   FULLTEXT_INDEXES,
+  TASK_COMMENT_FETCH_LIMIT,
 } from "./query.const";
 import { AnchorResponseSchema, AnswerResponseSchema, CypherResponseSchema } from "./query.schema";
 
@@ -340,7 +341,13 @@ export class QueryService {
     const refined = refineQueryEvidence(answerEvidence, supportingEvidence, anchors);
     if (refined.nodes.length === 0) return refined;
 
-    const nodeIds = refined.nodes.map((node) => node.id);
+    // 근거에 온 업무의 댓글을 결정적으로 끌어온다. 남은 회수 실패가 전부 "업무는 왔는데 그 댓글만
+    // 빠졌다" 였고, 필수 근거 29건 중 14건이 댓글이다. LLM 을 한 번 더 부르지 않고 그래프 조회로 채운다.
+    const taskComments = await this.fetchTaskComments(refined.nodes);
+    const enriched = mergeEvidence(supportingEvidence, taskComments);
+
+    const withComments = refineQueryEvidence(answerEvidence, enriched, anchors);
+    const nodeIds = withComments.nodes.map((node) => node.id);
     const anchorIds = anchors.map((anchor) => anchor.id);
     const relationshipsBetweenNodes = await this.neo4jService.executeRead(async (session) => {
       const result = await session.run(
@@ -356,7 +363,34 @@ export class QueryService {
       );
       return this.neo4jService.evidenceFromResult(result);
     });
-    return refineQueryEvidence(answerEvidence, mergeEvidence(supportingEvidence, relationshipsBetweenNodes), anchors);
+    return refineQueryEvidence(answerEvidence, mergeEvidence(enriched, relationshipsBetweenNodes), anchors);
+  }
+
+  /**
+   * 주어진 근거 노드 중 Task 의 댓글을 가져온다. 한 업무가 댓글로 예산을 독식하지 않게
+   * 업무당 상한을 둔다 (Task 127 은 댓글이 20건이다).
+   */
+  private async fetchTaskComments(nodes: GraphNode[]): Promise<NeighborsResponse> {
+    const taskIds = nodes.filter((node) => node.label === "Task").map((node) => node.id);
+    if (taskIds.length === 0) return emptyEvidence();
+
+    return this.neo4jService.executeRead(async (session) => {
+      const result = await session.run(
+        `
+        MATCH (task:Task)
+        WHERE elementId(task) IN $taskIds
+        CALL (task) {
+          MATCH (task)-[hasComment:HAS_COMMENT]->(comment:Comment)
+          RETURN hasComment, comment
+          ORDER BY comment.createdAt
+          LIMIT $perTask
+        }
+        RETURN task, hasComment, comment
+        `,
+        { taskIds, perTask: neo4j.int(TASK_COMMENT_FETCH_LIMIT) },
+      );
+      return this.neo4jService.evidenceFromResult(result);
+    });
   }
 
   private async synthesizeAnswer(question: string, rows: Record<string, unknown>[], evidence: NeighborsResponse): Promise<string> {

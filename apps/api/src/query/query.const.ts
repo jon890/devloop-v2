@@ -31,3 +31,7 @@ export const ANSWER_EVIDENCE_PROMPT_BUDGET = 20_000;
 // 관계에 예약하는 몫이다. 관계 비용을 전부 먼저 빼면 관계가 예산을 넘는 회차에서 노드 예산이
 // 0이 되어 첫 노드만 담긴다 (실측 9회 중 3회). 노드가 답변 내용을 나르므로 노드를 먼저 채운다.
 export const ANSWER_EVIDENCE_RELATIONSHIP_RESERVE = 0.2;
+// 근거에 온 업무에서 끌어올 댓글의 업무당 상한이다. 남은 회수 실패가 전부 "업무는 왔는데 그 댓글만
+// 빠졌다" 였고 필수 근거 29건 중 14건이 댓글이다. 한 업무가 예산을 독식하지 않게 상한을 둔다
+// (Task 127 은 댓글이 20건이다).
+export const TASK_COMMENT_FETCH_LIMIT = 8;
