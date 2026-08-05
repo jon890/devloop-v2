@@ -141,25 +141,54 @@ LLM 호출은 질의 1건당 **3~5회**다.
 | 근거 Cypher 생성 | 집계 질의일 때만 |
 | 답변 합성 | 항상 |
 
-**형식 위반으로 호출이 늘어나는 경로는 없다.** 응답 계약을 `outputSchema` 로 서버에 넘기므로
-JSON 이 깨져 같은 요청을 다시 보내는 일이 일어나지 않는다 ([ADR 0008](adr/0008-persistent-llm-transport.md)).
+**형식 위반으로 같은 요청을 다시 보내는 경로는 없다.** JSON 계약 재시도 루프를 제거했다
+([ADR 0008](adr/0008-persistent-llm-transport.md)).
+
+형식을 무엇이 보장하는지는 공급자에 따라 다르다.
+
+| 공급자 | 형식 보장 | 위반 시 |
+| --- | --- | --- |
+| `codex` (상주 서버) | `turn/start` 의 `outputSchema` | 원리적으로 드물다 |
+| `claude` (자식 프로세스) | 없다 — 실을 통로가 없다 | zod 검증이 즉시 오류로 올린다 |
+
+두 경우 모두 재시도하지 않는다. 검증 실패를 재시도로 덮으면 계약 결함이 드러나지 않는다.
 
 ### LLM 전송 서버의 생명주기
 
-호출은 상주 `codex app-server` 로 간다. 서버는 **부르는 프로세스가 자기 것을 갖는다.**
+`LLM_PROVIDER` 가 `codex` 일 때만 상주 서버를 띄운다. `claude` 면 자식 프로세스 어댑터를 쓰므로
+서버가 없다. 서버는 **부르는 쪽이 자기 것을 갖는다.**
+
+**서버의 수명이 두 앱에서 다르다.**
+
+| 앱 | 띄우는 시점 | 죽이는 시점 |
+| --- | --- | --- |
+| `apps/api` | 프로세스 기동 (`useFactory`) | 프로세스 종료 (NestJS 종료 훅) |
+| `apps/pipeline` | `infer-knowledge` 단계 시작 | 그 단계 종료 (`finally`) |
+
+파이프라인의 다른 단계(`fetch-dooray`·`seed-concepts`·`parse-structure`·레지스트리 명령)는
+LLM 을 쓰지 않으므로 서버를 아예 띄우지 않는다.
 
 ```mermaid
 flowchart LR
-    B["프로세스 기동<br/>(API 또는 파이프라인 CLI)"] --> SP["app-server 를 자식으로 띄운다<br/>포트는 0 으로 맡긴다"]
+    B["API 기동 또는<br/>infer-knowledge 시작"] --> SP["app-server 를 자식으로 띄운다<br/>포트는 0 으로 맡긴다"]
     SP --> PORT["stdout·stderr 를 둘 다 훑어<br/>배정된 포트를 읽는다"]
     PORT --> RDY{"/readyz 준비됐나?"}
     RDY -->|아니오| FAIL["기동 실패로 끝낸다"]
     RDY -->|예| SERVE["호출마다 새 thread 로 turn 을 보낸다"]
-    SERVE --> KILL["프로세스 종료 시 서버를 죽인다"]
+    SERVE --> KILL["API 종료 또는<br/>단계 종료 시 서버를 죽인다"]
 ```
 
 API 와 파이프라인이 동시에 돌면 서버도 둘이다. 하나를 공유하지 않는 이유는 ADR 0008 에 있다 —
 누가 죽이는지가 모호해지고, 떠 있는 서버가 이상해졌을 때 붙는 쪽이 원인을 모른다.
+
+서버에 넘기는 실행 조건이다. 모델이 저장소를 읽기만 하고 승인을 기다리지 않게 한다.
+
+| 인자 | 값 |
+| --- | --- |
+| `cwd` | 저장소 루트 |
+| `sandbox` | `read-only` |
+| `approvalPolicy` | `never` |
+| `ephemeral` | `true` |
 
 ## 실패와 부분 성공
 

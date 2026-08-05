@@ -104,11 +104,13 @@ repository는 행 단위 조회·삽입·삭제만 수행하고, 전달받은 `R
 LLM 호출의 **전송**을 소유한다. 무엇을 물어볼지는 모르고, 어떻게 보낼지만 안다.
 결정과 실측 근거는 [ADR 0008](adr/0008-persistent-llm-transport.md) 이 소유한다.
 
-| 관심사 | 소유 |
-| --- | --- |
-| 서버 생명주기 | `codex app-server` 를 자식으로 띄우고, 준비를 확인하고, 죽인다 |
-| JSON-RPC 왕복 | `initialize`·`thread/start`·`turn/start` 와 알림 대기 |
-| 어댑터 계약 | `complete(prompt, opts)` — 호출자는 전송 방식을 모른다 |
+| 관심사 | 파일 | 소유 |
+| --- | --- | --- |
+| 서버 생명주기 | `app-server.process.ts` | `codex app-server` 를 자식으로 띄우고, 준비를 확인하고, 죽인다 |
+| JSON-RPC 왕복 | `app-server.client.ts` | `initialize`·`thread/start`·`turn/start` 와 알림 대기 |
+| 조립과 어댑터 계약 | `llm.adapter.ts` | WebSocket 전송을 붙이고 `complete(prompt, opts)`·`close()` 를 낸다 |
+| 공개 타입 | `llm.types.ts` | `JsonRpcTransport`·`AppServerHandle`·`LlmTransport` 와 호출 옵션 |
+| 공개 표면 | `index.ts` | 위 타입과 `startAppServer`, 어댑터만 내보낸다 |
 
 세 가지가 이 경계 안에 있어야 하는 이유다.
 
