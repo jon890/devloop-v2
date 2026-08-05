@@ -31,8 +31,13 @@ server.listen(0, "127.0.0.1", () => {
  */
 const READY_STDERR_FAKE = READY_FAKE.replaceAll("process.stdout.write", "process.stderr.write");
 
-/** 접속 주소는 알리지만 readyz 가 응답하지 않는 서버다. 포트 1 은 연결이 거부된다. */
+/**
+ * 접속 주소는 알리지만 readyz 가 응답하지 않는 서버다. 포트 1 은 연결이 거부된다.
+ * pid 를 남기는 이유는 거부 뒤에 자식이 정말 죽었는지 확인할 방법이 그것뿐이기 때문이다.
+ */
 const NEVER_READY_FAKE = `#!/usr/bin/env node
+const fs = require("node:fs");
+fs.writeFileSync(process.env.DEVLOOP_LLM_PID_FILE, String(process.pid));
 process.stdout.write("  listening on: ws://127.0.0.1:1\\n");
 process.stderr.write("readyz 를 열지 않는다\\n");
 setInterval(() => {}, 1000);
@@ -103,8 +108,11 @@ test("stderr의 listening 줄에서도 접속 주소를 읽는다", async () => 
 });
 
 test("readyz가 응답하지 않으면 제한 시간 뒤 거부하고 자식을 죽인다", async () => {
-  await withFakeCodex(NEVER_READY_FAKE, async ({ cwd }) => {
+  await withFakeCodex(NEVER_READY_FAKE, async ({ cwd, pidFile }) => {
     await assert.rejects(startAppServer({ cwd, readyTimeoutMs: 2_000 }), /readyz.*200/s);
+
+    const pid = Number(await readFile(pidFile, "utf8"));
+    assert.equal(isAlive(pid), false, "거부만 하고 자식을 남기면 서버가 계속 쌓인다");
   });
 });
 

@@ -2,6 +2,11 @@
 export interface JsonRpcTransport {
   send(message: unknown): void;
   onMessage(handler: (message: unknown) => void): void;
+  /**
+   * 통로가 끊겼음을 알린다. **이 통보가 없으면 진행 중인 호출이 영원히 매달린다** —
+   * 서버가 죽어도 응답이 안 올 뿐이라 대기 중인 Promise 를 깨울 신호가 없다.
+   */
+  onClose(handler: () => void): void;
   close(): void;
 }
 

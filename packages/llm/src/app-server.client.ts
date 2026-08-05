@@ -3,12 +3,19 @@ import { JsonRpcTransport, LlmCompleteOptions, LlmCompleteResult } from "./llm.t
 const DEFAULT_CLIENT_NAME = "devloop";
 const DEFAULT_CLIENT_VERSION = "0.0.0";
 const DEFAULT_TIMEOUT_MS = 180_000;
+/**
+ * 턴 대기가 아니라 **요청·응답 한 쌍**의 제한 시간이다. `initialize` 0.00초·`thread/start` 0.14초
+ * (ADR 0008 실측)에 비해 넉넉하다. 이 값이 없으면 서버가 죽은 순간 진행 중인 요청이 영원히 매달린다.
+ */
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
 
 export interface AppServerClientOptions {
   cwd: string;
   clientName?: string;
   clientVersion?: string;
   defaultTimeoutMs?: number;
+  /** 요청 하나가 응답을 기다리는 한계. 턴 대기(`defaultTimeoutMs`) 와 별개다. */
+  requestTimeoutMs?: number;
 }
 
 interface PendingRequest {
@@ -52,6 +59,7 @@ export class AppServerClient {
     this.transport = transport;
     this.options = options;
     this.transport.onMessage((message) => this.handleMessage(message));
+    this.transport.onClose(() => this.handleTransportClosed());
   }
 
   async complete(prompt: string, opts: LlmCompleteOptions): Promise<LlmCompleteResult> {
@@ -129,7 +137,21 @@ export class AppServerClient {
       return;
     }
     this.closed = true;
-    const error = new Error("app-server 연결이 닫혀 진행 중인 LLM 호출이 취소되었다.");
+    this.rejectPending(new Error("app-server 연결이 닫혀 진행 중인 LLM 호출이 취소되었다."));
+    this.transport.close();
+  }
+
+  /**
+   * 소켓이 끊긴 경우다. `close()` 와 달리 **클라이언트를 닫힌 상태로 만들지 않는다** —
+   * 서버를 다시 띄워 붙일 수 있으므로 `initialize` 캐시만 비워 다음 호출이 재시도하게 한다.
+   * 캐시를 남기면 첫 호출의 실패가 그 프로세스의 모든 후속 호출을 영구히 막는다.
+   */
+  private handleTransportClosed(): void {
+    this.initializing = undefined;
+    this.rejectPending(new Error("app-server 연결이 끊겨 진행 중인 LLM 호출이 취소되었다."));
+  }
+
+  private rejectPending(error: Error): void {
     for (const request of this.pendingRequests.values()) {
       request.reject(error);
     }
@@ -138,34 +160,58 @@ export class AppServerClient {
       turn.reject(error);
     }
     this.pendingTurns.clear();
-    this.transport.close();
   }
 
   private ensureInitialized(): Promise<void> {
     if (!this.initializing) {
       // `clientName` 은 구세대 형식이라 거부된다.
-      this.initializing = this.request("initialize", {
+      const attempt = this.request("initialize", {
         clientInfo: {
           name: this.options.clientName ?? DEFAULT_CLIENT_NAME,
           version: this.options.clientVersion ?? DEFAULT_CLIENT_VERSION,
         },
       }).then(() => undefined);
-      this.initializing.catch(() => {
-        this.initializing = undefined;
+      // 실패한 시도를 캐시로 남기면 후속 호출이 전부 같은 실패를 받는다.
+      // 이미 다른 시도로 교체됐으면 건드리지 않는다.
+      attempt.catch(() => {
+        if (this.initializing === attempt) {
+          this.initializing = undefined;
+        }
       });
+      this.initializing = attempt;
     }
     return this.initializing;
   }
 
+  /**
+   * 응답이 오지 않으면 제한 시간 뒤 거부한다. 턴 대기와 달리 이 구간은 `complete` 의 제한 시간
+   * 밖이라, 여기서 재지 않으면 서버가 죽은 순간 `initialize`·`thread/start` 가 영원히 매달린다.
+   */
   private request(method: string, params: Record<string, unknown>): Promise<unknown> {
     const id = this.nextRequestId++;
+    const requestTimeoutMs = this.options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     return new Promise<unknown>((resolve, reject) => {
-      this.pendingRequests.set(id, { resolve, reject });
+      let timer: NodeJS.Timeout | undefined;
+      const pending: PendingRequest = {
+        resolve: (result) => {
+          clearTimeout(timer);
+          resolve(result);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      };
+      this.pendingRequests.set(id, pending);
+      timer = setTimeout(() => {
+        this.pendingRequests.delete(id);
+        pending.reject(new Error(`${method} 요청이 ${requestTimeoutMs}ms 안에 응답하지 않았다.`));
+      }, requestTimeoutMs);
       try {
         this.transport.send({ jsonrpc: "2.0", id, method, params });
       } catch (error) {
         this.pendingRequests.delete(id);
-        reject(error instanceof Error ? error : new Error(String(error)));
+        pending.reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
   }
@@ -207,7 +253,11 @@ export class AppServerClient {
     }
   }
 
-  /** `threadId`·`turnId` 로 갈라 낸다. 하나에 이어 붙이면 동시 호출의 본문이 섞인다. */
+  /**
+   * `threadId` 로 갈라 낸다. 하나에 이어 붙이면 동시 호출의 본문이 섞인다.
+   * 호출마다 새 thread 를 쓰므로(ADR 0008) 같은 thread 에 두 턴이 걸리지 않는다.
+   * `findTurn` 의 `turnId` 비교는 그 전제가 깨질 때만 작동하는 방어적 검사다.
+   */
   private handleDelta(params: Record<string, unknown> | undefined): void {
     const delta = asString(params?.delta);
     if (delta === undefined) {

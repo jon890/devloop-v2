@@ -14,13 +14,19 @@ class FakeAppServer implements JsonRpcTransport {
   readonly sent: SentMessage[] = [];
   readonly threadIds: string[] = [];
   readonly turnIds: string[] = [];
+  /** 응답을 일부러 주지 않을 method 다. 서버가 살아 있지만 답하지 않는 상황을 만든다. */
+  readonly stalled = new Set<string>();
   closeCount = 0;
   private readonly handlers: ((message: unknown) => void)[] = [];
+  private readonly closeHandlers: (() => void)[] = [];
   private nextId = 1;
 
   send(message: unknown): void {
     const request = message as SentMessage;
     this.sent.push(request);
+    if (this.stalled.has(request.method)) {
+      return;
+    }
     if (request.method === "initialize") {
       this.reply(request, {});
       return;
@@ -42,8 +48,19 @@ class FakeAppServer implements JsonRpcTransport {
     this.handlers.push(handler);
   }
 
+  onClose(handler: () => void): void {
+    this.closeHandlers.push(handler);
+  }
+
   close(): void {
     this.closeCount += 1;
+  }
+
+  /** 서버가 죽거나 소켓이 끊긴 상황이다. 클라이언트가 대기 중인 호출을 스스로 깨워야 한다. */
+  emitClose(): void {
+    for (const handler of this.closeHandlers) {
+      handler();
+    }
   }
 
   requests(method: string): SentMessage[] {
@@ -77,8 +94,8 @@ class FakeAppServer implements JsonRpcTransport {
   }
 }
 
-function newClient(server: FakeAppServer): AppServerClient {
-  return new AppServerClient(server, { cwd: "/tmp/devloop-llm-test" });
+function newClient(server: FakeAppServer, requestTimeoutMs = 1_000): AppServerClient {
+  return new AppServerClient(server, { cwd: "/tmp/devloop-llm-test", requestTimeoutMs });
 }
 
 async function waitFor(condition: () => boolean, label: string): Promise<void> {
@@ -267,4 +284,58 @@ test("close가 진행 중인 호출을 거부하고 전송을 닫는다", async 
 
   await assert.rejects(pending, /닫혀/);
   assert.equal(server.closeCount, 1);
+});
+
+// 아래 세 건은 "서버가 죽으면 호출이 실패한다" 는 ADR 0008 의 약속을 지킨다.
+// 끊김 통보나 요청 제한 시간이 없으면 실패가 아니라 무한 대기가 되고, 그건 어떤 로그에도 안 남는다.
+test("소켓이 끊기면 턴을 기다리던 호출이 거부된다", async () => {
+  const server = new FakeAppServer();
+  const client = newClient(server);
+
+  const pending = client.complete("질문", { model: "m" });
+  await waitFor(() => server.turnIds.length === 1, "turn/start 호출");
+  server.emitClose();
+
+  await assert.rejects(pending, /끊겨/);
+});
+
+test("소켓이 끊기면 응답을 기다리던 thread/start도 거부된다", async () => {
+  const server = new FakeAppServer();
+  const client = newClient(server);
+  server.stalled.add("thread/start");
+
+  const pending = client.complete("질문", { model: "m" });
+  const watcher = settled(pending);
+  await waitFor(() => server.requests("thread/start").length === 1, "thread/start 호출");
+  assert.equal(watcher.isSettled(), false);
+  server.emitClose();
+
+  await assert.rejects(pending, /끊겨/);
+});
+
+test("소켓이 끊긴 뒤 initialize를 다시 시도한다", async () => {
+  const server = new FakeAppServer();
+  const client = newClient(server);
+  server.stalled.add("initialize");
+
+  const first = client.complete("첫 질문", { model: "m" });
+  await waitFor(() => server.requests("initialize").length === 1, "첫 initialize");
+  server.emitClose();
+  await assert.rejects(first, /끊겨/);
+
+  server.stalled.clear();
+  const second = client.complete("둘째 질문", { model: "m" });
+  await waitFor(() => server.turnIds.length === 1, "재시도 turn/start");
+  server.emitCompleted(server.threadIds[0], server.turnIds[0], "completed");
+
+  await second;
+  assert.equal(server.requests("initialize").length, 2, "실패한 initialize 캐시가 남으면 모든 후속 호출이 막힌다");
+});
+
+test("요청이 응답 없이 제한 시간을 넘기면 거부한다", async () => {
+  const server = new FakeAppServer();
+  const client = newClient(server, 40);
+  server.stalled.add("thread/start");
+
+  await assert.rejects(client.complete("질문", { model: "m" }), /thread\/start 요청이 40ms/);
 });

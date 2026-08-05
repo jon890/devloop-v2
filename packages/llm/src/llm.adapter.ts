@@ -20,6 +20,8 @@ export function connectWebSocketTransport(url: string, connectTimeoutMs = DEFAUL
   return new Promise<JsonRpcTransport>((resolve, reject) => {
     const socket = new WebSocket(url);
     const handlers: ((message: unknown) => void)[] = [];
+    const closeHandlers: (() => void)[] = [];
+    let opened = false;
     const timer = setTimeout(() => {
       socket.close();
       reject(new Error(`${url} 에 ${connectTimeoutMs}ms 안에 접속하지 못했다.`));
@@ -41,11 +43,24 @@ export function connectWebSocketTransport(url: string, connectTimeoutMs = DEFAUL
       clearTimeout(timer);
       reject(new Error(`${url} 접속이 실패했다.`));
     });
+    // 소켓이 끊기면 대기 중인 호출을 깨울 사람이 없다. 끊김을 클라이언트에 그대로 넘긴다.
+    socket.addEventListener("close", () => {
+      clearTimeout(timer);
+      if (!opened) {
+        reject(new Error(`${url} 접속이 열리기 전에 닫혔다.`));
+        return;
+      }
+      for (const handler of closeHandlers) {
+        handler();
+      }
+    });
     socket.addEventListener("open", () => {
       clearTimeout(timer);
+      opened = true;
       resolve({
         send: (message: unknown) => socket.send(JSON.stringify(message)),
         onMessage: (handler: (message: unknown) => void) => handlers.push(handler),
+        onClose: (handler: () => void) => closeHandlers.push(handler),
         close: () => socket.close(),
       });
     });
