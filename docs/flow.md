@@ -151,7 +151,7 @@ JSON 이 깨져 같은 요청을 다시 보내는 일이 일어나지 않는다 
 ```mermaid
 flowchart LR
     B["프로세스 기동<br/>(API 또는 파이프라인 CLI)"] --> SP["app-server 를 자식으로 띄운다<br/>포트는 0 으로 맡긴다"]
-    SP --> PORT["stdout 에서 배정된 포트를 읽는다"]
+    SP --> PORT["stdout·stderr 를 둘 다 훑어<br/>배정된 포트를 읽는다"]
     PORT --> RDY{"/readyz 준비됐나?"}
     RDY -->|아니오| FAIL["기동 실패로 끝낸다"]
     RDY -->|예| SERVE["호출마다 새 thread 로 turn 을 보낸다"]
