@@ -17,3 +17,4 @@
 | RETRO-0013 | 2026-08-04 | plan010-persistent-llm-transport | 가짜 서버가 stdout 을 써서 실제 서버의 stderr 배너를 못 잡았다 | 해결 | 검토 중 |
 | RETRO-0014 | 2026-08-04 | plan010-persistent-llm-transport | 지운 테스트가 옛 dist 산출물로 계속 돌았다 | 해결 | 검토 중 |
 | RETRO-0015 | 2026-08-05 | plan010-persistent-llm-transport | 비교 스크립트가 형식 불일치로 죽는데 종료 코드가 0 이다 | 진행 중 | 검토 중 |
+| RETRO-0016 | 2026-08-05 | plan010-persistent-llm-transport | 변이가 적용되지 않았는데 테스트가 통과해 무력한 테스트로 보였다 | 해결 | 검토 중 |
