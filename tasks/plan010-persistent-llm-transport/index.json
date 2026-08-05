@@ -1,0 +1,44 @@
+{
+  "name": "plan010-persistent-llm-transport",
+  "description": "LLM 호출을 상주 codex app-server 로 옮겨 호출당 프로세스 기동 8초를 없애고, API 응답 계약을 outputSchema 로 서버에 넘긴다",
+  "status": "completed",
+  "created_at": "2026-08-04",
+  "total_phases": 5,
+  "phases": [
+    {
+      "number": 1,
+      "file": "phase-01.md",
+      "title": "packages/llm 에 상주 app-server 클라이언트와 서버 생명주기를 만든다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 2,
+      "file": "phase-02.md",
+      "title": "API 와 파이프라인을 상주 전송으로 옮기고 codex exec 를 제거한다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 3,
+      "file": "phase-03.md",
+      "title": "전송 전환만의 지연·회수 효과를 측정한다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 4,
+      "file": "phase-04.md",
+      "title": "API 응답 계약을 outputSchema 로 옮기고 JSON 재시도를 없앤다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 5,
+      "file": "phase-05.md",
+      "title": "재측정하고 리포트를 남긴다",
+      "execution_profile": "standard",
+      "status": "completed"
+    }
+  ]
+}

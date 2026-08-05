@@ -12,7 +12,7 @@
 | 언어 | TypeScript 단일. 파이프라인·API 는 NestJS, 프론트는 React 와 Vite |
 | 지식그래프 | Neo4j (docker-compose) |
 | 판단 저장소 | Postgres. `packages/registry`가 스키마·repository·service를 소유한다 ([ADR 0005](adr/0005-curation-in-relational-store.md)) |
-| LLM | 구독 계정 CLI 만 쓴다. 종량제 API 는 금지다 ([ADR 0002](adr/0002-llm-via-subscription-cli.md)) |
+| LLM | 구독 계정 CLI 만 쓴다. 종량제 API 는 금지다 ([ADR 0002](adr/0002-llm-via-subscription-cli.md)).<br>호출은 상주 `codex app-server` 로 보낸다 ([ADR 0008](adr/0008-persistent-llm-transport.md)) |
 | 원천 접근 | 기존 `dooray-cli` 를 자식 프로세스로 호출해 재사용한다. 인증을 다시 구현하지 않는다 |
 | 실행 환경 | 로컬 개발 기계 |
 
@@ -40,6 +40,7 @@ pnpm workspaces monorepo 다.
 
 ```
 packages/shared/     온톨로지 계약 · API 타입 · Concept 표준 사전 코어
+packages/llm/        LLM 호출 전송 — 상주 app-server 클라이언트와 서버 생명주기
 apps/pipeline/       수집 → 추출 → 적재 CLI
 apps/api/            질의응답 REST (NestJS)
 apps/web/            React 와 Vite UI
@@ -51,12 +52,17 @@ eval/                질문 은행·대표 흐름 평가 세트·평가 리포�
 
 ```mermaid
 flowchart LR
-    SHARED --> PIPE["apps/pipeline"]
+    SHARED["packages/shared"] --> PIPE["apps/pipeline"]
     SHARED --> API["apps/api"]
     SHARED --> WEB["apps/web"]
+    LLM["packages/llm"] --> PIPE
+    LLM --> API
 ```
 
-`apps/*` 끼리는 서로 의존하지 않는다. 공유가 필요하면 `packages/shared` 로 올린다.
+`apps/*` 끼리는 서로 의존하지 않는다. 공유가 필요하면 `packages/*` 로 올린다.
+
+**`packages/llm` 은 `packages/shared` 를 의존하지 않는다.** 전송 계층이라 그래프 계약을 모른다.
+`apps/web` 도 의존하지 않는다 — Node 자식 프로세스와 WebSocket 을 쓰므로 브라우저에서 돌지 않는다.
 
 평가 실행기는 별도 `apps/*` 패키지로 만들지 않는다.
 제품 런타임이 아니라 개발 품질 점검이고, 현재 API 계약만으로 실행할 수 있기 때문이다.
@@ -93,6 +99,29 @@ repository는 행 단위 조회·삽입·삭제만 수행하고, 전달받은 `R
 여러 쓰기를 원자적으로 묶는 경계는 service가 소유한다.
 따라서 `curation.service.ts`와 `project.service.ts`만 트랜잭션을 열며 `*.repo.ts`는 열지 않는다.
 
+## packages/llm
+
+LLM 호출의 **전송**을 소유한다. 무엇을 물어볼지는 모르고, 어떻게 보낼지만 안다.
+결정과 실측 근거는 [ADR 0008](adr/0008-persistent-llm-transport.md) 이 소유한다.
+
+| 관심사 | 파일 | 소유 |
+| --- | --- | --- |
+| 서버 생명주기 | `app-server.process.ts` | `codex app-server` 를 자식으로 띄우고, 준비를 확인하고, 죽인다 |
+| JSON-RPC 왕복 | `app-server.client.ts` | `initialize`·`thread/start`·`turn/start` 와 알림 대기 |
+| 조립과 어댑터 계약 | `llm.adapter.ts` | WebSocket 전송을 붙이고 `complete(prompt, opts)`·`close()` 를 낸다 |
+| 공개 타입 | `llm.types.ts` | `JsonRpcTransport`·`AppServerHandle`·`LlmTransport` 와 호출 옵션 |
+| 공개 표면 | `index.ts` | 위 타입과 `startAppServer`, 어댑터만 내보낸다 |
+
+앞 세 관심사(생명주기·왕복·조립)가 이 경계 안에 있어야 하는 이유다.
+
+- **서버가 하나에 매달린 자원이다.** 두 앱이 각자 띄우므로 띄우고 죽이는 규칙이 한 곳에 있어야 한다
+- **완료 판정이 까다롭다.** `turn/start` 는 즉시 응답하고 완료는 `turn/completed` 알림으로 온다.
+  실패도 JSON-RPC 오류가 아니라 그 알림의 `turn.status` 로 온다 — 호출자마다 다시 구현하면 어긴다
+- **알림에 `threadId` 와 `turnId` 가 실려 온다.** 동시 호출을 갈라내는 것도 전송의 일이다
+
+**호출마다 새 thread 를 쓴다.** 같은 thread 는 앞 턴을 다음 턴 프롬프트에 남긴다.
+`thread/start` 가 0.14초라 새로 만드는 대가는 거의 없다.
+
 ## apps/pipeline
 
 단계별 디렉터리다. 디렉터리 이름이 CLI 단계 이름과 대응한다.
@@ -105,7 +134,7 @@ repository는 행 단위 조회·삽입·삭제만 수행하고, 전달받은 `R
 | `infer/` | `infer-knowledge` | LLM 추출. 캐시·재시도·동시성·관계 검증 |
 | `neo4j/` | `sync-neo4j`·`apply-schema` | DB 를 건드리는 것만 모은다 |
 | `config/` | — | 환경변수 검증과 주입 |
-| `llm/` | — | LLM CLI 어댑터 (codex·claude) |
+| `llm/` | — | `packages/llm` 의 상주 어댑터를 파이프라인 설정에 묶는다. `claude -p` 어댑터도 여기 남는다 |
 | `raw-reader.ts` | — | 원본 읽기. `parse` 와 `infer` 가 함께 쓴다.<br>텍스트 추출이 두 종류다 — 참조 추출용(개행을 공백으로 병합)과 저장용(개행 보존) |
 
 `raw-reader.ts` 가 루트에 있는 이유 — 두 단계가 공용으로 쓰므로 한쪽에 넣으면 의존이 역류한다.
@@ -201,7 +230,7 @@ NestJS 다. 도메인별 디렉터리로 나뉜다.
 | `graph/` | 그래프 조회 엔드포인트 (통계·검색·표본·이웃) |
 | `ontology/` | 온톨로지 계약 노출 |
 | `neo4j/` | 드라이버·세션 관리 |
-| `llm/` | LLM CLI 어댑터 |
+| `llm/` | `packages/llm` 의 상주 어댑터를 Nest DI 에 묶는다. `claude -p` 어댑터도 여기 남는다 |
 
 루트에 1줄 재export 파일이 몇 개 있다 (`llm-cli.ts`·`neo4j.service.ts`·`ontology.controller.ts`).
 도메인 이동 과정의 호환 계층이다.

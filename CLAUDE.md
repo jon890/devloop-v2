@@ -12,6 +12,7 @@ zod 스키마는 `*.schema.ts`, 상수는 `*.const.ts` 로 분리한다.
 ```
 apps/api/src/     graph/  ontology/  neo4j/  llm/     (+ graph-query.service.ts 는 아직 평면)
 packages/shared/  ontology/  graph/  api/  concept/  raw/
+packages/llm/     (평면 — app-server 클라이언트·생명주기·어댑터)
 apps/pipeline/    ingest/  extract/  load/  llm/
 ```
 
@@ -21,6 +22,7 @@ apps/pipeline/    ingest/  extract/  load/  llm/
 | 위치 | 역할 |
 | --- | --- |
 | `packages/shared` | 온톨로지 계약·API 타입·Concept 표준 사전 코어. 모든 앱이 의존한다 |
+| `packages/llm` | LLM 호출 전송. 상주 `codex app-server` 클라이언트와 서버 생명주기 ([ADR 0008](docs/adr/0008-persistent-llm-transport.md)) |
 | `apps/pipeline` | 수집 → 추출 → 적재 CLI. 단계 이름은 아래 표 참조 |
 | `apps/api` | 질의응답 REST (NestJS). 앵커 검색 → Cypher 생성 → 답변 합성 |
 | `apps/web` | React 와 Vite 기반 UI |
@@ -109,7 +111,7 @@ gold 는 필수(`required`)와 보강(`supporting`)으로 나눠 적는다.
 
 - **구현은 codex subagent 에 위임한다.** 메인 세션은 계획·평가·orchestration 을 맡는다
 - **리뷰는 작성과 다른 lane 에서 한다.** 구현 후 `code-reviewer` 또는 `verifier` 에 위임해 GO/NO-GO 를 받는다. 같은 컨텍스트의 자기 승인은 신뢰할 수 없다
-- LLM 은 구독 CLI(`codex exec`)만 쓴다. 종량제 API 는 금지한다
+- LLM 은 구독 계정으로만 쓴다. 종량제 API 는 금지한다. 호출은 상주 `codex app-server` 로 보낸다
 - 모델 — 추출 `gpt-5.5`, 질의 `gpt-5.6-terra` (벤치마크로 확정)
 - 테스트는 데모 데이터가 아니라 실제 Dooray·GHE 데이터로 한다
 
@@ -118,7 +120,9 @@ gold 는 필수(`required`)와 보강(`supporting`)으로 나눠 적는다.
 이 절은 **짧게 유지한다.** 측정 수치와 사건 경위는 리포트가 소유하고 여기서 복제하지 않는다.
 
 - **품질 축의 현재 상태** — 최신 측정 리포트를 본다. `eval/reports/` 에서 가장 최근 날짜 파일이
-  기준선이고, 그 문서가 그 시점의 실패 경계 분포와 남은 병목을 소유한다
+  기준선이고, 그 문서가 그 시점의 실패 경계 분포와 남은 병목을 소유한다.
+  **같은 날짜에 여러 개가 있으면 늦은 phase 것이 기준선이다** — 한 plan 이 중간 측정과 최종 측정을
+  따로 남기면 파일명 순서로는 가려지지 않는다 (plan010 이 그렇다)
 - **끝난 작업의 경위** — `git log` 와 각 plan 의 `tasks/plan{N}-*/` 가 소유한다
 - **사건별 원인·조치** — `docs/retrospectives/`. 실행 기록은 `RUNS.md`
 - **질의 도메인의 살아 있는 제약** — `docs/code-architecture.md` 의 "질의 도메인의 알려진 한계"

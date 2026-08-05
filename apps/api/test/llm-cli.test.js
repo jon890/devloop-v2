@@ -4,11 +4,13 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { ClaudeCliAdapter, CodexCliAdapter, createLlmCli } = require('../dist/llm-cli');
+const { AppServerCliAdapter, ClaudeCliAdapter, createLlmCli } = require('../dist/llm-cli');
 const { QueryService } = require('../dist/query/query.service');
 const { testApiConfig } = require('./helpers/test-config');
 
-test('API CLI 어댑터가 Codex effort를 전달하고 Claude에서는 무시한다', async () => {
+// codex 경로는 상주 app-server 를 쓴다. 그 계약 검증은 `@devloop/llm` 이 갖는다.
+// 여기 남은 것은 자식 프로세스로 도는 `claude` 어댑터의 인자다.
+test('API Claude 어댑터는 effort를 무시하고 모델만 넘긴다', async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'devloop-api-cli-test-'));
   const argsFile = path.join(temporary, 'args.json');
   const fakeCli = `#!/usr/bin/env node
@@ -17,32 +19,17 @@ fs.writeFileSync(process.env.DEVLOOP_API_ARGS_FILE, JSON.stringify(process.argv.
 process.stdin.resume();
 process.stdin.on('end', () => process.stdout.write('mock response'));
 `;
-  const codexPath = path.join(temporary, 'codex');
   const claudePath = path.join(temporary, 'claude');
-  await Promise.all([
-    writeFile(codexPath, fakeCli, 'utf8'),
-    writeFile(claudePath, fakeCli, 'utf8'),
-  ]);
-  await Promise.all([chmod(codexPath, 0o755), chmod(claudePath, 0o755)]);
+  await writeFile(claudePath, fakeCli, 'utf8');
+  await chmod(claudePath, 0o755);
 
   const previousPath = process.env.PATH;
   process.env.PATH = `${temporary}:${previousPath}`;
   process.env.DEVLOOP_API_ARGS_FILE = argsFile;
   const lowEffortConfig = testApiConfig({
-    llm: { provider: 'codex', queryModel: 'query-model', reasoningEffort: 'low' },
+    llm: { provider: 'claude', queryModel: 'query-model', reasoningEffort: 'low' },
   });
   try {
-    const codex = await new CodexCliAdapter(lowEffortConfig).complete('prompt', { model: 'codex-model' });
-    assert.equal(codex.text, 'mock response');
-    assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
-      'exec', '-m', 'codex-model', '-c', 'model_reasoning_effort=low',
-    ]);
-
-    await new CodexCliAdapter(lowEffortConfig).complete('prompt', { model: 'codex-model', effort: 'high' });
-    assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
-      'exec', '-m', 'codex-model', '-c', 'model_reasoning_effort=high',
-    ]);
-
     const claude = await new ClaudeCliAdapter(lowEffortConfig).complete('prompt', {
       model: 'claude-model',
       effort: 'medium',
@@ -53,19 +40,10 @@ process.stdin.on('end', () => process.stdout.write('mock response'));
     ]);
 
     // opts.model이 없으면 환경설정의 QUERY_LLM_MODEL이 그대로 쓰인다.
-    await new CodexCliAdapter(lowEffortConfig).complete('prompt');
-    assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
-      'exec', '-m', 'query-model', '-c', 'model_reasoning_effort=low',
-    ]);
-
-    const noEffortConfig = testApiConfig({ llm: { provider: 'claude', queryModel: 'query-model' } });
-    await new ClaudeCliAdapter(noEffortConfig).complete('prompt');
+    await new ClaudeCliAdapter(lowEffortConfig).complete('prompt');
     assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), [
       '-p', '--model', 'query-model',
     ]);
-
-    await new CodexCliAdapter(noEffortConfig).complete('prompt');
-    assert.deepEqual(JSON.parse(await readFile(argsFile, 'utf8')), ['exec', '-m', 'query-model']);
   } finally {
     process.env.PATH = previousPath;
     delete process.env.DEVLOOP_API_ARGS_FILE;
@@ -73,9 +51,26 @@ process.stdin.on('end', () => process.stdout.write('mock response'));
   }
 });
 
-test('createLlmCli가 환경설정의 LLM_PROVIDER로 어댑터를 고른다', () => {
-  assert.ok(createLlmCli(testApiConfig({ llm: { provider: 'codex', queryModel: 'm' } })) instanceof CodexCliAdapter);
+test('createLlmCli가 환경설정의 LLM_PROVIDER로 어댑터를 고른다', async () => {
   assert.ok(createLlmCli(testApiConfig({ llm: { provider: 'claude', queryModel: 'm' } })) instanceof ClaudeCliAdapter);
+
+  // codex 경로는 상주 어댑터를 준다. 서버가 준비되지 않으면 기동이 실패해야 한다.
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'devloop-api-cli-test-'));
+  const codexPath = path.join(temporary, 'codex');
+  await writeFile(codexPath, '#!/usr/bin/env node\nprocess.exit(0);\n', 'utf8');
+  await chmod(codexPath, 0o755);
+
+  const previousPath = process.env.PATH;
+  process.env.PATH = `${temporary}:${previousPath}`;
+  try {
+    const started = createLlmCli(testApiConfig({ llm: { provider: 'codex', queryModel: 'm' } }));
+    assert.ok(started instanceof Promise);
+    await assert.rejects(started, /app-server/);
+    assert.equal(typeof AppServerCliAdapter.start, 'function');
+  } finally {
+    process.env.PATH = previousPath;
+    await rm(temporary, { recursive: true, force: true });
+  }
 });
 
 test('QueryService가 환경설정의 질의 모델을 LLM 호출에 전달한다', async () => {
