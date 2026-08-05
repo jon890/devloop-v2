@@ -1,7 +1,7 @@
 # Phase 04 — API 응답 계약을 outputSchema 로 옮기고 JSON 재시도를 없앤다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

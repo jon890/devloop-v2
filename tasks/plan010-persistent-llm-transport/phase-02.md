@@ -1,7 +1,7 @@
 # Phase 02 — API 와 파이프라인을 상주 전송으로 옮기고 codex exec 를 제거한다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

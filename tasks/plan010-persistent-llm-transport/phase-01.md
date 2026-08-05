@@ -1,7 +1,7 @@
 # Phase 01 — packages/llm 에 상주 app-server 클라이언트와 서버 생명주기를 만든다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

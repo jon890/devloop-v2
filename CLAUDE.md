@@ -12,6 +12,7 @@ zod 스키마는 `*.schema.ts`, 상수는 `*.const.ts` 로 분리한다.
 ```
 apps/api/src/     graph/  ontology/  neo4j/  llm/     (+ graph-query.service.ts 는 아직 평면)
 packages/shared/  ontology/  graph/  api/  concept/  raw/
+packages/llm/     (평면 — app-server 클라이언트·생명주기·어댑터)
 apps/pipeline/    ingest/  extract/  load/  llm/
 ```
 
