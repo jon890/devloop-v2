@@ -2,7 +2,6 @@ import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { GraphNode, GraphRel, NeighborsResponse, QueryRequest, QueryResponse } from "@devloop/shared";
 import { QueryRequestSchema } from "@devloop/shared";
 import neo4j from "neo4j-driver";
-import type { z } from "zod";
 import { API_CONFIG, type ApiConfig } from "../config";
 import { LLM_CLI, LlmCli } from "../llm-cli";
 import { Neo4jService } from "../neo4j.service";
@@ -16,7 +15,7 @@ import {
   FULLTEXT_INDEXES,
   TASK_COMMENT_FETCH_LIMIT,
 } from "./query.const";
-import { AnchorResponseSchema, AnswerResponseSchema, CypherResponseSchema } from "./query.schema";
+import { AnchorResponseContract, AnswerResponseContract, CypherResponseContract, type StructuredResponseContract } from "./query.schema";
 
 export interface FulltextMatch {
   node: GraphNode;
@@ -234,12 +233,10 @@ export class QueryService {
       "예: 게이트웨이 → gateway, API Gateway / 쿠버네티스 → kubernetes, Kubernetes / ingress → 잉그레스.",
       "원문 핵심 용어와 생성한 모든 표기 변형을 각각 독립된 검색어로 terms 배열에 넣고, 중복은 제거하라.",
       "일반적인 조사·서술어·의문 표현은 제외하라.",
-      "응답은 반드시 JSON 하나만 출력한다.",
-      '형식: {"terms":["원문 핵심 용어","영어 또는 한국어 표기 변형"]}',
       `질문: ${question}`,
     ].join("\n");
     return (
-      await this.completeStructured(prompt, AnchorResponseSchema, {
+      await this.completeStructured(prompt, AnchorResponseContract, {
         timeoutMs: 60_000,
         model: this.config.llm.queryModel,
       })
@@ -253,7 +250,7 @@ export class QueryService {
   ): Promise<string> {
     const prompt = [
       "Neo4j 지식그래프 질문을 읽기 전용 Cypher 하나로 변환하라.",
-      '응답은 반드시 JSON 하나만 출력한다. 형식: {"cypher":"MATCH ... RETURN ... LIMIT 50"}',
+      "반환 행은 50개를 넘기지 마라.",
       "쓰기 구문 CREATE, MERGE, SET, DELETE, REMOVE, DROP, LOAD CSV, CALL dbms/admin/apoc 는 금지한다.",
       "아래 허용 속성만 사용하고, 목록에 없는 속성(예: Wiki.title)은 절대 만들지 마라.",
       ontologySummary(),
@@ -279,7 +276,7 @@ export class QueryService {
       `Question: ${question}`,
     ].join("\n\n");
     return (
-      await this.completeStructured(prompt, CypherResponseSchema, {
+      await this.completeStructured(prompt, CypherResponseContract, {
         timeoutMs: 90_000,
         model: this.config.llm.queryModel,
       })
@@ -294,7 +291,7 @@ export class QueryService {
   ): Promise<string> {
     const prompt = [
       "집계 답변의 결과 행을 바꾸지 않는 읽기 전용 근거 수집 전용 Cypher 하나를 작성하라.",
-      '응답은 반드시 JSON 하나만 출력한다. 형식: {"cypher":"MATCH ... RETURN nodes, relationships, paths LIMIT 50"}',
+      "반환 행은 50개를 넘기지 마라.",
       "답변용 집계 Cypher를 다시 집계하거나 그 결과 행을 대체하지 마라. 관련 node, relationship, path만 별도로 반환하라.",
       "쓰기 구문 CREATE, MERGE, SET, DELETE, REMOVE, DROP, LOAD CSV, CALL dbms/admin/apoc 는 금지한다.",
       "아래 허용 속성과 관계 방향만 사용하라.",
@@ -305,7 +302,7 @@ export class QueryService {
       `Anchor candidates (label/key/display; Task includes decisionCount): ${JSON.stringify(anchorSummaries(anchorCandidates))}`,
     ].join("\n\n");
     return (
-      await this.completeStructured(prompt, CypherResponseSchema, {
+      await this.completeStructured(prompt, CypherResponseContract, {
         timeoutMs: 90_000,
         model: this.config.llm.queryModel,
       })
@@ -396,7 +393,6 @@ export class QueryService {
   private async synthesizeAnswer(question: string, rows: Record<string, unknown>[], evidence: NeighborsResponse): Promise<string> {
     const prompt = [
       "질문과 Cypher 결과, 근거 그래프를 바탕으로 한국어 답변을 작성하라.",
-      '응답은 반드시 JSON 하나만 출력한다. 형식: {"answer":"답변"}',
       "Task를 인용할 때는 번호만 #123처럼 쓰지 말고 반드시 Task #123 형식으로 써라.",
       "여러 Task 후보의 Decision이 함께 조회되었다면 행 순서나 fulltext 1위만으로 단정하지 말고, Task subject·Decision summary·Comment excerpt를 질문과 비교해 가장 관련성 높은 근거로 답하라.",
       `Question: ${question}`,
@@ -405,32 +401,27 @@ export class QueryService {
       `Evidence: ${buildAnswerEvidencePayload(evidence)}`,
     ].join("\n\n");
     return (
-      await this.completeStructured(prompt, AnswerResponseSchema, {
+      await this.completeStructured(prompt, AnswerResponseContract, {
         timeoutMs: 90_000,
         model: this.config.llm.queryModel,
       })
     ).answer;
   }
 
-  private async completeStructured<T>(prompt: string, schema: z.ZodType<T>, options: { timeoutMs: number; model?: string }): Promise<T> {
-    let retryPrompt = prompt;
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      const result = await this.llmCli.complete(retryPrompt, options);
-      try {
-        return schema.parse(parseJson(result.text));
-      } catch (error) {
-        if (attempt === 1) {
-          throw error;
-        }
-        retryPrompt = [
-          prompt,
-          "이전 응답이 JSON 계약 검증에 실패했다. 오류를 고쳐 JSON 하나만 다시 출력하라.",
-          `Previous response: ${result.text.slice(0, 4_000)}`,
-          `Validation error: ${formatError(error)}`,
-        ].join("\n\n");
-      }
-    }
-    throw new Error("Unreachable structured completion state.");
+  /**
+   * 응답 형식은 프롬프트로 부탁하지 않고 `outputSchema` 로 서버에 넘긴다.
+   *
+   * **형식 위반 재시도는 두지 않는다.** 서버가 형식을 보장하므로 검증 실패는 계약이 깨진 것이고,
+   * 재시도로 덮으면 그 결함이 드러나지 않은 채 호출만 두 배가 된다. 검증은 그대로 남긴다 —
+   * 지우면 계약이 깨진 날 조용히 넘어간다.
+   */
+  private async completeStructured<T>(
+    prompt: string,
+    contract: StructuredResponseContract<T>,
+    options: { timeoutMs: number; model?: string },
+  ): Promise<T> {
+    const result = await this.llmCli.complete(prompt, { ...options, outputSchema: contract.outputSchema });
+    return contract.schema.parse(parseJson(result.text));
   }
 }
 

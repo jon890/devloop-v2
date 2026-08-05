@@ -16,7 +16,7 @@ export interface LlmCompleteOptions {
   model: string;
   effort?: string;
   timeoutMs?: number;
-  /** Phase 04 가 채운다. 지금은 인자로만 열어 두고 전달하지 않는다. */
+  /** 응답 형식 계약. `turn/start` 의 `outputSchema` 로 그대로 실린다. 없으면 키를 싣지 않는다. */
   outputSchema?: Record<string, unknown>;
 }
 

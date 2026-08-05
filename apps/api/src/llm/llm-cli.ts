@@ -10,6 +10,8 @@ export interface LlmOptions {
   timeoutMs?: number;
   model?: string;
   effort?: LlmReasoningEffort;
+  /** 응답 형식 계약. 상주 어댑터만 서버에 넘긴다. 자식 프로세스 CLI 에는 실을 통로가 없다. */
+  outputSchema?: Record<string, unknown>;
 }
 
 export type LlmReasoningEffort = (typeof LLM_REASONING_EFFORTS)[number];
@@ -92,6 +94,12 @@ abstract class ChildProcessCliAdapter implements LlmCli {
   }
 }
 
+/**
+ * `outputSchema` 를 실을 통로가 없다. 이 공급자는 응답 형식 계약을 서버에 넘기지 못한다.
+ *
+ * 프롬프트의 형식 지시도 함께 없앴으므로 형식 위반은 `completeStructured` 의 zod 검증이 잡는다.
+ * 재시도가 없어졌으니 위반은 조용히 넘어가지 않고 즉시 오류가 된다 — 계약 결함을 드러내는 것이 의도다.
+ */
 @Injectable()
 export class ClaudeCliAdapter extends ChildProcessCliAdapter {
   protected command(opts?: LlmOptions): { bin: string; args: string[] } {
@@ -130,6 +138,7 @@ export class AppServerCliAdapter implements LlmCli {
       model: opts.model || this.config.llm.queryModel,
       effort: opts.effort ?? this.config.llm.reasoningEffort,
       timeoutMs: opts.timeoutMs,
+      outputSchema: opts.outputSchema,
     });
     return { text: result.text.trim(), elapsedMs: result.elapsedMs };
   }

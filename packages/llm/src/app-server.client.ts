@@ -106,6 +106,11 @@ export class AppServerClient {
       if (opts.effort) {
         turnParams.effort = opts.effort;
       }
+      // 응답 형식을 프롬프트로 부탁하는 대신 서버에 규격으로 넘긴다.
+      // 계약이 없는 호출에는 키를 아예 싣지 않는다 (`effort` 와 같은 규칙).
+      if (opts.outputSchema) {
+        turnParams.outputSchema = opts.outputSchema;
+      }
       const turnResult = asRecord(await this.request("turn/start", turnParams));
       pending.turnId = asString(asRecord(turnResult?.turn)?.id);
 

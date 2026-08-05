@@ -213,6 +213,28 @@ test("thread/start가 sandbox read-only와 approvalPolicy never를 넘긴다", a
   });
 });
 
+// 응답 형식 계약은 프롬프트가 아니라 이 params 로 서버에 전달된다. 호출자 쪽 테스트는
+// `complete` 인자까지만 보호하므로, `turn/start` 까지 실리는지는 여기서만 회귀를 잡는다.
+test("outputSchema를 turn/start에 실어 보내고, 없으면 키를 싣지 않는다", async () => {
+  const server = new FakeAppServer();
+  const client = newClient(server);
+  const outputSchema = { type: "object", properties: { cypher: { type: "string" } }, required: ["cypher"] };
+
+  const withSchema = client.complete("질문", { model: "m", outputSchema });
+  await waitFor(() => server.turnIds.length === 1, "첫 turn/start");
+  server.emitCompleted(server.threadIds[0], server.turnIds[0], "completed");
+  await withSchema;
+
+  const withoutSchema = client.complete("질문", { model: "m" });
+  await waitFor(() => server.turnIds.length === 2, "둘째 turn/start");
+  server.emitCompleted(server.threadIds[1], server.turnIds[1], "completed");
+  await withoutSchema;
+
+  const [first, second] = server.requests("turn/start");
+  assert.deepEqual(first.params.outputSchema, outputSchema);
+  assert.equal("outputSchema" in second.params, false, "계약이 없는 호출에는 키를 싣지 않는다");
+});
+
 test("model이 없으면 호출을 거부한다", async () => {
   const server = new FakeAppServer();
   const client = newClient(server);
