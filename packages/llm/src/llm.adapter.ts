@@ -1,6 +1,8 @@
 import { AppServerClient } from "./app-server.client";
 import { startAppServer } from "./app-server.process";
 import { AppServerHandle, JsonRpcTransport, LlmCompleteOptions, LlmCompleteResult, LlmTransport } from "./llm.types";
+import { createResponsesTransport } from "./responses.client";
+import { chatgptAccountEndpoint, ResponsesEndpoint } from "./responses.credentials";
 
 const DEFAULT_CONNECT_TIMEOUT_MS = 10_000;
 
@@ -13,6 +15,27 @@ export interface AppServerLlmTransportOptions {
   clientName?: string;
   clientVersion?: string;
   onLog?: (line: string) => void;
+}
+
+export type LlmTransportOptions =
+  | ({ transport: "app-server" } & AppServerLlmTransportOptions)
+  | {
+      transport: "responses";
+      endpoint?: () => ResponsesEndpoint;
+      fetch?: typeof fetch;
+      defaultTimeoutMs?: number;
+    };
+
+/** 전송 이름은 필수다. 어느 전송이 기본인지는 호출자가 정한다. */
+export function createLlmTransport(options: LlmTransportOptions): LlmTransport | Promise<LlmTransport> {
+  if (options.transport === "responses") {
+    return createResponsesTransport({
+      endpoint: options.endpoint ?? chatgptAccountEndpoint,
+      fetch: options.fetch,
+      defaultTimeoutMs: options.defaultTimeoutMs,
+    });
+  }
+  return AppServerLlmTransport.start(options);
 }
 
 /** WebSocket 은 Node 전역이다. 이 패키지는 런타임 의존을 추가하지 않는다. */

@@ -16,6 +16,10 @@ export interface AppServerHandle {
   close(): Promise<void>;
 }
 
+/** Codex 구독 계정으로 사용할 수 있는 전송. 기본값은 호출자가 정한다. */
+export const CODEX_LLM_TRANSPORTS = ["responses", "app-server"] as const;
+export type CodexLlmTransport = (typeof CODEX_LLM_TRANSPORTS)[number];
+
 export interface LlmCompleteOptions {
   /** 필수다. 빠지면 CLI 기본 모델로 조용히 돌아가는 사고가 있었다 (ADR 0003). */
   model: string;
