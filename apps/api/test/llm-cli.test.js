@@ -8,7 +8,7 @@ const { AppServerCliAdapter, ClaudeCliAdapter, ResponsesCliAdapter, createLlmCli
 const { QueryService } = require('../dist/query/query.service');
 const { testApiConfig } = require('./helpers/test-config');
 
-// codex 경로는 상주 app-server 를 쓴다. 그 계약 검증은 `@devloop/llm` 이 갖는다.
+// codex 전송 계약 검증은 Responses 직접 호출과 상주 app-server 모두 `@devloop/llm` 이 갖는다.
 // 여기 남은 것은 자식 프로세스로 도는 `claude` 어댑터의 인자다.
 test('API Claude 어댑터는 effort를 무시하고 모델만 넘긴다', async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'devloop-api-cli-test-'));

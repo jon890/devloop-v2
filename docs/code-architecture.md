@@ -12,7 +12,7 @@
 | 언어 | TypeScript 단일. 파이프라인·API 는 NestJS, 프론트는 React 와 Vite |
 | 지식그래프 | Neo4j (docker-compose) |
 | 판단 저장소 | Postgres. `packages/registry`가 스키마·repository·service를 소유한다 ([ADR 0005](adr/0005-curation-in-relational-store.md)) |
-| LLM | 구독 계정 CLI 만 쓴다. 종량제 API 는 금지다 ([ADR 0002](adr/0002-llm-via-subscription-cli.md)).<br>호출은 상주 `codex app-server` 로 보낸다 ([ADR 0008](adr/0008-persistent-llm-transport.md)) |
+| LLM | 구독 계정 토큰을 쓰고 종량제 API 는 금지한다 ([ADR 0002](adr/0002-llm-via-subscription-cli.md)).<br>Responses 직접 호출이 기본이고 상주 `codex app-server` 는 되돌리기 경로다 ([ADR 0009](adr/0009-direct-responses-transport.md)) |
 | 원천 접근 | 기존 `dooray-cli` 를 자식 프로세스로 호출해 재사용한다. 인증을 다시 구현하지 않는다 |
 | 실행 환경 | 로컬 개발 기계 |
 
@@ -161,7 +161,7 @@ responses.client.ts       →  요청 본문 조립 · SSE 파싱 · 오류 판�
 | `infer/` | `infer-knowledge` | LLM 추출. 캐시·재시도·동시성·관계 검증 |
 | `neo4j/` | `sync-neo4j`·`apply-schema` | DB 를 건드리는 것만 모은다 |
 | `config/` | — | 환경변수 검증과 주입 |
-| `llm/` | — | `packages/llm` 의 상주 어댑터를 파이프라인 설정에 묶는다. `claude -p` 어댑터도 여기 남는다 |
+| `llm/` | — | `packages/llm` 의 전송 어댑터를 파이프라인 설정에 묶는다. Responses가 기본이고 상주·`claude -p` 어댑터도 남는다 |
 | `raw-reader.ts` | — | 원본 읽기. `parse` 와 `infer` 가 함께 쓴다.<br>텍스트 추출이 두 종류다 — 참조 추출용(개행을 공백으로 병합)과 저장용(개행 보존) |
 
 `raw-reader.ts` 가 루트에 있는 이유 — 두 단계가 공용으로 쓰므로 한쪽에 넣으면 의존이 역류한다.
@@ -257,7 +257,7 @@ NestJS 다. 도메인별 디렉터리로 나뉜다.
 | `graph/` | 그래프 조회 엔드포인트 (통계·검색·표본·이웃) |
 | `ontology/` | 온톨로지 계약 노출 |
 | `neo4j/` | 드라이버·세션 관리 |
-| `llm/` | `packages/llm` 의 상주 어댑터를 Nest DI 에 묶는다. `claude -p` 어댑터도 여기 남는다 |
+| `llm/` | `packages/llm` 의 전송 어댑터를 Nest DI 에 묶는다. Responses가 기본이고 상주·`claude -p` 어댑터도 남는다 |
 
 루트에 1줄 재export 파일이 몇 개 있다 (`llm-cli.ts`·`neo4j.service.ts`·`ontology.controller.ts`).
 도메인 이동 과정의 호환 계층이다.
