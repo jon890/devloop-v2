@@ -30,6 +30,7 @@ test('필수 값이 모두 있으면 설정으로 파싱된다', () => {
     },
     llm: {
       provider: 'codex',
+      transport: 'responses',
       queryModel: 'gpt-5.6-terra',
       reasoningEffort: 'high',
     },
@@ -136,7 +137,9 @@ test('열거형에 없는 값은 실패한다', () => {
 test('LLM_PROVIDER 는 생략하면 codex 이고, codex 와 claude 만 받는다', () => {
   assert.equal(validateApiConfig(validEnv({ LLM_PROVIDER: undefined })).llm.provider, 'codex');
   assert.equal(validateApiConfig(validEnv({ LLM_PROVIDER: '' })).llm.provider, 'codex');
-  assert.equal(validateApiConfig(validEnv({ LLM_PROVIDER: 'claude' })).llm.provider, 'claude');
+  const claude = validateApiConfig(validEnv({ LLM_PROVIDER: 'claude' })).llm;
+  assert.equal(claude.provider, 'claude');
+  assert.equal(claude.transport, 'claude');
 
   // 예전에는 `!== "claude"` 분기라 오타가 조용히 codex 로 갔다. 이제는 기동이 멈춘다.
   for (const value of ['codexx', 'Codex', 'gpt', 'claude-code']) {
@@ -146,6 +149,23 @@ test('LLM_PROVIDER 는 생략하면 codex 이고, codex 와 claude 만 받는다
       `${value} 는 거부되어야 한다`,
     );
   }
+});
+
+test('LLM_TRANSPORT 기본값과 허용 목록을 검증한다', () => {
+  assert.equal(validateApiConfig(validEnv()).llm.transport, 'responses');
+  assert.equal(validateApiConfig(validEnv({ LLM_TRANSPORT: 'app-server' })).llm.transport, 'app-server');
+  assert.throws(() => validateApiConfig(validEnv({ LLM_TRANSPORT: 'agent' })), /LLM_TRANSPORT/);
+});
+
+test('LLM_PROVIDER와 LLM_TRANSPORT가 모순되면 기동을 막는다', () => {
+  assert.throws(
+    () => validateApiConfig(validEnv({ LLM_PROVIDER: 'claude', LLM_TRANSPORT: 'app-server' })),
+    /LLM_PROVIDER=claude.*LLM_TRANSPORT=claude/,
+  );
+  assert.throws(
+    () => validateApiConfig(validEnv({ LLM_PROVIDER: 'codex', LLM_TRANSPORT: 'claude' })),
+    /LLM_TRANSPORT=claude.*LLM_PROVIDER=claude/,
+  );
 });
 
 test('PORT가 숫자가 아니거나 0 이하이면 실패한다', () => {

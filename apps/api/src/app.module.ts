@@ -1,5 +1,5 @@
 import { Inject, Module, type OnApplicationShutdown } from "@nestjs/common";
-import { API_CONFIG, ApiConfigModule } from "./config";
+import { API_CONFIG, ApiConfigModule, type ApiConfig } from "./config";
 import { GraphController } from "./graph/graph.controller";
 import { GraphQueryService } from "./graph-query.service";
 import { createLlmCli, LLM_CLI, type LlmCli } from "./llm-cli";
@@ -17,7 +17,10 @@ import { QueryService } from "./query/query.service";
     QueryService,
     {
       provide: LLM_CLI,
-      useFactory: createLlmCli,
+      useFactory: (config: ApiConfig): LlmCli | Promise<LlmCli> => {
+        console.log(`[llm] transport=${config.llm.transport}`);
+        return createLlmCli(config);
+      },
       inject: [API_CONFIG],
     },
   ],

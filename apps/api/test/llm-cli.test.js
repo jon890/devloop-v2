@@ -4,7 +4,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { AppServerCliAdapter, ClaudeCliAdapter, createLlmCli } = require('../dist/llm-cli');
+const { AppServerCliAdapter, ClaudeCliAdapter, ResponsesCliAdapter, createLlmCli } = require('../dist/llm-cli');
 const { QueryService } = require('../dist/query/query.service');
 const { testApiConfig } = require('./helpers/test-config');
 
@@ -27,7 +27,7 @@ process.stdin.on('end', () => process.stdout.write('mock response'));
   process.env.PATH = `${temporary}:${previousPath}`;
   process.env.DEVLOOP_API_ARGS_FILE = argsFile;
   const lowEffortConfig = testApiConfig({
-    llm: { provider: 'claude', queryModel: 'query-model', reasoningEffort: 'low' },
+    llm: { provider: 'claude', transport: 'claude', queryModel: 'query-model', reasoningEffort: 'low' },
   });
   try {
     const claude = await new ClaudeCliAdapter(lowEffortConfig).complete('prompt', {
@@ -51,8 +51,11 @@ process.stdin.on('end', () => process.stdout.write('mock response'));
   }
 });
 
-test('createLlmCli가 환경설정의 LLM_PROVIDER로 어댑터를 고른다', async () => {
-  assert.ok(createLlmCli(testApiConfig({ llm: { provider: 'claude', queryModel: 'm' } })) instanceof ClaudeCliAdapter);
+test('createLlmCli가 환경설정의 LLM_TRANSPORT로 세 어댑터를 고른다', async () => {
+  assert.ok(
+    createLlmCli(testApiConfig({ llm: { provider: 'claude', transport: 'claude', queryModel: 'm' } })) instanceof ClaudeCliAdapter,
+  );
+  assert.ok(createLlmCli(testApiConfig()) instanceof ResponsesCliAdapter);
 
   // codex 경로는 상주 어댑터를 준다. 서버가 준비되지 않으면 기동이 실패해야 한다.
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'devloop-api-cli-test-'));
@@ -63,7 +66,7 @@ test('createLlmCli가 환경설정의 LLM_PROVIDER로 어댑터를 고른다', a
   const previousPath = process.env.PATH;
   process.env.PATH = `${temporary}:${previousPath}`;
   try {
-    const started = createLlmCli(testApiConfig({ llm: { provider: 'codex', queryModel: 'm' } }));
+    const started = createLlmCli(testApiConfig({ llm: { provider: 'codex', transport: 'app-server', queryModel: 'm' } }));
     assert.ok(started instanceof Promise);
     await assert.rejects(started, /app-server/);
     assert.equal(typeof AppServerCliAdapter.start, 'function');

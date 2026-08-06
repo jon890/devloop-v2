@@ -11,6 +11,7 @@ function testApiConfig(overrides = {}) {
     },
     llm: {
       provider: 'codex',
+      transport: 'responses',
       queryModel: 'configured-query-model',
       reasoningEffort: 'high',
       ...(overrides.llm ?? {}),

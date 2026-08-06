@@ -1,4 +1,4 @@
-import { AppServerLlmTransport } from "@devloop/llm";
+import { AppServerLlmTransport, chatgptAccountEndpoint, createResponsesTransport, type LlmTransport } from "@devloop/llm";
 import { Injectable } from "@nestjs/common";
 import { spawn } from "node:child_process";
 import { LLM_REASONING_EFFORTS, REPO_ROOT, type ApiConfig } from "../config";
@@ -10,7 +10,7 @@ export interface LlmOptions {
   timeoutMs?: number;
   model?: string;
   effort?: LlmReasoningEffort;
-  /** 응답 형식 계약. 상주 어댑터만 서버에 넘긴다. 자식 프로세스 CLI 에는 실을 통로가 없다. */
+  /** 응답 형식 계약. Codex 전송은 서버에 넘기고 자식 프로세스 CLI 에는 실을 통로가 없다. */
   outputSchema?: Record<string, unknown>;
 }
 
@@ -148,10 +148,34 @@ export class AppServerCliAdapter implements LlmCli {
   }
 }
 
+/** Responses 엔드포인트로 직접 보내는 기본 Codex 어댑터다. 띄우거나 종료할 자식 프로세스가 없다. */
+export class ResponsesCliAdapter implements LlmCli {
+  private readonly transport: LlmTransport;
+
+  constructor(private readonly config: ApiConfig) {
+    this.transport = createResponsesTransport({ endpoint: chatgptAccountEndpoint });
+  }
+
+  async complete(prompt: string, opts: LlmOptions = {}): Promise<LlmResult> {
+    const result = await this.transport.complete(prompt, {
+      model: opts.model || this.config.llm.queryModel,
+      effort: opts.effort ?? this.config.llm.reasoningEffort,
+      timeoutMs: opts.timeoutMs,
+      outputSchema: opts.outputSchema,
+    });
+    return { text: result.text.trim(), elapsedMs: result.elapsedMs };
+  }
+
+  close(): Promise<void> {
+    return this.transport.close();
+  }
+}
+
 /**
- * `claude` 는 자식 프로세스 어댑터를 그대로 쓰고, 그 밖은 상주 어댑터를 준다.
- * 상주 어댑터는 서버 기동을 기다리므로 비동기다 — Nest 의 `useFactory` 가 Promise 를 받는다.
+ * 세 전송 중 설정이 고른 하나만 만든다. 상주 전송만 서버 기동을 기다리므로 비동기다.
  */
 export function createLlmCli(config: ApiConfig): LlmCli | Promise<LlmCli> {
-  return config.llm.provider === "claude" ? new ClaudeCliAdapter(config) : AppServerCliAdapter.start(config);
+  if (config.llm.transport === "responses") return new ResponsesCliAdapter(config);
+  if (config.llm.transport === "app-server") return AppServerCliAdapter.start(config);
+  return new ClaudeCliAdapter(config);
 }
