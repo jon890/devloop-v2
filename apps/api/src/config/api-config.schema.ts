@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { DEFAULT_LLM_PROVIDER, DEFAULT_NEO4J_DATABASE, DEFAULT_PORT, LLM_PROVIDERS, LLM_REASONING_EFFORTS } from "./api-config.const";
+import {
+  DEFAULT_LLM_PROVIDER,
+  DEFAULT_LLM_REASONING_EFFORT,
+  DEFAULT_NEO4J_DATABASE,
+  DEFAULT_PORT,
+  LLM_PROVIDERS,
+  LLM_REASONING_EFFORTS,
+} from "./api-config.const";
 
 /** 빈 문자열은 "값 없음"으로 취급한다. `.env` 에 `KEY=` 로 남은 줄이 기본값을 건너뛰지 않게 한다. */
 function emptyToUndefined(value: unknown): unknown {
@@ -24,7 +31,7 @@ export const ApiEnvSchema = z.object({
   // 다만 열거형으로 좁혀 오타(`codexx`)가 조용히 codex 로 흘러가지 않게 한다.
   LLM_PROVIDER: z.preprocess(emptyToUndefined, z.enum(LLM_PROVIDERS).default(DEFAULT_LLM_PROVIDER)),
   QUERY_LLM_MODEL: requiredText,
-  LLM_REASONING_EFFORT: z.preprocess(emptyToUndefined, z.enum(LLM_REASONING_EFFORTS).optional()),
+  LLM_REASONING_EFFORT: z.preprocess(emptyToUndefined, z.enum(LLM_REASONING_EFFORTS).default(DEFAULT_LLM_REASONING_EFFORT)),
 });
 
 export interface ApiConfig {
@@ -33,7 +40,7 @@ export interface ApiConfig {
   llm: {
     provider: (typeof LLM_PROVIDERS)[number];
     queryModel: string;
-    reasoningEffort?: (typeof LLM_REASONING_EFFORTS)[number];
+    reasoningEffort: (typeof LLM_REASONING_EFFORTS)[number];
   };
 }
 

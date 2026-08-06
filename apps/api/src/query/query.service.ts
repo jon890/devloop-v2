@@ -420,7 +420,11 @@ export class QueryService {
     contract: StructuredResponseContract<T>,
     options: { timeoutMs: number; model?: string },
   ): Promise<T> {
-    const result = await this.llmCli.complete(prompt, { ...options, outputSchema: contract.outputSchema });
+    const result = await this.llmCli.complete(prompt, {
+      ...options,
+      effort: this.config.llm.reasoningEffort,
+      outputSchema: contract.outputSchema,
+    });
     return contract.schema.parse(parseJson(result.text));
   }
 }

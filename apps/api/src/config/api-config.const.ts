@@ -18,3 +18,4 @@ export const DEFAULT_NEO4J_DATABASE = "neo4j";
 export const LLM_PROVIDERS = ["codex", "claude"] as const;
 export const DEFAULT_LLM_PROVIDER = "codex";
 export const LLM_REASONING_EFFORTS = ["minimal", "low", "medium", "high"] as const;
+export const DEFAULT_LLM_REASONING_EFFORT = "high";

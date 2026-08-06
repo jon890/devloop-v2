@@ -73,7 +73,7 @@ test('createLlmCli가 환경설정의 LLM_PROVIDER로 어댑터를 고른다', a
   }
 });
 
-test('QueryService가 환경설정의 질의 모델을 LLM 호출에 전달한다', async () => {
+test('QueryService가 환경설정의 질의 모델과 추론 강도를 LLM 호출에 전달한다', async () => {
   const options = [];
   const llmCli = {
     async complete(prompt, opts) {
@@ -86,6 +86,7 @@ test('QueryService가 환경설정의 질의 모델을 LLM 호출에 전달한�
   await service.generateCypher('질문', []);
 
   assert.deepEqual(options.map((option) => option.model), ['terra-model']);
+  assert.deepEqual(options.map((option) => option.effort), ['high']);
 });
 
 test('Cypher 생성 프롬프트가 TAGGED 차원과 차원 조합 집계 패턴을 설명한다', async () => {

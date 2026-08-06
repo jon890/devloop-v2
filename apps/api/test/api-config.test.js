@@ -31,7 +31,7 @@ test('필수 값이 모두 있으면 설정으로 파싱된다', () => {
     llm: {
       provider: 'codex',
       queryModel: 'gpt-5.6-terra',
-      reasoningEffort: undefined,
+      reasoningEffort: 'high',
     },
   });
 });
@@ -48,7 +48,7 @@ test('선택 값은 지정하면 반영되고 생략하면 기본값을 쓴다',
   const defaults = validateApiConfig(validEnv());
   assert.equal(defaults.port, 3000);
   assert.equal(defaults.neo4j.database, 'neo4j');
-  assert.equal(defaults.llm.reasoningEffort, undefined);
+  assert.equal(defaults.llm.reasoningEffort, 'high');
 });
 
 test('필수 값이 없으면 기동을 막는 예외가 난다', () => {
@@ -71,7 +71,7 @@ test('선택 값이 빈 문자열이면 기본값으로 되돌아간다', () => 
 
   assert.equal(config.port, 3000);
   assert.equal(config.neo4j.database, 'neo4j');
-  assert.equal(config.llm.reasoningEffort, undefined);
+  assert.equal(config.llm.reasoningEffort, 'high');
 });
 
 test('NEO4J_AUTH를 user와 password로 분해한다', () => {
