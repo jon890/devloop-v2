@@ -40,7 +40,7 @@ pnpm workspaces monorepo 다.
 
 ```
 packages/shared/     온톨로지 계약 · API 타입 · Concept 표준 사전 코어
-packages/llm/        LLM 호출 전송 — 상주 app-server 클라이언트와 서버 생명주기
+packages/llm/        LLM 호출 전송 — Responses 직접 호출과 상주 app-server, 설정으로 고른다
 apps/pipeline/       수집 → 추출 → 적재 CLI
 apps/api/            질의응답 REST (NestJS)
 apps/web/            React 와 Vite UI
@@ -102,17 +102,44 @@ repository는 행 단위 조회·삽입·삭제만 수행하고, 전달받은 `R
 ## packages/llm
 
 LLM 호출의 **전송**을 소유한다. 무엇을 물어볼지는 모르고, 어떻게 보낼지만 안다.
-결정과 실측 근거는 [ADR 0008](adr/0008-persistent-llm-transport.md) 이 소유한다.
+
+전송이 둘이고 **설정으로 고른다.** 기본은 직접 호출이다.
+
+| 전송 | 무엇을 보내나 | 결정 |
+| --- | --- | --- |
+| Responses 직접 호출 (기본) | 완성 요청 하나 | [ADR 0009](adr/0009-direct-responses-transport.md) |
+| 상주 `app-server` (되돌릴 길) | 에이전트 턴 — 시스템 프롬프트·도구 정의가 함께 간다 | [ADR 0008](adr/0008-persistent-llm-transport.md) |
+
+**둘을 유지하는 이유** — 직접 호출이 쓰는 엔드포인트가 문서화되지 않은 내부 경로다.
+바뀌면 설정 하나로 상주 모드로 돌아가야 한다.
 
 | 관심사 | 파일 | 소유 |
 | --- | --- | --- |
 | 서버 생명주기 | `app-server.process.ts` | `codex app-server` 를 자식으로 띄우고, 준비를 확인하고, 죽인다 |
 | JSON-RPC 왕복 | `app-server.client.ts` | `initialize`·`thread/start`·`turn/start` 와 알림 대기 |
-| 조립과 어댑터 계약 | `llm.adapter.ts` | WebSocket 전송을 붙이고 `complete(prompt, opts)`·`close()` 를 낸다 |
+| 직접 호출 왕복 | `responses.client.ts` | 요청 조립, SSE 스트림 파싱, 401 판정 |
+| 자격증명과 주소 | `responses.credentials.ts` | 어디로 보내고 어떤 헤더를 붙이나. 제공자별로 이것만 갈린다 |
+| 조립과 어댑터 계약 | `llm.adapter.ts` | 설정에 맞는 전송을 붙이고 `complete(prompt, opts)`·`close()` 를 낸다 |
 | 공개 타입 | `llm.types.ts` | `JsonRpcTransport`·`AppServerHandle`·`LlmTransport` 와 호출 옵션 |
 | 공개 표면 | `index.ts` | 위 타입과 `startAppServer`, 어댑터만 내보낸다 |
 
-앞 세 관심사(생명주기·왕복·조립)가 이 경계 안에 있어야 하는 이유다.
+**추론 강도는 호출자가 명시한다.** 안 넘기면 전송마다 자기 기본값을 써서 전송을 바꿀 때
+품질이 조용히 바뀐다 (ADR 0009 가 이 함정을 기록한다).
+
+**토큰 갱신은 이 패키지가 하지 않는다.** 호출할 때마다 `~/.codex/auth.json` 을 읽어
+`codex` 가 갱신한 값을 따라가고, 401 이면 즉시 실패시킨다.
+
+**자격증명을 요청 조립에서 떼어 둔다.** 두 경로가 같은 Responses 형식을 쓰고 주소·헤더만 갈린다.
+
+```
+responses.credentials.ts  →  { baseUrl, headers }   ← 제공자마다 이것만 다르다
+responses.client.ts       →  요청 본문 조립 · SSE 파싱 · 오류 판정  (공유)
+```
+
+지금 구현하는 제공자는 ChatGPT 계정 하나다. 종량제 API 제공자는 **만들지 않는다** —
+`ADR 0002` 가 금지한다. 그 결정이 바뀌면 이 이음매에 제공자 하나를 더하는 일이 된다.
+
+상주 전송의 세 관심사(생명주기·왕복·조립)가 이 경계 안에 있어야 하는 이유다.
 
 - **서버가 하나에 매달린 자원이다.** 두 앱이 각자 띄우므로 띄우고 죽이는 규칙이 한 곳에 있어야 한다
 - **완료 판정이 까다롭다.** `turn/start` 는 즉시 응답하고 완료는 `turn/completed` 알림으로 온다.
