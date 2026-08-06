@@ -1,7 +1,7 @@
 # Phase 03 — 기본 전송을 직접 호출로 바꾸고 상주 전송을 스위치로 남긴다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

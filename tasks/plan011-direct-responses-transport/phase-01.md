@@ -1,7 +1,7 @@
 # Phase 01 — packages/llm 에 Responses 직접 전송을 만든다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

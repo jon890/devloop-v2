@@ -1,7 +1,7 @@
 # Phase 04 — 두 전송을 번갈아 측정한다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 
