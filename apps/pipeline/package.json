@@ -18,6 +18,8 @@
     "infer-knowledge": "pnpm build && node dist/main.js infer-knowledge",
     "normalize-memory": "pnpm build && node dist/memory/cli.js normalize",
     "extract-memory": "pnpm build && node dist/memory/cli.js extract",
+    "build-memory-wiki": "pnpm build && node dist/memory/cli.js build",
+    "memory-search": "pnpm build && node dist/memory/cli.js search",
     "migrate-registry": "pnpm build && node dist/registry/migrate.js",
     "register-project": "pnpm build && node dist/registry/register-project.js",
     "import-curation": "pnpm build && node dist/registry/import-curation.js",

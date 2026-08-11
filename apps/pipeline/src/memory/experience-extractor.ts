@@ -11,6 +11,7 @@ import {
   type EvidencePacket,
   type MemoryRecord,
 } from "@devloop/shared";
+import { normalizeProjectCode } from "../cli-options";
 import { ResponsesCliAdapter, type LlmCli } from "../llm";
 import { compareText, hashCanonical, sha256 } from "./evidence-serialization";
 import { readExtractionCache, writeExtractionCache, type ExtractionCacheIdentity } from "./experience-cache";
@@ -193,8 +194,7 @@ export async function extractExperience(options: ExtractExperienceOptions): Prom
 /** @internal fake LLM 회귀 테스트 전용 seam. 제품 CLI는 이 함수를 import하지 않는다. */
 export async function extractExperienceWithLlmForTest(options: ExtractExperienceOptions, llm: LlmCli): Promise<ExtractExperienceResult> {
   const startedAt = performance.now();
-  const project = options.project.trim();
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(project)) throw new Error(`잘못된 project 이름입니다: ${project}`);
+  const project = normalizeProjectCode(options.project);
   const source = await readCurrentSource(options.dataDir, project);
   const selected = selectPackets(source.packets, options);
   const successfulPacketIds: string[] = [];

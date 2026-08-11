@@ -1,7 +1,7 @@
 # Phase 03 — compact Wiki와 단일 lexical 검색을 구현한다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

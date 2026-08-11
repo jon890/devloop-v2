@@ -1,4 +1,5 @@
 import { MEMORY_SCHEMA_VERSION } from "@devloop/shared";
+import { normalizeProjectCode } from "../cli-options";
 import { normalizeDooraySource } from "./dooray-source";
 import { compareText, hashCanonical } from "./evidence-serialization";
 import { normalizeGitSource, type GitCommandRunner } from "./git-source";
@@ -22,10 +23,7 @@ export interface NormalizeEvidenceResult {
 }
 
 export async function normalizeEvidence(options: NormalizeEvidenceOptions): Promise<NormalizeEvidenceResult> {
-  const project = options.project.trim();
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(project)) {
-    throw new Error(`project는 영문자·숫자로 시작하고 영문자·숫자·점·밑줄·하이픈만 포함해야 합니다: ${project}`);
-  }
+  const project = normalizeProjectCode(options.project);
 
   // 원천 하나라도 실패하면 generation publication을 시작하지 않는다.
   const [dooray, git] = await Promise.all([
