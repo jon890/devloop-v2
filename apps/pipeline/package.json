@@ -16,11 +16,12 @@
     "seed-concepts": "pnpm build && node dist/main.js seed-concepts",
     "parse-structure": "pnpm build && node dist/main.js parse-structure",
     "infer-knowledge": "pnpm build && node dist/main.js infer-knowledge",
+    "normalize-memory": "pnpm build && node dist/memory/cli.js normalize",
     "migrate-registry": "pnpm build && node dist/registry/migrate.js",
     "register-project": "pnpm build && node dist/registry/register-project.js",
     "import-curation": "pnpm build && node dist/registry/import-curation.js",
     "export-curation": "pnpm build && node dist/registry/export-curation.js",
-    "test": "pnpm --filter @devloop/shared build && pnpm build && node --test dist/*.test.js dist/config/*.test.js dist/fetch/*.test.js dist/infer/*.test.js dist/llm/*.test.js dist/neo4j/*.test.js dist/parse/*.test.js dist/registry/*.test.js dist/resolve/*.test.js test/*.test.cjs"
+    "test": "pnpm --filter @devloop/shared build && pnpm build && node --test dist/*.test.js dist/config/*.test.js dist/fetch/*.test.js dist/infer/*.test.js dist/llm/*.test.js dist/memory/*.test.js dist/neo4j/*.test.js dist/parse/*.test.js dist/registry/*.test.js dist/resolve/*.test.js test/*.test.cjs"
   },
   "dependencies": {
     "@devloop/llm": "workspace:*",

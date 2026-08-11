@@ -1,7 +1,7 @@
 {
   "name": "plan012-experience-memory",
   "description": "Dooray 업무·댓글·Wiki와 OCR Git 이력을 immutable generation으로 만들고 원문 추적 가능한 Experience Memory를 단일 lexical 검색으로 제공한다",
-  "status": "pending",
+  "status": "in_progress",
   "created_at": "2026-08-11",
   "total_phases": 4,
   "phases": [
@@ -10,7 +10,7 @@
       "file": "phase-01.md",
       "title": "세 원천을 안정적인 evidence packet으로 정규화한다",
       "execution_profile": "standard",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "number": 2,
