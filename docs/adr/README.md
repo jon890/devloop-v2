@@ -15,6 +15,7 @@
 | [0009](0009-direct-responses-transport.md) | LLM 호출을 Responses 엔드포인트로 직접 보낸다 | 채택 |
 | [0010](0010-experience-memory-parallel-lane.md) | Experience Memory를 GraphRAG와 병렬로 둔다 | 채택 |
 | [0011](0011-luna-memory-extraction-and-lexical-retrieval.md) | Memory 추출은 Luna로 고정하고 검색은 lexical로 시작한다 | 채택 |
+| [0012](0012-source-locked-agent-memory-evaluation.md) | Coding Agent Memory를 source-locked 반복 실행으로 평가한다 | 채택 |
 
 새 ADR 은 다음 번호로 파일을 만들고 이 표 **끝에 행을 추가**한다.
 기존 행을 재배열하거나 중간에 끼워 넣지 않는다 — 여러 작업이 병행될 때 병합이 깔끔해진다.

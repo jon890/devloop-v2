@@ -1182,3 +1182,21 @@ Coding Agent Memory를 위해 변경할 부분.
 - Dooray 업무·댓글, Dooray Wiki, Git 저장소를 모두 지식 원천으로 사용한다.
 - 모든 Memory에서 안정적인 원천 식별자와 원문 link를 제공한다.
 - 지식 추출·검색 LLM은 `gpt-5.6-luna`로 고정하고 fallback하지 않는다.
+
+---
+
+# 21. 전체 Issue 구현 실행 단위
+
+2026-08-12 기준 #4~#7의 production 기준선은 구현됐지만, #3과 #8~#12의 Agent 통합·효용 평가는 남아 있다.
+모든 Issue를 닫기 위해 다음 순서를 고정한다.
+
+1. source-locked Coding Agent benchmark와 voluntary trigger 계측을 구현한다.
+2. #4~#7의 각 acceptance criterion을 코드·실측 근거로 다시 확인한다.
+3. no-memory, agent-triggered, oracle-memory를 같은 task와 revision에서 3회씩 실행한다.
+4. 실제 miss가 있을 때만 대체 retrieval을 비교한다.
+5. 관계형 task에서만 Graph 추가 가치를 비교한다.
+6. voluntary 결과 뒤 automatic retrieval의 추가 회수와 오염을 비교한다.
+
+평가 task 원문, 실제 checkout path, 내부 URL, Agent 전문은 ignored private run에 둔다.
+공개 suite와 report는 안정 task ID, 분류, hash, 집계, 검증 공백만 남긴다.
+task success와 wrong edit가 최우선이며 token은 Agent가 실제 usage를 제공할 때만 기록한다.

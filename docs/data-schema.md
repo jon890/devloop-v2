@@ -639,3 +639,61 @@ source, extraction, Wiki generation ID에는 실행 시각을 넣지 않는다.
 원천이 사라져도 이전 Memory를 자동 삭제하지 않는다.
 새 build에서 `uncertain` 후보로 report하고, 원문과 Git history를 확인한 뒤 상태를 교정한다.
 첫 구현은 자동 merge나 삭제를 하지 않는다.
+
+## Coding Agent Memory 평가 계약
+
+공개 suite와 private source lock을 분리한다.
+공개 저장소에 내부 URL, 실제 checkout path, Agent 원문 응답을 넣지 않으면서도 실제 실행은 고정할 수 있어야 한다.
+
+### 공개 suite
+
+| 필드 | 형식 | 제약 |
+| --- | --- | --- |
+| `schemaVersion` | `memory-eval-suite/v1` | 형식 고정 |
+| `project` | string | Memory project |
+| `suiteId` | string | 안정 ID |
+| `tasks` | array | 두 분류를 각각 하나 이상 포함 |
+
+task는 `id`, `classification`, `taskType`, `sourceLockKey`, `expectedTrigger`를 가진다.
+`classification`은 `code-only` 또는 `experience-needed`다.
+`taskType`은 `ordinary` 또는 `relationship-heavy`다.
+prompt, 실제 revision, 원문 URL, 허용 경로와 검증 명령은 private source lock이 소유한다.
+
+### private source lock
+
+private source lock은 ignored `eval/runs/` 아래에 두며 다음 필드를 task별로 가진다.
+
+| 필드 | 형식 | 제약 |
+| --- | --- | --- |
+| `repositoryPath` | absolute path | `/Users/nhn/projects/OCR` 아래 Git repo |
+| `repositoryUrl` | HTTP URL | 원문 repository |
+| `baseRevision` | 40자 SHA | Agent가 수정할 snapshot |
+| `targetRevision` | 40자 SHA | task 분류와 oracle을 확인한 원문 commit |
+| `sourceUrl` | HTTP URL | target commit 원문 link |
+| `prompt` | string | 세 조건에서 같은 사용자 task |
+| `allowedPaths` | string[] | wrong edit 경계 |
+| `validationCommands` | string[] | workspace 내부 읽기·검증 명령 |
+| `oracle` | object | query, Memory ID 또는 SourceRef key |
+
+runner는 public suite hash와 private source lock hash를 함께 잠근다.
+source lock 값은 report에 복제하지 않고 hash와 task 수만 공개한다.
+
+### Memory evaluation run
+
+raw run은 `(taskId, condition, repetition)`을 유일 키로 가진다.
+
+| 필드 | 형식 | 설명 |
+| --- | --- | --- |
+| `condition` | enum | `no-memory`, `agent-triggered`, `oracle-memory`, `memory-graph`, `automatic` |
+| `taskSuccess` | boolean | 모든 task validation 통과 |
+| `wrongEditCount` | non-negative integer | 허용 경로 밖 변경 수 |
+| `wallTimeMs` | non-negative integer | 전체 실행 시간 |
+| `turns`, `toolCalls`, `sourceReads`, `memoryCalls`, `graphCalls` | non-negative integer | event에서 관측한 횟수 |
+| `inputTokens`, `outputTokens` | integer 또는 null | Agent가 제공한 실제 usage만 기록 |
+| `reworkCount` | non-negative integer | 같은 대상에 대한 반복 수정 |
+| `failureBoundary` | enum | `SOURCE`, `MEMORY`, `RETRIEVAL`, `AGENT`, `IMPLEMENTATION`, `VALIDATION`, `NONE` |
+| `workspaceDiffHash` | SHA-256 | 원문을 복제하지 않는 변경 증거 |
+
+문자 수로 token을 대신하지 않는다.
+조건 비교는 suite hash, source lock hash, base revision, validation command, Memory index hash가 모두 같을 때만 허용한다.
+Retrieval Tax와 Memory Benefit은 별도 표이며 단일 종합 점수를 저장하지 않는다.

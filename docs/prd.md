@@ -125,3 +125,18 @@ Coding Agent의 task success가 나빠지지 않고 잘못된 수정이나 재�
 2026-08-11 수직 검증에서 최신 Dooray raw와 OCR Git 9개 저장소를 source manifest로 고정했다.
 `gpt-5.6-luna` bounded 추출은 `--sample-per-source 3` 기준 최종 재실행에서 calls 0, cacheHits 12를 기록했다.
 부분 추출이므로 Wiki index는 `complete=false`이며, task utility 판정은 후속 평가가 소유한다.
+
+## 전체 이슈 완료 프로그램
+
+2026-08-12부터 #3~#12를 모두 실제 완료 상태로 만드는 다섯 검증 단위를 순서대로 진행한다.
+
+1. 원천 revision과 성공 판정을 고정한 Coding Agent benchmark, voluntary trigger, 실행 계측을 만든다.
+2. 같은 task를 no-memory, agent-triggered, oracle-memory 조건에서 각각 3회 실행한다.
+3. 실제 lexical miss가 있을 때만 SQLite FTS와 embedding hybrid를 격리된 비교 실험으로 검증한다.
+4. 관계형 task와 일반 task에서 Memory와 Memory+Graph의 전체 비용과 성공을 비교한다.
+5. voluntary 기준선 뒤 automatic retrieval을 같은 task, revision, index로 평가한다.
+
+task success와 wrong edit가 최우선 판정이다.
+Retrieval Tax와 Memory Benefit은 서로 다른 표로 보고하고 단위가 다른 값을 합산하지 않는다.
+관측할 수 없는 token 수는 문자 수로 추정하지 않고 `null`로 기록한다.
+비교 실험은 production retrieval을 바꾸지 않으며 채택이 필요하면 별도 결정으로 남긴다.

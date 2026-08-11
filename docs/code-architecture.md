@@ -213,6 +213,10 @@ Memory 경로가 두 값을 fallback으로 읽지 않는다.
 `memory-search` CLI가 JSON 한 번으로 결과와 측정값을 반환한다.
 Claude Code와 Codex 사용 지침은 같은 명령을 가리키며 저장 구조를 노출하지 않는다.
 
+두 지침의 voluntary policy는 동일한 marker 구간으로 유지하고 테스트에서 바이트 동등을 검사한다.
+검색 구현은 Agent별 adapter를 만들지 않는다.
+평가 runner만 Codex JSONL과 Claude stream-json을 각각 telemetry event로 정규화한다.
+
 **원천 형식에 종속된 판정 규칙은 전용 모듈로 뺀다.** GitHub 훅 댓글 판정과 머리말 제거가 그 예다.
 `structural-extractor.ts` 안에 정규식으로 섞어 두면 세 가지가 나빠진다.
 
@@ -426,6 +430,27 @@ eval/
 
 `kg-model-bench`는 모델 선택이라는 별도 관심사를 유지한다.
 검색 품질 측정이 필요할 때 `kg-eval` 결과를 재사용하며 자체 채점 규칙을 복제하지 않는다.
+
+Coding Agent Memory 평가는 같은 skill 안에서 다음 책임으로 분리한다.
+
+```text
+.claude/skills/kg-eval/scripts/memory/
+  suite.mjs          public suite와 private source lock 검증
+  workspace.mjs      pinned Git object를 ignored 평가 workspace로 materialize
+  condition.mjs      no-memory, voluntary, oracle, graph, automatic 입력 구성
+  agent-runner.mjs   Codex·Claude 실행과 timeout·종료 처리
+  telemetry.mjs      turn, tool, source read, memory call, token 관측 정규화
+  judge.mjs          validation, wrong edit, rework 판정
+  result.mjs         재개 조건과 원자적 raw result 저장
+```
+
+entrypoint는 이 모듈을 조합할 뿐 판정 규칙을 다시 구현하지 않는다.
+실제 내부 원문, repository path, revision, Agent 전문은 ignored `eval/runs/`에만 둔다.
+커밋하는 suite는 task 분류와 안정 ID를, report는 hash와 집계만 보존한다.
+
+retrieval과 Graph 비교 adapter는 production `memory-search`를 바꾸지 않는다.
+SQLite FTS는 Node 내장 `node:sqlite`를 사용하고, embedding은 격리 adapter가 availability와 운영 비용을 함께 보고한다.
+Graph adapter는 source-backed 이웃 조회를 사용하며 Memory 추출 입력이나 자동 production 경로로 연결하지 않는다.
 
 ## 테스트 배치와 함정
 
