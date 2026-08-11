@@ -1,6 +1,6 @@
 # 흐름 — Experience Memory와 GraphRAG
 
-- 상태: plan012 목표 상태와 기존 GraphRAG 기준선
+- 상태: plan012 구현 완료와 기존 GraphRAG 기준선
 
 이 문서는 **무엇이 어디로 흐르는가**를 소유한다 — 단계 순서, 상태 전이, 실패와 부분 성공이다.
 모듈 배치는 `docs/code-architecture.md`, 데이터 형식은 `docs/data-schema.md` 가 소유한다.
@@ -59,9 +59,13 @@ URL은 이동할 수 있으므로 `sourceType`과 `sourceId`를 별도 식별자
 | Git 저장소 하나를 읽지 못함 | 해당 저장소와 오류를 report에 남기고 전체 정규화 실패 |
 | 모델이 `gpt-5.6-luna`가 아님 | LLM 호출 전에 실패 |
 | Luna 호출 일부 실패 | 성공분과 실패 report를 저장하지만 index를 incomplete로 표시 |
+| 같은 evidence 성공 재실행 | success cache로 LLM을 재호출하지 않는다 |
 | incomplete index 검색 | 기본 거부, 조사 목적의 명시 옵션에서만 허용 |
 | 검색 결과 0건 | 정상 응답으로 빈 `results`와 검색 측정값 반환 |
 | build 동시 실행 | lock을 먼저 얻은 실행만 진행하고 나머지는 실패 |
+
+Dooray task와 Wiki의 body가 비어 있지만 stable ID와 title이 있으면 title을 최소 evidence text로 쓴다.
+comment는 body가 핵심 원천이므로 빈 본문 fallback을 만들지 않고 실패한다.
 
 각 단계는 immutable generation 디렉터리를 임시 경로에 완전히 쓴 뒤 rename한다.
 generation 내부 파일을 모두 검증한 다음 `current-*.json` pointer 하나만 원자적으로 교체한다.

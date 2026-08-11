@@ -1,6 +1,6 @@
 # 코드 아키텍처
 
-- 상태: plan012 목표 상태와 기존 GraphRAG 기준선
+- 상태: plan012 구현 완료와 기존 GraphRAG 기준선
 
 이 문서는 **모듈 책임과 의존 방향**을 소유한다.
 단계 흐름은 `docs/flow.md`, 데이터 계약은 `docs/data-schema.md` 가 소유한다.
@@ -201,6 +201,8 @@ Git 원천은 `/Users/nhn/projects/OCR` 아래의 저장소를 읽기 전용으�
 Memory model은 환경변수 기본값이 아니다.
 Memory 도메인의 상수 `gpt-5.6-luna`를 호출 옵션에 직접 전달하고, 다른 model 인자를 받지 않는다.
 provider가 Codex가 아니거나 모델을 사용할 수 없으면 호출 전에 또는 첫 호출에서 실패한다.
+Experience structured output request schema는 Responses가 지원하는 JSON Schema 키만 싣는다.
+빈 문자열과 `sourceRefKeys` 중복은 request schema가 아니라 Zod post-validation에서 거부한다.
 
 일반 GraphRAG의 `LLM_MODEL`과 `QUERY_LLM_MODEL`은 기존 비교군의 설정으로 남는다.
 Memory 경로가 두 값을 fallback으로 읽지 않는다.

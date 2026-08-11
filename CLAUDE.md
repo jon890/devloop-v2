@@ -118,6 +118,8 @@ gold 는 필수(`required`)와 보강(`supporting`)으로 나눠 적는다.
 - LLM 은 구독 계정으로만 쓴다. 종량제 API 는 금지한다. 호출은 Responses 엔드포인트로 직접 보낸다
 - 모델 — 추출 `gpt-5.5`, 질의 `gpt-5.6-terra` (벤치마크로 확정)
 - Experience Memory 추출 모델은 `gpt-5.6-luna`, reasoning effort는 `low`로 강제한다. 환경변수나 다른 모델로 fallback하지 않는다
+- Experience Memory request schema는 Responses Structured Outputs 지원 키만 사용한다.
+  빈 문자열과 `sourceRefKeys` 중복은 Zod post-validation에서 거부한다
 - 계획 lane은 기존 관리 문서와 task를 확정하고, 구현 lane은 별도 실행 컨텍스트에서 phase 구현·검증·커밋을 수행한다
 - 테스트는 데모 데이터가 아니라 실제 Dooray·GHE 데이터로 한다
 
@@ -134,6 +136,8 @@ gold 는 필수(`required`)와 보강(`supporting`)으로 나눠 적는다.
 - **끝난 작업의 경위** — `git log` 와 각 plan 의 `tasks/plan{N}-*/` 가 소유한다
 - **사건별 원인·조치** — `docs/retrospectives/`. 실행 기록은 `RUNS.md`
 - **질의 도메인의 살아 있는 제약** — `docs/code-architecture.md` 의 "질의 도메인의 알려진 한계"
+- **Experience Memory 수직 검증** — `eval/reports/2026-08-11-plan012-experience-memory.md`.
+  최신 raw 기준 source manifest, Luna bounded cache, Wiki/search smoke를 기록했다
 
 미실행으로 남은 결정이다. 각각 근거 문서가 있다.
 

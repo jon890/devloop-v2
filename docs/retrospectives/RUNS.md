@@ -20,3 +20,4 @@
 | 2026-08-06 | planning | plan011-direct-responses-transport | — | 5 | — | — | 5 | 없음 | 4 | task 커밋 완료. 탐침이 plan010 의 결론을 정정했다 — outputSchema 비용은 형식 강제가 아니라 출력 분량이었고, 몰아 재기가 만든 착오도 함께 드러났다 |
 | 2026-08-06 | plan011 | plan011-direct-responses-transport | — | 5 | 0 | 0 | 1 | 없음 | 2 | Responses 직접 호출을 기본으로 전환했다. 교차 측정에서 문자당 처리는 빨랐지만 답변이 길어 실제 총지연은 회귀했고, 답변 분량을 후속 과제로 남겼다 |
 | 2026-08-11 | planning | plan012-experience-memory | — | 4 | — | — | 9 | 없음 | 2 | 기존 관리 문서와 task만 갱신했다. 계획 lane과 구현 lane을 분리하고 세 원천, 원문 link, Luna 고정, bounded 파일럿을 확정했다 |
+| 2026-08-11 | build-with-teams | plan012-experience-memory | standard | 4 | 0 | 5 | 7 | 없음 | 0 | 최신 Dooray raw와 OCR Git 9개 repo 수직 검증 완료. schema v2로 Structured Outputs 400을 해소했고 최종 bounded 재실행 calls 0/cacheHits 12, Wiki 37문서, 검색 smoke 1/6/0건을 기록했다 |

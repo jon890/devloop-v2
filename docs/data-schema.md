@@ -459,15 +459,15 @@ memory/<project>/
   "sourceGenerationId": "src-6f92...",
   "dooray": {
     "contentHash": "sha256:...",
-    "tasks": 490,
-    "comments": 854,
-    "wikis": 47
+    "tasks": 3,
+    "comments": 5,
+    "wikis": 2
   },
   "gitRepositories": [
     {
       "name": "OCR.API",
-      "remoteUrl": "https://github.nhnent.com/TOASTCloud/OCR.API",
-      "revision": "cb39cd99efc261cdf730d35078ddaa52a298bded"
+      "remoteUrl": "https://git.example.com/team/OCR.API",
+      "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     }
   ]
 }
@@ -512,10 +512,10 @@ Git SourceRef의 `sourceId`는 원격 저장소 사이의 충돌을 막기 위�
 ```json
 {
   "schemaVersion": 1,
-  "id": "dooray-task:3935008503199859816",
+  "id": "dooray-task:task-id",
   "project": "tc-ocr",
   "sourceKind": "dooray-task",
-  "title": "Document AI 응답 노출 이슈",
+  "title": "예시 업무",
   "scope": {
     "project": "tc-ocr",
     "repositories": [],
@@ -523,11 +523,11 @@ Git SourceRef의 `sourceId`는 원격 저장소 사이의 충돌을 막기 위�
   },
   "segments": [
     {
-      "sourceRefKey": "dooray-task:3935008503199859816",
+      "sourceRefKey": "dooray-task:task-id",
       "text": "..."
     },
     {
-      "sourceRefKey": "dooray-comment:4053801154616695067",
+      "sourceRefKey": "dooray-comment:comment-id",
       "text": "..."
     }
   ],
@@ -597,6 +597,8 @@ Memory ID는 kind, 정규화한 title, 정렬한 `sourceRefKey`의 SHA-256으로
 그 generation의 deterministic manifest는 `sourceGenerationId`, `sourceManifestHash`, selection,
 model, effort, prompt version, 성공·실패 packet ID, 결과 content hash, `complete`를 가진다.
 builder는 manifest와 JSONL이 같은 generation에 있을 때만 읽는다.
+Responses request schema는 `experience-memory-v2`부터 unsupported `minLength`와 `uniqueItems`를 싣지 않는다.
+동일한 제약은 Zod post-validation에서 유지한다.
 
 calls, cache hits, elapsed time, 원래 오류 문자열처럼 실행마다 달라지는 값은 generation에 넣지 않는다.
 매 실행은 `extraction-runs/<runId>/extraction-run-report.json`에 이 값을 기록하고

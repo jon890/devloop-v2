@@ -3,7 +3,7 @@
 Dooray 프로젝트(기본 tc-ocr)의 업무·위키를 수집해 고정 온톨로지 기반 지식그래프(Neo4j)로 적재하고,
 자연어 관계형 질문에 근거 서브그래프 시각화와 함께 답하는 MVP.
 
-현재 `plan012-experience-memory`에서 Coding Agent용 Experience Memory를 병렬 경로로 추가하고 있다.
+`plan012-experience-memory`에서 Coding Agent용 Experience Memory 병렬 경로를 추가했다.
 새 경로는 Dooray 업무·댓글·Wiki와 `/Users/nhn/projects/OCR`의 Git 이력을 사용하며,
 현재 코드에서 다시 찾을 수 없는 결정·제약·incident·failed attempt를 compact Markdown으로 제공한다.
 기존 GraphRAG는 제거하지 않고 전체 효용 비교군으로 유지한다.
@@ -40,6 +40,19 @@ docker compose up -d neo4j
 ```bash
 pnpm pipeline -- --project tc-ocr
 ```
+
+Experience Memory 수직 경로는 별도 파일 체인이다.
+
+```bash
+pnpm --filter pipeline fetch-dooray -- --project tc-ocr
+pnpm --filter pipeline normalize-memory -- --project tc-ocr --git-root /Users/nhn/projects/OCR
+pnpm --filter pipeline extract-memory -- --project tc-ocr --sample-per-source 3
+pnpm --filter pipeline build-memory-wiki -- --project tc-ocr --allow-incomplete
+pnpm --filter pipeline memory-search -- --project tc-ocr --query "운영 장애 변경 금지 제약" --allow-incomplete
+```
+
+2026-08-11 실측은 `eval/reports/2026-08-11-plan012-experience-memory.md`를 본다.
+현재 pilot 산출물은 incomplete일 수 있으므로 build/search에만 `--allow-incomplete`를 명시한다.
 
 API와 웹은 각각 별도 터미널에서 실행한다.
 

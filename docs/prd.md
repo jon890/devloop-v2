@@ -1,6 +1,6 @@
 # PRD — Coding Agent Experience Memory
 
-- 상태: plan012 목표 상태
+- 상태: plan012 구현 완료, pilot 검증 완료
 - 기준일: 2026-08-11
 - 이전 기준선: 업무 지식그래프 GraphRAG
 
@@ -119,3 +119,9 @@ Coding Agent의 task success가 나빠지지 않고 잘못된 수정이나 재�
 - 전체 Git 이력 추출이 주는 추가 가치와 LLM 호출량의 균형
 
 이 항목은 구현을 미리 확정하지 않고 사전 조사와 비교 평가로 판단한다.
+
+## 최신 pilot 상태
+
+2026-08-11 수직 검증에서 최신 Dooray raw와 OCR Git 9개 저장소를 source manifest로 고정했다.
+`gpt-5.6-luna` bounded 추출은 `--sample-per-source 3` 기준 최종 재실행에서 calls 0, cacheHits 12를 기록했다.
+부분 추출이므로 Wiki index는 `complete=false`이며, task utility 판정은 후속 평가가 소유한다.
