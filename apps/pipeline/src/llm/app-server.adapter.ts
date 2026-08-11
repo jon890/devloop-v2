@@ -1,4 +1,4 @@
-import { AppServerLlmTransport } from "@devloop/llm";
+import { AppServerLlmTransport, type LlmTransport } from "@devloop/llm";
 import { LlmOptionsSchema, type LlmCli, type LlmOptions, type LlmResult } from "./llm-cli";
 
 /**
@@ -7,7 +7,7 @@ import { LlmOptionsSchema, type LlmCli, type LlmOptions, type LlmResult } from "
  * 서버 handle 은 `AppServerLlmTransport` 가 소유한다. 호출자는 `close()` 만 부르면 된다.
  */
 export class AppServerCliAdapter implements LlmCli {
-  private constructor(private readonly transport: AppServerLlmTransport) {}
+  constructor(private readonly transport: LlmTransport) {}
 
   /** 단계 시작에 한 번 부른다. 호출마다 띄우면 상주의 이득이 사라진다. */
   static async start(cwd: string): Promise<AppServerCliAdapter> {
@@ -28,6 +28,7 @@ export class AppServerCliAdapter implements LlmCli {
       model: parsedOptions.model,
       effort: parsedOptions.effort,
       timeoutMs: parsedOptions.timeoutMs,
+      outputSchema: parsedOptions.outputSchema,
     });
     return { text: result.text, elapsedMs: result.elapsedMs };
   }

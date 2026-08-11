@@ -6,6 +6,7 @@ export const LlmOptionsSchema = z.object({
   timeoutMs: z.number().int().positive().optional(),
   model: z.string().min(1).optional(),
   effort: LlmReasoningEffortSchema.optional(),
+  outputSchema: z.record(z.string(), z.unknown()).optional(),
 });
 export type LlmOptions = z.infer<typeof LlmOptionsSchema>;
 export type LlmReasoningEffort = z.infer<typeof LlmReasoningEffortSchema>;

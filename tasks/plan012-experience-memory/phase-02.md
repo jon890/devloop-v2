@@ -1,7 +1,7 @@
 # Phase 02 — Luna 고정 추출과 증분 cache를 구현한다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

@@ -37,7 +37,7 @@ export const SourceManifestSchema = z.object({
 });
 export type SourceManifest = z.infer<typeof SourceManifestSchema>;
 
-const SourcePointerSchema = z.object({
+export const SourcePointerSchema = z.object({
   schemaVersion: z.literal(MEMORY_SCHEMA_VERSION),
   generationId: z.string().regex(/^src-[0-9a-f]{64}$/),
 });
@@ -47,7 +47,7 @@ function packetBody(packet: EvidencePacket): Omit<EvidencePacket, "contentHash">
   return body;
 }
 
-function validatePackets(evidence: string): EvidencePacket[] {
+export function validateEvidenceJsonl(evidence: string): EvidencePacket[] {
   const packets = evidence
     .split(/\r?\n/)
     .filter(Boolean)
@@ -86,7 +86,7 @@ async function validateGeneration(directory: string, expectedManifest: string, e
     readFile(path.join(directory, EVIDENCE_FILE), "utf8"),
   ]);
   SourceManifestSchema.parse(JSON.parse(manifestText) as unknown);
-  validatePackets(evidenceText);
+  validateEvidenceJsonl(evidenceText);
   if (manifestText !== expectedManifest || evidenceText !== expectedEvidence) {
     throw new Error(`immutable source generation의 기존 byte가 기대값과 다릅니다: ${directory}`);
   }
@@ -129,7 +129,7 @@ export async function publishSourceGeneration(dataDir: string, manifestInput: So
   const manifest = SourceManifestSchema.parse(manifestInput);
   const manifestText = `${canonicalString(manifest)}\n`;
   const evidenceText = packets.length ? `${packets.map(canonicalString).join("\n")}\n` : "";
-  validatePackets(evidenceText);
+  validateEvidenceJsonl(evidenceText);
 
   const projectDirectory = path.join(dataDir, "memory", manifest.project);
   const generationsDirectory = path.join(projectDirectory, SOURCE_GENERATIONS_DIRECTORY);
