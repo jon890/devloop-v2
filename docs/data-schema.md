@@ -1,10 +1,11 @@
 # 데이터 스키마
 
-- 상태: 기준선 (2026-07-29 작성)
+- 상태: plan012 목표 상태와 기존 GraphRAG 기준선
 - 원천: 깊이 인터뷰 8라운드(`~/personal/.omc/specs/deep-interview-dooray-knowledge-graph.md`), 운영 그래프 실측
 
 이 문서는 **저장 모델의 필드·키·제약·삭제 규칙과 구조화 형식**을 소유한다.
-계약의 실행 소스는 `packages/shared/src/ontology/` 이고 이 문서와 1:1 로 맞춘다.
+Graph 계약의 실행 소스는 `packages/shared/src/ontology/`, Memory 계약의 실행 소스는 `packages/shared/src/memory/`다.
+Experience Memory는 기존 graph schema를 바꾸지 않는 별도 파일 계약이며 Neo4j와 Postgres migration은 없다.
 
 ## 원천 데이터
 
@@ -410,3 +411,231 @@ API는 실제 모델 식별자를 응답하지 않는다.
 - 반복 간 안정성
 - 최종 `PASS`, `FAIL`, `REVIEW`
 - 실패 경계인 `SOURCE`, `GRAPH`, `RETRIEVAL`, `ANSWER`
+
+## Experience Memory 파일 계약
+
+생성물은 `apps/pipeline/data/memory/<project>/` 아래에 둔다.
+이 경로는 사내 데이터이므로 git에서 제외한다.
+
+```text
+memory/<project>/
+  cache/
+  source-generations/<sourceGenerationId>/
+    source-manifest.json
+    evidence.jsonl
+  extraction-generations/<extractionGenerationId>/
+    extracted.jsonl
+    extraction-manifest.json
+  extraction-runs/<runId>/
+    extraction-run-report.json
+  wiki-generations/<wikiGenerationId>/
+    decisions/
+    constraints/
+    incidents/
+    failed-attempts/
+    lessons/
+    index.md
+    index.json
+  current-source.json
+  current-extraction.json
+  latest-extraction-run.json
+  current-wiki.json
+```
+
+각 generation은 임시 디렉터리에 완전히 쓴 뒤 rename하며 생성 후에는 수정하지 않는다.
+마지막에 `current-*.json` pointer 하나를 임시 파일에서 원자적으로 교체한다.
+여러 산출물을 차례로 덮어쓰지 않으므로 중간에 중단돼도 이전 pointer와 정상 generation을 유지한다.
+세 generation pointer의 공통 형식은 `{ "schemaVersion": 1, "generationId": "<stage-prefix>-<hash>" }`다.
+`latest-extraction-run.json`은 `{ "schemaVersion": 1, "runId": "run-<unique-id>" }` 형식이다.
+
+### Source manifest
+
+한 build가 읽은 원천 snapshot을 고정한다.
+
+```json
+{
+  "schemaVersion": 1,
+  "project": "tc-ocr",
+  "sourceGenerationId": "src-6f92...",
+  "dooray": {
+    "contentHash": "sha256:...",
+    "tasks": 3,
+    "comments": 5,
+    "wikis": 2
+  },
+  "gitRepositories": [
+    {
+      "name": "OCR.API",
+      "remoteUrl": "https://git.example.com/team/OCR.API",
+      "revision": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}
+```
+
+Git local `path`는 실행 시점 입력일 뿐 manifest와 Memory 검색 결과에 저장하지 않는다.
+기존 `fetch-dooray`는 수집 시각을 저장하지 않으므로 시각을 추측하지 않는다.
+`sourceGenerationId`는 Dooray canonical content hash와 정렬한 Git revision·remote URL의 hash로 만든다.
+같은 source snapshot은 실행 시각과 무관하게 같은 manifest byte와 generation ID를 만든다.
+
+### SourceRef
+
+모든 evidence segment와 Memory는 하나 이상의 원문 참조를 가진다.
+
+| 필드 | 타입 | 제약 |
+| --- | --- | --- |
+| `sourceId` | string | source type 안에서 안정적인 식별자 |
+| `sourceType` | enum | `dooray-task`, `dooray-comment`, `dooray-wiki`, `git-commit`, `git-file` |
+| `title` | string | 사람이 원문을 구분할 짧은 제목 |
+| `url` | URL string | 원문을 여는 HTTP link. 필수 |
+| `repository` | string | Git 원천에서 필수 |
+| `revision` | 40자 SHA | Git 원천에서 필수 |
+| `path` | string | `git-file`에서 필수 |
+| `parentId` | string | Dooray comment에서 부모 task ID |
+| `occurredAt` | ISO datetime | 원천이 제공할 때만 기록 |
+
+URL은 식별자가 아니다.
+Dooray 이동이나 Git remote 변경 시 안정 ID와 revision으로 다시 생성할 수 있다.
+segment와 LLM draft가 SourceRef를 가리킬 때는 저장 필드를 추가하지 않고
+`sourceRefKey = "${sourceType}:${sourceId}"` 합성 키를 사용한다.
+
+Git SourceRef의 `sourceId`는 원격 저장소 사이의 충돌을 막기 위해 다음과 같이 만든다.
+
+- `git-commit`: `<repository>@<40자 revision>`
+- `git-file`: `<repository>@<40자 revision>:<path>`
+
+### EvidencePacket
+
+정규화 단계의 한 레코드다.
+본문과 댓글처럼 provenance가 다른 텍스트는 `segments`에서 분리한다.
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "dooray-task:task-id",
+  "project": "tc-ocr",
+  "sourceKind": "dooray-task",
+  "title": "예시 업무",
+  "scope": {
+    "project": "tc-ocr",
+    "repositories": [],
+    "paths": []
+  },
+  "segments": [
+    {
+      "sourceRefKey": "dooray-task:task-id",
+      "text": "..."
+    },
+    {
+      "sourceRefKey": "dooray-comment:comment-id",
+      "text": "..."
+    }
+  ],
+  "sourceRefs": [],
+  "contentHash": "sha256:..."
+}
+```
+
+`contentHash`는 canonical JSON 직렬화의 SHA-256이다.
+추출 cache key는 `contentHash`, prompt version, model, reasoning effort를 모두 포함한다.
+
+Git commit evidence는 commit message, changed paths, 제한된 diff hunk를 segment로 가진다.
+기본 branch의 merge commit과 생성 파일, binary diff는 제외한다.
+여러 작은 commit은 원문 참조를 유지한 채 문자 예산 안에서 packet 하나로 묶을 수 있다.
+
+현재 경험 문서는 각 파일을 별도 `git-file` packet으로 만든다.
+대상은 repository root의 `README.md`, `CLAUDE.md`, `AGENTS.md`와 `docs/` 아래 Markdown이다.
+
+### MemoryRecord
+
+```json
+{
+  "schemaVersion": 1,
+  "id": "mem-6f92...",
+  "title": "질의 모델이 없으면 기동을 실패시킨다",
+  "kind": "constraint",
+  "status": "active",
+  "confidence": "high",
+  "summary": "Memory에 필요한 모델 설정이 없으면 실행을 중단한다.",
+  "why": "기본 모델로 조용히 실행되어 측정이 오염된 사건이 있었다.",
+  "doNot": ["모델이 없을 때 전송 기본값으로 대체하지 않는다."],
+  "scope": {
+    "project": "tc-ocr",
+    "repositories": ["OCR.API"],
+    "modules": ["llm"],
+    "paths": ["apps/api/src/config"]
+  },
+  "validFrom": "2026-07-29",
+  "validUntil": null,
+  "lastVerified": "2026-08-11",
+  "relatedTerms": ["fail-fast", "model config"],
+  "sourceRefs": []
+}
+```
+
+| 필드 | 제약 |
+| --- | --- |
+| `kind` | `decision`, `constraint`, `incident`, `failed-attempt`, `lesson` |
+| `status` | `active`, `superseded`, `deprecated`, `historical`, `uncertain` |
+| `confidence` | `high`, `medium`, `low` |
+| `title` | 개행 없는 한 줄 |
+| `summary` | 결론 한 문단. 원문 복제 금지 |
+| `why` | 코드에서 재구성하기 어려운 이유나 맥락 |
+| `doNot` | 근거가 있을 때만 기록하는 금지·주의 배열 |
+| `sourceRefs` | 1개 이상. evidence packet의 ref만 허용 |
+
+`convention`은 독립 kind가 아니다.
+반드시 지켜야 하면 constraint, 선택한 방식이면 decision으로 기록한다.
+historical context는 독립 kind가 아니라 `why`와 sourceRefs에 남긴다.
+
+Memory ID는 kind, 정규화한 title, 정렬한 `sourceRefKey`의 SHA-256으로 만든다.
+같은 입력에서 순서가 바뀌어도 ID가 바뀌지 않는다.
+
+### 검색 index와 응답
+
+`current-extraction.json`은 하나의 immutable extraction generation을 가리킨다.
+그 generation의 deterministic manifest는 `sourceGenerationId`, `sourceManifestHash`, selection,
+model, effort, prompt version, 성공·실패 packet ID, 결과 content hash, `complete`를 가진다.
+builder는 manifest와 JSONL이 같은 generation에 있을 때만 읽는다.
+Responses request schema는 `experience-memory-v2`부터 unsupported `minLength`와 `uniqueItems`를 싣지 않는다.
+동일한 제약은 Zod post-validation에서 유지한다.
+
+calls, cache hits, elapsed time, 원래 오류 문자열처럼 실행마다 달라지는 값은 generation에 넣지 않는다.
+매 실행은 `extraction-runs/<runId>/extraction-run-report.json`에 이 값을 기록하고
+`latest-extraction-run.json` pointer를 원자적으로 교체한다.
+같은 generation을 cache로 재사용해도 새 run report는 calls 0을 기록할 수 있다.
+
+`current-wiki.json`이 가리키는 `wiki-generations/<wikiGenerationId>/index.json`은
+검증된 MemoryRecord와 검색용 정규화 필드를 가진다.
+Markdown을 다시 parsing하지 않는다.
+
+```json
+{
+  "schemaVersion": 1,
+  "project": "tc-ocr",
+  "wikiGenerationId": "wiki-381a...",
+  "extractionGenerationId": "ext-48ad...",
+  "complete": true,
+  "sourceManifestHash": "sha256:...",
+  "memories": []
+}
+```
+
+source, extraction, Wiki generation ID에는 실행 시각을 넣지 않는다.
+동일 source snapshot은 같은 source generation을 만든다.
+동일한 검증 완료 MemoryRecord와 extraction identity는 같은 extraction generation을 만들고,
+동일 extraction generation과 Wiki schema는 같은 Wiki generation을 만든다.
+
+검색 응답은 query와 결과 외에 `searchMs`, `documentsScanned`, `returned`를 기록한다.
+결과는 lexical score 내림차순, confidence, Memory ID 순으로 정렬해 같은 index와 query에서 결정적이다.
+
+### 상태와 재생성
+
+`active`는 현재도 따라야 할 판단이다.
+`superseded`와 `deprecated`는 검색 결과에서 숨기지 않고 낮은 순위와 경고로 반환한다.
+`historical`은 사건과 실패 경험에 사용한다.
+현재 유효성을 판단할 직접 근거가 없으면 `uncertain`이다.
+
+원천이 사라져도 이전 Memory를 자동 삭제하지 않는다.
+새 build에서 `uncertain` 후보로 report하고, 원문과 Git history를 확인한 뒤 상태를 교정한다.
+첫 구현은 자동 merge나 삭제를 하지 않는다.

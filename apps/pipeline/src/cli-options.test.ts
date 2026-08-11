@@ -25,3 +25,9 @@ test("옵션 값이 누락되면 다음 플래그로 넘어가지 않고 실패�
   assert.throws(() => parsePipelineOptions(["infer-knowledge", "--docs"]), /--docs 값을 입력해야 합니다/);
   assert.throws(() => parsePipelineOptions(["infer-knowledge", "--docs", " , , "]), /sourceDocId를 하나 이상 입력해야 합니다/);
 });
+
+test("project code는 path segment로 쓰기 전에 manifest 계약으로 검증한다", () => {
+  for (const invalid of ["../../outside", " ", ".hidden", "한글"]) {
+    assert.throws(() => parsePipelineOptions(["fetch-dooray", "--project", invalid]), /project는/);
+  }
+});

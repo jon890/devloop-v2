@@ -1,6 +1,7 @@
-# devloop-v2 — Dooray 지식그래프 GraphRAG
+# devloop-v2 — GraphRAG와 Coding Agent Experience Memory
 
-Dooray 업무·위키를 Neo4j 지식그래프로 만들고 자연어로 질의하는 시스템이다.
+Dooray 업무·위키의 Neo4j GraphRAG를 비교군으로 유지하면서,
+Dooray와 OCR Git 이력에서 Coding Agent용 Experience Memory를 만든다.
 
 ## 구조
 
@@ -13,7 +14,7 @@ zod 스키마는 `*.schema.ts`, 상수는 `*.const.ts` 로 분리한다.
 apps/api/src/     graph/  ontology/  neo4j/  llm/     (+ graph-query.service.ts 는 아직 평면)
 packages/shared/  ontology/  graph/  api/  concept/  raw/
 packages/llm/     (평면 — Responses 직접 호출·app-server 클라이언트·어댑터)
-apps/pipeline/    ingest/  extract/  load/  llm/
+apps/pipeline/    ingest/  extract/  load/  llm/  memory/
 ```
 
 노드 종류(Task/Wiki/Concept)별로 나누지 않은 이유 — `structural-extractor` 가 모든 노드를 한 번에 순회하고
@@ -21,9 +22,9 @@ apps/pipeline/    ingest/  extract/  load/  llm/
 
 | 위치 | 역할 |
 | --- | --- |
-| `packages/shared` | 온톨로지 계약·API 타입·Concept 표준 사전 코어. 모든 앱이 의존한다 |
+| `packages/shared` | 온톨로지 계약·API 타입·Concept 표준 사전·Memory 계약. 모든 앱이 의존한다 |
 | `packages/llm` | LLM 호출 전송. 기본은 Responses 직접 호출이고 상주 `codex app-server` 를 되돌릴 길로 둔다 ([ADR 0009](docs/adr/0009-direct-responses-transport.md)) |
-| `apps/pipeline` | 수집 → 추출 → 적재 CLI. 단계 이름은 아래 표 참조 |
+| `apps/pipeline` | GraphRAG 수집·추출·적재와 Experience Memory 정규화·추출·색인·검색 CLI |
 | `apps/api` | 질의응답 REST (NestJS). 앵커 검색 → Cypher 생성 → 답변 합성 |
 | `apps/web` | React 와 Vite 기반 UI |
 | `docs/` | 관리 문서. 아래 표 참조 |
@@ -41,6 +42,9 @@ apps/pipeline/    ingest/  extract/  load/  llm/
 | `docs/EVAL-RUBRIC.md` | 품질 판정 단일 소스. `kg-eval` 이 섹션 번호(섹션 3)로 참조하므로 섹션 구조를 바꾸지 않는다 |
 | `docs/pitfalls/` | 반복되는 실수 패턴. 활동별로 나눠 두고 그 활동 직전에 읽는다 |
 | `docs/retrospectives/` | 사건 하나의 관찰·원인·조치. 쓰고 나면 고치지 않는다 |
+
+Experience Memory 설계를 위해 `docs/memory/` 같은 별도 관리 문서군을 만들지 않는다.
+기존 관리 문서의 소유 범위와 `tasks/plan{N}-*/` 실행 규약을 사용한다.
 
 ## 활동 전에 함정 파일을 읽는다
 
@@ -113,6 +117,10 @@ gold 는 필수(`required`)와 보강(`supporting`)으로 나눠 적는다.
 - **리뷰는 작성과 다른 lane 에서 한다.** 구현 후 `code-reviewer` 또는 `verifier` 에 위임해 GO/NO-GO 를 받는다. 같은 컨텍스트의 자기 승인은 신뢰할 수 없다
 - LLM 은 구독 계정으로만 쓴다. 종량제 API 는 금지한다. 호출은 Responses 엔드포인트로 직접 보낸다
 - 모델 — 추출 `gpt-5.5`, 질의 `gpt-5.6-terra` (벤치마크로 확정)
+- Experience Memory 추출 모델은 `gpt-5.6-luna`, reasoning effort는 `low`로 강제한다. 환경변수나 다른 모델로 fallback하지 않는다
+- Experience Memory request schema는 Responses Structured Outputs 지원 키만 사용한다.
+  빈 문자열과 `sourceRefKeys` 중복은 Zod post-validation에서 거부한다
+- 계획 lane은 기존 관리 문서와 task를 확정하고, 구현 lane은 별도 실행 컨텍스트에서 phase 구현·검증·커밋을 수행한다
 - 테스트는 데모 데이터가 아니라 실제 Dooray·GHE 데이터로 한다
 
 ## 지금 어디에 있나
@@ -128,6 +136,8 @@ gold 는 필수(`required`)와 보강(`supporting`)으로 나눠 적는다.
 - **끝난 작업의 경위** — `git log` 와 각 plan 의 `tasks/plan{N}-*/` 가 소유한다
 - **사건별 원인·조치** — `docs/retrospectives/`. 실행 기록은 `RUNS.md`
 - **질의 도메인의 살아 있는 제약** — `docs/code-architecture.md` 의 "질의 도메인의 알려진 한계"
+- **Experience Memory 수직 검증** — `eval/reports/2026-08-11-plan012-experience-memory.md`.
+  최신 raw 기준 source manifest, Luna bounded cache, Wiki/search smoke를 기록했다
 
 미실행으로 남은 결정이다. 각각 근거 문서가 있다.
 

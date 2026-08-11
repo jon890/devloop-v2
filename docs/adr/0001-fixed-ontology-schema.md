@@ -24,6 +24,9 @@ LLM 이 업무·위키 본문에서 개체와 관계를 추출한다. 그 개체
 
 LLM 은 이 틀 안에서 추출만 한다. 허용된 라벨·관계 밖의 것을 만들면 적재 단계에서 버리고 리포트에 집계한다.
 
+이 결정의 적용 범위는 Neo4j GraphRAG 경로다.
+[ADR 0010](0010-experience-memory-parallel-lane.md)의 Experience Memory 파일 경로는 graph ontology를 사용하지 않는다.
+
 ## 이유
 
 - **질의가 Cypher 를 생성한다.** 스키마가 실행마다 바뀌면 질의 프롬프트에 넣을 계약이 없다

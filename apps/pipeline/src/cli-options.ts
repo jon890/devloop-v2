@@ -1,6 +1,7 @@
 import type { PipelineConfig } from "./config";
 
 export const DEFAULT_PROJECT = "tc-ocr";
+const PROJECT_CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 export interface PipelineOptions {
   project: string;
@@ -34,11 +35,19 @@ export function parsePipelineOptions(args: readonly string[]): PipelineOptions {
   }
 
   return {
-    project: project?.trim() || DEFAULT_PROJECT,
+    project: project === undefined ? DEFAULT_PROJECT : normalizeProjectCode(project),
     stage,
     limit,
     ...(docs ? { docs } : {}),
   };
+}
+
+export function normalizeProjectCode(value: string): string {
+  const project = value.trim();
+  if (!PROJECT_CODE_PATTERN.test(project)) {
+    throw new Error(`project는 영문자·숫자로 시작하고 영문자·숫자·점·밑줄·하이픈만 포함해야 합니다: ${project}`);
+  }
+  return project;
 }
 
 // optionValue 와 readFlag 는 둘 다 "플래그 뒤 값 하나 읽기"를 하고, 다음 인자가 플래그면

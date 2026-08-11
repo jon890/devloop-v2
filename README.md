@@ -3,6 +3,11 @@
 Dooray 프로젝트(기본 tc-ocr)의 업무·위키를 수집해 고정 온톨로지 기반 지식그래프(Neo4j)로 적재하고,
 자연어 관계형 질문에 근거 서브그래프 시각화와 함께 답하는 MVP.
 
+`plan012-experience-memory`에서 Coding Agent용 Experience Memory 병렬 경로를 추가했다.
+새 경로는 Dooray 업무·댓글·Wiki와 `/Users/nhn/projects/OCR`의 Git 이력을 사용하며,
+현재 코드에서 다시 찾을 수 없는 결정·제약·incident·failed attempt를 compact Markdown으로 제공한다.
+기존 GraphRAG는 제거하지 않고 전체 효용 비교군으로 유지한다.
+
 > **주의**: 이 저장소는 **사내 GHE 전용**이다. 공개 GitHub 등 외부로 push 하지 않는다.
 > `data/` 아래 사내 원문 데이터는 gitignore 로 커밋에서 제외된다.
 
@@ -35,6 +40,19 @@ docker compose up -d neo4j
 ```bash
 pnpm pipeline -- --project tc-ocr
 ```
+
+Experience Memory 수직 경로는 별도 파일 체인이다.
+
+```bash
+pnpm --filter pipeline fetch-dooray -- --project tc-ocr
+pnpm --filter pipeline normalize-memory -- --project tc-ocr --git-root /Users/nhn/projects/OCR
+pnpm --filter pipeline extract-memory -- --project tc-ocr --sample-per-source 3
+pnpm --filter pipeline build-memory-wiki -- --project tc-ocr --allow-incomplete
+pnpm --filter pipeline memory-search -- --project tc-ocr --query "운영 장애 변경 금지 제약" --allow-incomplete
+```
+
+2026-08-11 실측은 `eval/reports/2026-08-11-plan012-experience-memory.md`를 본다.
+현재 pilot 산출물은 incomplete일 수 있으므로 build/search에만 `--allow-incomplete`를 명시한다.
 
 API와 웹은 각각 별도 터미널에서 실행한다.
 
@@ -75,3 +93,5 @@ pnpm --filter pipeline sync-neo4j
 - `QUERY_LLM_MODEL=gpt-5.6-terra`: API 자연어 질의 모델
 - `QUERY_LLM_MODEL`이 없으면 API는 `LLM_MODEL`로 대체하지 않고 기동에 실패한다.
   값이 없을 때 조용히 다른 모델로 질의가 도는 것을 막기 위해서다.
+- Experience Memory 추출은 환경변수와 무관하게 `gpt-5.6-luna`와 low reasoning effort로 고정한다.
+  Memory lexical 검색은 LLM을 호출하지 않으며 다른 모델로 fallback하지 않는다.

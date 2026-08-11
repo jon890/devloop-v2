@@ -4,6 +4,7 @@ import { ResponsesEndpoint } from "./responses.credentials";
 const DEFAULT_TIMEOUT_MS = 180_000;
 const RESPONSES_INSTRUCTIONS = "Follow the user's request and return only the final response.";
 const OUTPUT_SCHEMA_NAME = "devloop_response";
+const ERROR_SUMMARY_MAX_BYTES = 8 * 1024;
 
 type Fetch = typeof fetch;
 
@@ -42,7 +43,7 @@ export function createResponsesTransport(options: ResponsesTransportOptions): Ll
           throw new Error("Codex 계정 인증이 만료되었다. codex를 한 번 실행해 토큰을 갱신하라.");
         }
         if (!response.ok) {
-          throw new Error(`Responses 직접 호출이 실패했다 (HTTP ${response.status}).`);
+          throw new Error(`Responses 직접 호출이 실패했다 (HTTP ${response.status})${await responseErrorSummary(response)}.`);
         }
         if (!response.body) {
           throw new Error("Responses 직접 호출에 응답 스트림이 없다.");
@@ -64,6 +65,50 @@ export function createResponsesTransport(options: ResponsesTransportOptions): Ll
     },
     async close(): Promise<void> {},
   };
+}
+
+async function responseErrorSummary(response: Response): Promise<string> {
+  const text = await readBoundedText(response.body, ERROR_SUMMARY_MAX_BYTES);
+  const fields = ["type", "code"].flatMap((field) => safeErrorField(text, field).map((value) => `${field}=${value}`)).join(" ");
+  return fields ? `: ${fields}` : "";
+}
+
+async function readBoundedText(stream: ReadableStream<Uint8Array> | null, maxBytes: number): Promise<string> {
+  if (!stream) return "";
+  const reader = stream.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  let done = false;
+  try {
+    while (total < maxBytes) {
+      const next = await reader.read();
+      done = next.done;
+      if (next.done) break;
+      const chunk = next.value.slice(0, Math.max(0, maxBytes - total));
+      chunks.push(chunk);
+      total += chunk.byteLength;
+      if (next.value.byteLength > chunk.byteLength) break;
+    }
+  } finally {
+    if (!done) await reader.cancel().catch(() => undefined);
+  }
+  return new TextDecoder("utf-8", { fatal: false }).decode(concat(chunks, total));
+}
+
+function concat(chunks: readonly Uint8Array[], total: number): Uint8Array {
+  const output = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    output.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return output;
+}
+
+function safeErrorField(text: string, field: string): string[] {
+  const match = new RegExp(`"${field}"\\s*:\\s*"([^"]{1,120})"`).exec(text);
+  const value = match?.[1];
+  return value && /^[A-Za-z0-9_.:-]+$/.test(value) ? [value.slice(0, 80)] : [];
 }
 
 function buildRequest(prompt: string, opts: LlmCompleteOptions): Record<string, unknown> {

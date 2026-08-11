@@ -5,8 +5,8 @@ import { LlmOptionsSchema, type LlmCli, type LlmOptions, type LlmResult } from "
 export class ResponsesCliAdapter implements LlmCli {
   private readonly transport: LlmTransport;
 
-  constructor() {
-    this.transport = createResponsesTransport({ endpoint: chatgptAccountEndpoint });
+  constructor(transport?: LlmTransport) {
+    this.transport = transport ?? createResponsesTransport({ endpoint: chatgptAccountEndpoint });
   }
 
   async complete(prompt: string, opts?: LlmOptions): Promise<LlmResult> {
@@ -18,6 +18,7 @@ export class ResponsesCliAdapter implements LlmCli {
       model: parsedOptions.model,
       effort: parsedOptions.effort,
       timeoutMs: parsedOptions.timeoutMs,
+      outputSchema: parsedOptions.outputSchema,
     });
     return { text: result.text, elapsedMs: result.elapsedMs };
   }
