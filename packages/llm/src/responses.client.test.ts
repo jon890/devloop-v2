@@ -74,6 +74,49 @@ test("401은 Codex 토큰 갱신 안내와 함께 실패한다", async () => {
   await assert.rejects(transport.complete("prompt", { model: "model" }), /codex.*토큰.*갱신/);
 });
 
+test("400 error body는 bounded read로 안전한 type과 code만 실패 메시지에 포함한다", async () => {
+  let cancelled = false;
+  let pulls = 0;
+  const encoder = new TextEncoder();
+  const firstChunk = JSON.stringify({
+    error: {
+      type: "invalid_request_error",
+      code: "invalid_json_schema",
+      message: `SECRET_SOURCE_TEXT ${"x".repeat(20_000)}`,
+      prompt: "SECRET_SOURCE_TEXT",
+    },
+  });
+  const transport = createResponsesTransport({
+    endpoint,
+    fetch: async () =>
+      new Response(
+        new ReadableStream({
+          pull(controller) {
+            pulls += 1;
+            controller.enqueue(encoder.encode(firstChunk));
+            controller.enqueue(encoder.encode("SECRET_SOURCE_TEXT".repeat(1000)));
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }),
+        { status: 400 },
+      ),
+  });
+
+  await assert.rejects(
+    transport.complete("prompt", { model: "model" }),
+    (error: unknown) =>
+      error instanceof Error &&
+      error.message.includes("type=invalid_request_error") &&
+      error.message.includes("code=invalid_json_schema") &&
+      !error.message.includes("message=") &&
+      !error.message.includes("SECRET_SOURCE_TEXT") &&
+      cancelled &&
+      pulls <= 1,
+  );
+});
+
 test("오류 이벤트와 빈 응답을 실패로 올린다", async () => {
   const failed = createResponsesTransport({
     endpoint,

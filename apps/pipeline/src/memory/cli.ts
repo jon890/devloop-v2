@@ -136,20 +136,21 @@ export function parseSearchArgs(args: readonly string[]): SearchCliOptions {
 }
 
 export async function runMemoryCli(args: readonly string[]): Promise<void> {
-  const command = args[0];
+  const normalizedArgs = args[1] === "--" ? [args[0], ...args.slice(2)] : args;
+  const command = normalizedArgs[0];
   if (command === "search") {
-    const options = parseSearchArgs(args);
+    const options = parseSearchArgs(normalizedArgs);
     const result = await searchMemory(options.dataDir, options.project, options);
     console.log(JSON.stringify(result, null, 2));
     return;
   }
   const result =
     command === "normalize"
-      ? await normalizeEvidence(parseNormalizeArgs(args))
+      ? await normalizeEvidence(parseNormalizeArgs(normalizedArgs))
       : command === "extract"
-        ? await extractExperience(parseExtractArgs(args))
+        ? await extractExperience(parseExtractArgs(normalizedArgs))
         : command === "build"
-          ? await buildMemoryWiki(parseBuildArgs(args))
+          ? await buildMemoryWiki(parseBuildArgs(normalizedArgs))
           : undefined;
   if (!result) throw new Error(`알 수 없는 Memory 명령입니다: ${command ?? ""}`);
   console.log(JSON.stringify(result, null, 2));

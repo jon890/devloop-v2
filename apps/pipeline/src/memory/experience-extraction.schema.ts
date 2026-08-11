@@ -30,7 +30,16 @@ export const ExperienceDraftSchema = z
     relatedTerms: z.array(z.string().trim().min(1)),
     sourceRefKeys: z.array(z.string().trim().min(1)).min(1),
   })
-  .strict();
+  .strict()
+  .superRefine((draft, context) => {
+    const seen = new Set<string>();
+    for (const [index, key] of draft.sourceRefKeys.entries()) {
+      if (seen.has(key)) {
+        context.addIssue({ code: z.ZodIssueCode.custom, path: ["sourceRefKeys", index], message: "sourceRefKeys는 중복될 수 없습니다." });
+      }
+      seen.add(key);
+    }
+  });
 export type ExperienceDraft = z.infer<typeof ExperienceDraftSchema>;
 
 export const ExperienceExtractionOutputSchema = z

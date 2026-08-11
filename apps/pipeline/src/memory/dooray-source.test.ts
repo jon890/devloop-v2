@@ -7,7 +7,10 @@ import { normalizeDooraySource } from "./dooray-source";
 
 const temporaryDirectories: string[] = [];
 
-async function createRawFixture(postBody = "업무 본문"): Promise<{ dataDir: string; project: string }> {
+async function createRawFixture(
+  options: { postBody?: string; postSubject?: string | null; commentBody?: string; wikiBody?: string; wikiSubject?: string | null } = {},
+): Promise<{ dataDir: string; project: string }> {
+  const { postBody = "업무 본문", postSubject = "업무 제목", commentBody = "댓글 본문", wikiBody = "위키 본문", wikiSubject = "위키 제목" } = options;
   const dataDir = await import("node:fs/promises").then(({ mkdtemp }) => mkdtemp(path.join(tmpdir(), "memory-dooray-")));
   temporaryDirectories.push(dataDir);
   const project = "tc-ocr";
@@ -17,13 +20,18 @@ async function createRawFixture(postBody = "업무 본문"): Promise<{ dataDir: 
   await writeFile(
     path.join(rawDirectory, "posts", "101.json"),
     JSON.stringify({
-      post: { id: "3935008503199859816", number: 101, subject: "업무 제목", body: { content: postBody } },
-      comments: [{ id: "4053801154616695067", body: { content: "댓글 본문" } }],
+      post: {
+        id: "3935008503199859816",
+        number: 101,
+        ...(postSubject === null ? {} : { subject: postSubject }),
+        body: { content: postBody },
+      },
+      comments: [{ id: "4053801154616695067", body: { content: commentBody } }],
     }),
   );
   await writeFile(
     path.join(rawDirectory, "wiki", "201.json"),
-    JSON.stringify({ pageId: "201", subject: "위키 제목", body: { content: "위키 본문" } }),
+    JSON.stringify({ pageId: "201", ...(wikiSubject === null ? {} : { subject: wikiSubject }), body: { content: wikiBody } }),
   );
   return { dataDir, project };
 }
@@ -50,8 +58,35 @@ describe("Dooray source", () => {
     assert.deepEqual(result.counts, { tasks: 1, comments: 1, wikis: 1 });
   });
 
-  it("필수 본문이 없으면 원천 종류와 위치를 포함해 실패한다", async () => {
-    const fixture = await createRawFixture("");
-    await assert.rejects(() => normalizeDooraySource(fixture.dataDir, fixture.project), /Dooray task 원천 .*posts.*본문/);
+  it("task 본문이 없으면 title을 최소 evidence로 쓴다", async () => {
+    const fixture = await createRawFixture({ postBody: "" });
+    const result = await normalizeDooraySource(fixture.dataDir, fixture.project);
+    assert.deepEqual(result.packets.find((packet) => packet.sourceKind === "dooray-task")?.segments, [
+      { sourceRefKey: "dooray-task:3935008503199859816", text: "업무 제목" },
+      { sourceRefKey: "dooray-comment:4053801154616695067", text: "댓글 본문" },
+    ]);
+  });
+
+  it("task 본문과 실제 title이 모두 없으면 display fallback을 evidence로 쓰지 않고 실패한다", async () => {
+    const fixture = await createRawFixture({ postBody: "", postSubject: null });
+    await assert.rejects(() => normalizeDooraySource(fixture.dataDir, fixture.project), /Dooray task 원천 .*필수 본문 또는 title/);
+  });
+
+  it("wiki 본문이 없으면 title을 최소 evidence로 쓴다", async () => {
+    const fixture = await createRawFixture({ wikiBody: "" });
+    const result = await normalizeDooraySource(fixture.dataDir, fixture.project);
+    assert.deepEqual(result.packets.find((packet) => packet.sourceKind === "dooray-wiki")?.segments, [
+      { sourceRefKey: "dooray-wiki:201", text: "위키 제목" },
+    ]);
+  });
+
+  it("wiki 본문과 실제 title이 모두 없으면 display fallback을 evidence로 쓰지 않고 실패한다", async () => {
+    const fixture = await createRawFixture({ wikiBody: "", wikiSubject: null });
+    await assert.rejects(() => normalizeDooraySource(fixture.dataDir, fixture.project), /Dooray wiki 원천 .*필수 본문 또는 title/);
+  });
+
+  it("comment 본문이 없으면 fallback 없이 실패한다", async () => {
+    const fixture = await createRawFixture({ commentBody: "" });
+    await assert.rejects(() => normalizeDooraySource(fixture.dataDir, fixture.project), /Dooray comment 원천 .*comments\[0\].*본문/);
   });
 });

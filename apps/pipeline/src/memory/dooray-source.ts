@@ -23,6 +23,12 @@ function requireField(value: string | undefined, kind: string, location: string,
   throw new Error(`Dooray ${kind} 원천 ${location}: 필수 ${field}가 없습니다.`);
 }
 
+function evidenceTextOrActualTitle(value: unknown, actualTitle: string | undefined, kind: string, location: string): string {
+  const body = textContentPreservingLineBreaks(value);
+  if (body) return body;
+  return requireField(actualTitle, kind, location, "본문 또는 title");
+}
+
 function optionalOccurredAt(value: unknown): string | undefined {
   const candidate = firstString(value, ["createdAt", "createdDate", "updatedAt"]);
   if (!candidate) return undefined;
@@ -53,13 +59,14 @@ export async function normalizeDooraySource(dataDir: string, project: string): P
     const location = path.join(raw.projectDir, "posts", `[${postIndex}]`);
     const taskId = requireField(firstString(document.post, ["id"]), "task", location, "post.id");
     const number = requireField(firstString(document.post, ["number"]), "task", location, "post.number");
-    const text = requireField(textContentPreservingLineBreaks(document.post), "task", location, "본문");
-    const title = firstString(document.post, ["subject", "title"]) ?? `Task ${number}`;
+    const actualTitle = firstString(document.post, ["subject", "title"]);
+    const displayTitle = actualTitle ?? `Task ${number}`;
+    const text = evidenceTextOrActualTitle(document.post, actualTitle, "task", location);
     const taskRef: SourceRef = {
       sourceType: "dooray-task",
       sourceId: taskId,
       url: taskUrl(taskId),
-      title: `${number} ${title}`,
+      title: `${number} ${displayTitle}`,
       ...(optionalOccurredAt(document.post) ? { occurredAt: optionalOccurredAt(document.post) } : {}),
     };
 
@@ -92,7 +99,7 @@ export async function normalizeDooraySource(dataDir: string, project: string): P
         id: `dooray-task:${taskId}`,
         project,
         sourceKind: "dooray-task",
-        title,
+        title: displayTitle,
         scope: { project, repositories: [], paths: [] },
         segments,
         sourceRefs,
@@ -103,13 +110,14 @@ export async function normalizeDooraySource(dataDir: string, project: string): P
   for (const [wikiIndex, wiki] of raw.wikis.entries()) {
     const location = path.join(raw.projectDir, "wiki", `[${wikiIndex}]`);
     const pageId = requireField(firstString(wiki, ["pageId", "id"]), "wiki", location, "pageId/id");
-    const text = requireField(textContentPreservingLineBreaks(wiki), "wiki", location, "본문");
-    const title = firstString(wiki, ["subject", "title"]) ?? `Wiki ${pageId}`;
+    const actualTitle = firstString(wiki, ["subject", "title"]);
+    const displayTitle = actualTitle ?? `Wiki ${pageId}`;
+    const text = evidenceTextOrActualTitle(wiki, actualTitle, "wiki", location);
     const ref: SourceRef = {
       sourceType: "dooray-wiki",
       sourceId: pageId,
       url: wikiUrl(pageId),
-      title,
+      title: displayTitle,
       ...(optionalOccurredAt(wiki) ? { occurredAt: optionalOccurredAt(wiki) } : {}),
     };
     packets.push(
@@ -118,7 +126,7 @@ export async function normalizeDooraySource(dataDir: string, project: string): P
         id: `dooray-wiki:${pageId}`,
         project,
         sourceKind: "dooray-wiki",
-        title,
+        title: displayTitle,
         scope: { project, repositories: [], paths: [] },
         segments: [{ sourceRefKey: sourceRefKey(ref), text }],
         sourceRefs: [ref],

@@ -16,7 +16,7 @@ import {
 import type { LlmCli, LlmOptions, LlmResult } from "../llm";
 import { hashCanonical, packetWithContentHash } from "./evidence-serialization";
 import { readExtractionCache, writeExtractionCache, type ExtractionCacheIdentity } from "./experience-cache";
-import type { ExperienceDraft } from "./experience-extraction.schema";
+import { ExperienceDraftSchema, type ExperienceDraft } from "./experience-extraction.schema";
 import {
   extractExperienceWithLlmForTest,
   MEMORY_EXTRACTION_EFFORT,
@@ -28,6 +28,15 @@ import { publishSourceGeneration, type SourceManifest } from "./source-generatio
 
 const temporaryDirectories: string[] = [];
 const SOURCE_GENERATION_ID = `src-${"a".repeat(64)}`;
+
+function collectSchemaKeys(value: unknown, keys = new Set<string>()): Set<string> {
+  if (!value || typeof value !== "object") return keys;
+  for (const [key, child] of Object.entries(value)) {
+    keys.add(key);
+    collectSchemaKeys(child, keys);
+  }
+  return keys;
+}
 
 async function temporaryDirectory(): Promise<string> {
   const directory = await mkdtemp(path.join(tmpdir(), "memory-extractor-"));
@@ -109,6 +118,19 @@ async function extractionFiles(dataDir: string, result: ExtractExperienceResult)
 
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true, force: true })));
+});
+
+describe("Experience output schema", () => {
+  it("Responses strict schema 요청에서 지원하지 않는 string/array 제약 키를 싣지 않는다", () => {
+    const keys = collectSchemaKeys(EXPERIENCE_OUTPUT_JSON_SCHEMA);
+    assert.equal(keys.has("minLength"), false);
+    assert.equal(keys.has("uniqueItems"), false);
+  });
+
+  it("sourceRefKeys 중복은 request schema가 아니라 Zod post-validation에서 거부한다", () => {
+    const value = draft("dooray-task:a");
+    assert.throws(() => ExperienceDraftSchema.parse({ ...value, sourceRefKeys: ["dooray-task:a", "dooray-task:a"] }), /중복/);
+  });
 });
 
 describe("Experience extractor", () => {

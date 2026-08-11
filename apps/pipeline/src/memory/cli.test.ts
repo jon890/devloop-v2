@@ -185,4 +185,40 @@ describe("memory wiki/search CLI", () => {
       console.log = originalLog;
     }
   });
+
+  it("pnpm separator -- 뒤의 옵션을 실행 전에 해석한다", async () => {
+    const dataDir = await temporaryDirectory();
+    const projectDirectory = path.join(dataDir, "memory", "tc-ocr");
+    const wikiGenerationId = `wiki-${"1".repeat(64)}`;
+    const generationDirectory = path.join(projectDirectory, WIKI_GENERATIONS_DIRECTORY, wikiGenerationId);
+    const index = {
+      schemaVersion: MEMORY_SCHEMA_VERSION,
+      project: "tc-ocr",
+      wikiGenerationId,
+      extractionGenerationId: `ext-${"2".repeat(64)}`,
+      sourceGenerationId: `src-${"3".repeat(64)}`,
+      sourceManifestHash: `sha256:${"4".repeat(64)}`,
+      extractionManifestHash: `sha256:${"5".repeat(64)}`,
+      complete: true,
+      documents: [],
+    };
+    await mkdir(generationDirectory, { recursive: true });
+    await writeFile(
+      path.join(projectDirectory, CURRENT_WIKI_POINTER_FILE),
+      `${canonicalString({ schemaVersion: MEMORY_SCHEMA_VERSION, generationId: wikiGenerationId })}\n`,
+      "utf8",
+    );
+    await writeFile(path.join(generationDirectory, WIKI_INDEX_FILE), `${canonicalString(index)}\n`, "utf8");
+    const originalLog = console.log;
+    const lines: string[] = [];
+    console.log = (value?: unknown) => {
+      lines.push(String(value));
+    };
+    try {
+      await runMemoryCli(["search", "--", "--query", "검색", "--data-dir", dataDir]);
+      assert.equal(JSON.parse(lines[0])?.returned, 0);
+    } finally {
+      console.log = originalLog;
+    }
+  });
 });
