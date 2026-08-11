@@ -19,3 +19,4 @@
 | 2026-08-05 | build-with-teams | plan010-persistent-llm-transport | A | 5 | 2 | 1 | 1 | 없음 | 0 | PR #2. spec 결함 13건을 critic·구현이 잡았고 독립 검토가 소켓 끊김 무한 대기를 잡았다. 회고 7건(0011\~0017). 조율자에게 질의 2회 보냈으나 무응답이라 보수적 가정으로 진행하고 근거를 보고했다 |
 | 2026-08-06 | planning | plan011-direct-responses-transport | — | 5 | — | — | 5 | 없음 | 4 | task 커밋 완료. 탐침이 plan010 의 결론을 정정했다 — outputSchema 비용은 형식 강제가 아니라 출력 분량이었고, 몰아 재기가 만든 착오도 함께 드러났다 |
 | 2026-08-06 | plan011 | plan011-direct-responses-transport | — | 5 | 0 | 0 | 1 | 없음 | 2 | Responses 직접 호출을 기본으로 전환했다. 교차 측정에서 문자당 처리는 빨랐지만 답변이 길어 실제 총지연은 회귀했고, 답변 분량을 후속 과제로 남겼다 |
+| 2026-08-11 | planning | plan012-experience-memory | — | 4 | — | — | 9 | 없음 | 2 | 기존 관리 문서와 task만 갱신했다. 계획 lane과 구현 lane을 분리하고 세 원천, 원문 link, Luna 고정, bounded 파일럿을 확정했다 |
