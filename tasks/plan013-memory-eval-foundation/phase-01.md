@@ -47,7 +47,8 @@ suite hash, source lock hash, base revision, validation command, Memory index ha
 
 `eval/suites/tc-ocr-memory.json`에는 내부 prompt·revision·URL 없이 네 task의 안정 ID, 분류, task type, sourceLockKey, expectedTrigger만 둔다.
 code-only와 experience-needed를 각각 2개, relationship-heavy를 최소 1개 포함한다.
-테스트 fixture는 임시 Git repo를 사용하고 실제 OCR 경로와 ID를 복제하지 않는다.
+테스트 fixture는 임시 Git repo와 임시 source lock을 사용하고 실제 OCR 경로와 ID를 복제하지 않는다.
+`memory-foundation.test.mjs`는 검증 CLI를 subprocess로 실행해 한 줄 JSON 출력과 private 값 비노출을 확인한다.
 
 ---
 
@@ -73,7 +74,6 @@ code-only와 experience-needed를 각각 2개, relationship-heavy를 최소 1개
 # cwd: 저장소 루트
 node --test .claude/skills/kg-eval/tests/memory-foundation.test.mjs
 node --test .claude/skills/kg-eval/tests/memory-judge.test.mjs
-node .claude/skills/kg-eval/scripts/validate-memory-suite.mjs --suite eval/suites/tc-ocr-memory.json --source-lock eval/runs/plan013-memory-source-lock.json
 python3 /Users/nhn/.codex/skills/.system/skill-creator/scripts/quick_validate.py .claude/skills/kg-eval
 git diff --check
 ```

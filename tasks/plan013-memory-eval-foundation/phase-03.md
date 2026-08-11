@@ -68,6 +68,7 @@ Codex와 Claude를 각각 최소 한 task에 실행하고 memoryCalls·sourceRea
 pnpm --filter pipeline test
 node --test .claude/skills/kg-eval/tests/*.test.mjs
 node .claude/skills/kg-eval/scripts/run-memory.mjs --help
+node .claude/skills/kg-eval/scripts/validate-memory-suite.mjs --suite eval/suites/tc-ocr-memory.json --source-lock eval/runs/plan013-memory-source-lock.json
 jq '.tasks | length' eval/runs/plan013-memory-source-lock.json
 node .claude/skills/kg-eval/scripts/memory/privacy.mjs --source-lock eval/runs/plan013-memory-source-lock.json --paths eval/suites/tc-ocr-memory.json,eval/reports/2026-08-12-plan013-memory-foundation.md
 git status --short
