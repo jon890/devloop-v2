@@ -8,7 +8,7 @@
 ## 목표
 
 Dooray 업무·댓글·Wiki와 `/Users/nhn/projects/OCR` 아래 Git 저장소를 읽기 전용으로 정규화한다.
-같은 snapshot에서는 byte가 같은 `source-manifest.json`과 `evidence.jsonl`을 만들고 모든 segment에 안정 ID와 실제 원문 URL을 연결한다.
+같은 snapshot에서는 byte가 같은 source generation을 만들고 모든 segment에 안정 ID와 실제 원문 URL을 연결한다.
 
 설계 계약은 `docs/data-schema.md`, 흐름은 `docs/flow.md`, 모듈 배치는 `docs/code-architecture.md`, 장기 결정은 ADR 0010과 ADR 0011을 따른다.
 
@@ -32,6 +32,7 @@ Dooray 업무·댓글·Wiki와 `/Users/nhn/projects/OCR` 아래 Git 저장소를
 - `MemoryRecord`: `kind`, `status`, `confidence`, `summary`, `why`, `doNot`, `scope`, 유효 기간, 검색어, `sourceRefs`
 - enum 값과 필수 조건은 `docs/data-schema.md`와 정확히 맞춘다.
 - `contentHash`와 Memory ID를 위한 canonical JSON은 object key를 정렬하고 array 순서는 의미가 있는 곳에서 보존한다.
+- segment가 SourceRef를 가리키는 합성 키는 `sourceType:sourceId` 형식의 `sourceRefKey(ref)` 하나로 만든다.
 
 ### 2. Dooray raw를 evidence로 바꾼다
 
@@ -52,18 +53,20 @@ Dooray 업무·댓글·Wiki와 `/Users/nhn/projects/OCR` 아래 Git 저장소를
 - 현재 경험 문서는 root의 `README.md`, `CLAUDE.md`, `AGENTS.md`와 `docs/**/*.md`만 pinned revision에서 읽는다.
 - commit URL은 `/commit/{40자 SHA}`, 파일 URL은 `/blob/{40자 SHA}/{path}`다. working tree 파일을 직접 읽지 않는다.
 
-### 4. manifest와 evidence를 원자적으로 쓴다
+### 4. manifest와 evidence를 immutable generation으로 쓴다
 
 `apps/pipeline/src/memory/evidence-normalizer.ts`가 두 source adapter를 합치고 `apps/pipeline/data/memory/<project>/`에 쓴다.
 
-- manifest에는 Dooray snapshot 시각·건수와 Git 저장소별 path·remote URL·revision을 기록한다.
+- manifest에는 Dooray canonical content hash·건수와 Git 저장소별 path·remote URL·revision을 기록한다. 존재하지 않는 수집 시각을 추측하지 않는다.
 - 정렬 기준을 고정한 뒤 canonical JSON의 SHA-256으로 `contentHash`를 만든다.
-- build lock을 먼저 얻고 임시 파일을 완전히 쓴 뒤 rename한다. 실패 시 이전 정상 파일을 유지한다.
+- `source-generations/<sourceGenerationId>/`의 manifest와 evidence를 임시 디렉터리에 모두 쓴 뒤 rename한다.
+- 두 파일을 검증한 다음 `current-source.json` pointer만 원자적으로 교체한다. 실패 시 이전 pointer와 generation을 유지한다.
 - `apps/pipeline/data/memory/`는 기존 `apps/pipeline/data/*` ignore 규칙 안에 있어야 하며 예외로 추적하지 않는다.
 
 ### 5. normalize 명령과 단위 테스트를 추가한다
 
 `apps/pipeline/src/memory/cli.ts`에 `normalize --project <name> --git-root <path> [--data-dir <path>]`를 만들고 package script `normalize-memory`를 추가한다.
+pipeline test script에 `dist/memory/*.test.js`를 명시해 새 테스트가 실제로 실행되게 한다.
 
 fixture Git 저장소와 임시 Dooray raw로 다음을 검증한다.
 
@@ -71,7 +74,7 @@ fixture Git 저장소와 임시 Dooray raw로 다음을 검증한다.
 - pinned revision의 commit·file URL과 working tree 변경 무시
 - checkout/fetch/reset/clean을 호출하지 않음
 - 입력 순서가 달라도 같은 JSONL·hash
-- 저장소 하나 실패 시 기존 정상 파일 보존
+- 저장소 하나 실패 시 기존 정상 generation과 pointer 보존
 
 ---
 

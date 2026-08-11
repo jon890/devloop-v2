@@ -98,7 +98,7 @@ Memory는 원문을 복제하지 않고 안정적인 원천 ID와 원문 URL을 
 
 첫 수직 구현은 다음을 모두 만족해야 한다.
 
-- 세 원천이 manifest에 포함되고 각 원천 revision 또는 수집 시각이 고정된다.
+- 세 원천이 manifest에 포함되고 Dooray content hash와 Git revision이 고정된다.
 - 모든 Memory가 하나 이상의 검증된 `sourceRef`와 원문 URL을 가진다.
 - Memory 추출 LLM 호출은 전부 `gpt-5.6-luna`이며 다른 모델은 호출 전에 거부된다.
 - 같은 evidence와 설정은 LLM 재호출 없이 같은 Markdown과 JSON index를 만든다.

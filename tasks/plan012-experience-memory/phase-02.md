@@ -36,7 +36,7 @@ Memory extractor는 `ResponsesCliAdapter`를 직접 생성한다.
 
 - 출력 kind는 `decision`, `constraint`, `incident`, `failed-attempt`, `lesson`뿐이다.
 - 현재 source에서 다시 찾을 class·symbol·호출 관계는 제외한다.
-- 원문 인용을 복제하지 않고 `sourceRefIds`만 선택하게 한다.
+- 원문 인용을 복제하지 않고 `sourceRefKeys`만 선택하게 한다.
 - 직접 근거가 없으면 생성하지 않으며 현재 유효성이 불명확하면 status는 `uncertain`이다.
 - repair prompt로 추가 호출하지 않고 strict structured output 한 번을 기본으로 한다.
 
@@ -52,22 +52,24 @@ const MEMORY_EXTRACTION_EFFORT = "low";
 ```
 
 CLI에 model·provider·effort option을 만들지 않는다.
-LLM이 반환한 `sourceRefIds`는 현재 EvidencePacket의 SourceRef만 resolve하고, 알 수 없는 ID가 하나라도 있으면 그 packet을 실패 처리한다.
-Memory ID는 kind, 정규화 title, 정렬한 source ID의 SHA-256으로 계산하며 LLM 값을 받지 않는다.
+LLM이 반환한 `sourceRefKeys`는 `sourceRefKey()`로 계산한 현재 EvidencePacket의 SourceRef만 resolve하고, 알 수 없는 key가 하나라도 있으면 그 packet을 실패 처리한다.
+Memory ID는 kind, 정규화 title, 정렬한 sourceRefKey의 SHA-256으로 계산하며 LLM 값을 받지 않는다.
 
 ### 4. 증분 cache와 실패 report를 구현한다
 
 cache key와 envelope에 `contentHash`, prompt version, Memory schema version, exact model, exact effort를 모두 넣는다.
 cache hit에서는 LLM을 호출하지 않고 Zod·provenance를 다시 검증한다.
 
-`extracted.jsonl`과 `extraction-report.json`은 lock과 임시 파일 rename으로 쓴다.
-실패 packet, calls, cache hits, elapsed time, model, effort, 입력 전체 대비 처리 범위를 기록한다.
-실패가 있거나 `--limit`·`--ids`를 사용하면 `complete: false`다.
+`extraction-generations/<extractionGenerationId>/`에 `extracted.jsonl`과 `extraction-report.json`을 함께 쓰고 디렉터리를 rename한다.
+report에는 source generation ID·manifest hash·selection·실패 packet·calls·cache hits·elapsed time·model·effort·prompt version을 기록한다.
+두 파일 검증 후 `current-extraction.json` pointer만 원자적으로 교체한다.
+실패가 있거나 `--limit`·`--ids`·`--sample-per-source`를 사용하면 `complete: false`다.
 
 ### 5. extract 명령과 테스트를 추가한다
 
-`extract [--project <name>] [--data-dir <path>] [--limit <n>] [--ids <comma-list>]`를 `memory/cli.ts`에 추가하고 package script `extract-memory`를 만든다.
-기본 concurrency는 1이며 명시한 작은 상한 안에서만 높일 수 있게 한다.
+`extract [--project <name>] [--data-dir <path>] [--limit <n>] [--ids <comma-list>] [--sample-per-source <n>]`를 `memory/cli.ts`에 추가하고 package script `extract-memory`를 만든다.
+세 선택 option은 상호 배타다. `--sample-per-source`는 sourceKind별 ID 정렬 후 앞에서 n개를 고른다.
+concurrency는 CLI로 노출하지 않고 1로 고정한다.
 
 fake `LlmCli`로 다음을 검증한다.
 

@@ -419,12 +419,14 @@ API는 실제 모델 식별자를 응답하지 않는다.
 
 ```text
 memory/<project>/
-  source-manifest.json
-  evidence.jsonl
-  extracted.jsonl
-  extraction-report.json
   cache/
-  wiki/
+  source-generations/<sourceGenerationId>/
+    source-manifest.json
+    evidence.jsonl
+  extraction-generations/<extractionGenerationId>/
+    extracted.jsonl
+    extraction-report.json
+  wiki-generations/<wikiGenerationId>/
     decisions/
     constraints/
     incidents/
@@ -432,10 +434,15 @@ memory/<project>/
     lessons/
     index.md
     index.json
+  current-source.json
+  current-extraction.json
+  current-wiki.json
 ```
 
-파일은 임시 경로에 쓴 뒤 rename한다.
-이전 정상 index는 새 build가 완전히 끝날 때까지 유지한다.
+각 generation은 임시 디렉터리에 완전히 쓴 뒤 rename하며 생성 후에는 수정하지 않는다.
+마지막에 `current-*.json` pointer 하나를 임시 파일에서 원자적으로 교체한다.
+여러 산출물을 차례로 덮어쓰지 않으므로 중간에 중단돼도 이전 pointer와 정상 generation을 유지한다.
+세 pointer의 공통 형식은 `{ "schemaVersion": 1, "generationId": "<stage-prefix>-<hash>" }`다.
 
 ### Source manifest
 
@@ -445,9 +452,9 @@ memory/<project>/
 {
   "schemaVersion": 1,
   "project": "tc-ocr",
-  "generatedAt": "2026-08-11T12:00:00.000Z",
+  "sourceGenerationId": "src-6f92...",
   "dooray": {
-    "fetchedAt": "2026-08-11T11:30:00.000Z",
+    "contentHash": "sha256:...",
     "tasks": 490,
     "comments": 854,
     "wikis": 47
@@ -464,7 +471,9 @@ memory/<project>/
 ```
 
 Git `path`는 수집 환경 정보이며 Memory 검색 결과에 노출하지 않는다.
-동일 snapshot 판정에는 Dooray 파일 내용 hash와 Git revision을 사용한다.
+기존 `fetch-dooray`는 수집 시각을 저장하지 않으므로 시각을 추측하지 않는다.
+`sourceGenerationId`는 Dooray canonical content hash와 정렬한 Git revision·remote URL의 hash로 만든다.
+같은 source snapshot은 실행 시각과 무관하게 같은 manifest byte와 generation ID를 만든다.
 
 ### SourceRef
 
@@ -484,6 +493,8 @@ Git `path`는 수집 환경 정보이며 Memory 검색 결과에 노출하지 �
 
 URL은 식별자가 아니다.
 Dooray 이동이나 Git remote 변경 시 안정 ID와 revision으로 다시 생성할 수 있다.
+segment와 LLM draft가 SourceRef를 가리킬 때는 저장 필드를 추가하지 않고
+`sourceRefKey = "${sourceType}:${sourceId}"` 합성 키를 사용한다.
 
 ### EvidencePacket
 
@@ -504,11 +515,11 @@ Dooray 이동이나 Git remote 변경 시 안정 ID와 revision으로 다시 생
   },
   "segments": [
     {
-      "sourceRefId": "dooray-task:3935008503199859816",
+      "sourceRefKey": "dooray-task:3935008503199859816",
       "text": "..."
     },
     {
-      "sourceRefId": "dooray-comment:4053801154616695067",
+      "sourceRefKey": "dooray-comment:4053801154616695067",
       "text": "..."
     }
   ],
@@ -568,24 +579,34 @@ Git commit evidence는 commit message, changed paths, 제한된 diff hunk를 seg
 반드시 지켜야 하면 constraint, 선택한 방식이면 decision으로 기록한다.
 historical context는 독립 kind가 아니라 `why`와 sourceRefs에 남긴다.
 
-Memory ID는 kind, 정규화한 title, 정렬한 source ref ID의 SHA-256으로 만든다.
+Memory ID는 kind, 정규화한 title, 정렬한 `sourceRefKey`의 SHA-256으로 만든다.
 같은 입력에서 순서가 바뀌어도 ID가 바뀌지 않는다.
 
 ### 검색 index와 응답
 
-`wiki/index.json`은 검증된 MemoryRecord와 검색용 정규화 필드를 가진다.
+`current-extraction.json`은 하나의 immutable extraction generation을 가리킨다.
+그 generation의 report는 `sourceGenerationId`, `sourceManifestHash`, selection, model, effort,
+prompt version, calls, cache hits, failures, elapsed time, `complete`를 가진다.
+builder는 report와 JSONL이 같은 generation에 있을 때만 읽는다.
+
+`current-wiki.json`이 가리키는 `wiki-generations/<wikiGenerationId>/index.json`은
+검증된 MemoryRecord와 검색용 정규화 필드를 가진다.
 Markdown을 다시 parsing하지 않는다.
 
 ```json
 {
   "schemaVersion": 1,
   "project": "tc-ocr",
-  "generatedAt": "2026-08-11T12:30:00.000Z",
+  "wikiGenerationId": "wiki-381a...",
+  "extractionGenerationId": "ext-48ad...",
   "complete": true,
   "sourceManifestHash": "sha256:...",
   "memories": []
 }
 ```
+
+source, extraction, Wiki generation ID에는 실행 시각을 넣지 않는다.
+동일 입력과 schema·prompt·selection은 같은 generation byte를 만든다.
 
 검색 응답은 query와 결과 외에 `searchMs`, `documentsScanned`, `returned`를 기록한다.
 결과는 lexical score 내림차순, confidence, Memory ID 순으로 정렬해 같은 index와 query에서 결정적이다.

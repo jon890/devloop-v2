@@ -23,7 +23,8 @@ token 예산을 지키는 bounded Luna 파일럿으로 cache·Wiki·검색을 �
 
 ### 1. Dooray 원문을 최신화하고 세 원천 manifest를 만든다
 
-기존 `fetch-dooray`로 `tc-ocr` raw를 다시 받은 뒤 `normalize-memory`를 실행한다.
+구현 worktree의 `apps/pipeline/data/raw/tc-ocr`가 없음을 먼저 확인하고 기존 `fetch-dooray`로 전량 새로 받은 뒤 `normalize-memory`를 실행한다.
+디렉터리가 이미 있으면 기존 파일을 재사용해 최신화가 보장되지 않으므로 실행하지 않고 명시적으로 실패한다.
 Git root는 `/Users/nhn/projects/OCR`로 고정한다.
 
 manifest에서 Dooray task·comment·Wiki 건수가 0보다 크고 Git 저장소 9개의 서로 다른 이름·40자 revision·HTTP remote URL이 있는지 검사한다.
@@ -31,7 +32,7 @@ manifest에서 Dooray task·comment·Wiki 건수가 0보다 크고 Git 저장소
 
 ### 2. bounded Luna 파일럿과 cache 재실행을 검증한다
 
-원천 종류와 kind 후보가 섞이도록 evidence ID를 결정적으로 선택해 최대 12 packet만 추출한다.
+`--sample-per-source 3`으로 sourceKind별 ID 정렬 후 최대 3 packet씩, 전체 최대 12 packet을 결정적으로 선택한다.
 첫 실행의 model, effort, calls, failures를 기록하고 같은 명령을 다시 실행해 두 번째 calls가 0인지 확인한다.
 
 부분 추출이므로 report와 index는 `complete: false`여야 한다.
@@ -40,7 +41,9 @@ manifest에서 Dooray task·comment·Wiki 건수가 0보다 크고 Git 저장소
 
 ### 3. Coding Agent용 검색 smoke와 비용 지표를 측정한다
 
-결정 이유, 변경 금지 제약, 과거 장애 또는 실패 시도에 해당하는 query를 최소 3개 실행한다.
+추출 결과에서 서로 다른 kind의 첫 Memory title을 최대 3개 고른다.
+kind가 3개보다 적으면 ID 순 첫 Memory로 채우며 Memory 자체가 3개보다 적으면 파일럿 실패로 기록한다.
+선택한 title을 query로 최소 3개 실행한다.
 
 - 결과 relevance와 원문 link 유효성
 - `searchMs`, `documentsScanned`, `returned`
@@ -78,10 +81,17 @@ manifest에서 Dooray task·comment·Wiki 건수가 0보다 크고 Git 저장소
 # cwd: 저장소 루트
 pnpm --filter pipeline fetch-dooray -- --project tc-ocr
 pnpm --filter pipeline normalize-memory -- --project tc-ocr --git-root /Users/nhn/projects/OCR
-pnpm --filter pipeline extract-memory -- --project tc-ocr --limit 12
-pnpm --filter pipeline extract-memory -- --project tc-ocr --limit 12
+pnpm --filter pipeline extract-memory -- --project tc-ocr --sample-per-source 3
+pnpm --filter pipeline extract-memory -- --project tc-ocr --sample-per-source 3
 pnpm --filter pipeline build-memory-wiki -- --project tc-ocr --allow-incomplete
-pnpm --filter pipeline memory-search -- --project tc-ocr --query "과거 장애 때문에 바꾸면 안 되는 설정" --allow-incomplete
+wiki_generation=$(jq -r .generationId apps/pipeline/data/memory/tc-ocr/current-wiki.json)
+index_path="apps/pipeline/data/memory/tc-ocr/wiki-generations/${wiki_generation}/index.json"
+query_count=$(jq '(.memories | sort_by(.kind, .id) | group_by(.kind) | map(.[0])) as $distinct | ($distinct + [.memories[] | select(.id as $id | all($distinct[]; .id != $id))]) | .[:3] | length' "$index_path")
+test "$query_count" -eq 3
+jq -r '(.memories | sort_by(.kind, .id) | group_by(.kind) | map(.[0])) as $distinct | ($distinct + [.memories[] | select(.id as $id | all($distinct[]; .id != $id))]) | .[:3] | .[].title' "$index_path" |
+  while IFS= read -r query; do
+    pnpm --filter pipeline memory-search -- --project tc-ocr --query "$query" --allow-incomplete
+  done
 pnpm --filter pipeline test
 pnpm -r build
 pnpm format:check

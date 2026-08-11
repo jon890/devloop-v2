@@ -15,12 +15,12 @@ flowchart TD
     DT["Dooray 업무와 댓글"] --> N["normalize-memory"]
     DW["Dooray Wiki"] --> N
     GR["OCR Git 저장소<br/>기본 branch commit과 경험 문서"] --> N
-    N --> E["evidence.jsonl<br/>source-manifest.json"]
+    N --> E["source generation<br/>evidence + manifest"]
     E --> X["extract-memory<br/>gpt-5.6-luna"]
     C[("evidence hash cache")] -.-> X
-    X --> D["extracted.jsonl<br/>extraction-report.json"]
+    X --> D["extraction generation<br/>records + report"]
     D --> B["build-memory-wiki"]
-    B --> M["compact Markdown<br/>index.json"]
+    B --> M["Wiki generation<br/>Markdown + index"]
     M --> S["memory-search<br/>lexical ranking"]
     S --> A["Coding Agent<br/>결론과 원문 link"]
 ```
@@ -36,7 +36,8 @@ flowchart TD
 
 Dooray 최신화는 기존 `fetch-dooray`가 소유한다.
 `normalize-memory`는 원천을 직접 호출하지 않고 고정된 raw snapshot을 읽는다.
-Git은 각 저장소의 `origin/HEAD`를 우선하고 없으면 현재 HEAD를 사용하며, 선택한 revision을 manifest에 기록한다.
+Git은 각 저장소의 `origin/HEAD` revision만 읽는다.
+하나라도 없으면 현재 checkout으로 fallback하지 않고 정규화를 실패시킨다.
 
 ### 원문 link
 
@@ -61,8 +62,9 @@ URL은 이동할 수 있으므로 `sourceType`과 `sourceId`를 별도 식별자
 | 검색 결과 0건 | 정상 응답으로 빈 `results`와 검색 측정값 반환 |
 | build 동시 실행 | lock을 먼저 얻은 실행만 진행하고 나머지는 실패 |
 
-각 파일은 임시 파일에 완전히 쓴 뒤 rename한다.
-중단된 실행이 기존 정상 index를 부분 파일로 덮지 않게 한다.
+각 단계는 immutable generation 디렉터리를 임시 경로에 완전히 쓴 뒤 rename한다.
+generation 내부 파일을 모두 검증한 다음 `current-*.json` pointer 하나만 원자적으로 교체한다.
+중단된 실행은 이전 pointer를 유지하므로 여러 파일이 서로 다른 실행 결과를 가리키지 않는다.
 
 ### Coding Agent 호출
 

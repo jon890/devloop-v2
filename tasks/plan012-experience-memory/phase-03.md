@@ -23,13 +23,14 @@
 
 ### 1. compact Wiki builder를 만든다
 
-`apps/pipeline/src/memory/wiki-builder.ts`가 `extracted.jsonl`을 Zod로 읽어 kind별 디렉터리와 `wiki/index.md`, `wiki/index.json`을 생성한다.
+`apps/pipeline/src/memory/wiki-builder.ts`가 `current-extraction.json`의 generation을 Zod로 읽어
+`wiki-generations/<wikiGenerationId>/` 아래 kind별 디렉터리와 `index.md`, `index.json`을 생성한다.
 
 - Markdown에는 title, status, confidence, scope, summary, why, 선택 doNot, 모든 SourceRef 링크만 쓴다.
 - slug 충돌은 Memory ID suffix로 해결하고 파일명과 정렬을 결정적으로 만든다.
 - `index.json`에는 Markdown을 다시 parse하지 않고 검색할 정규화 필드와 원본 MemoryRecord를 둔다.
 - source manifest hash와 `complete`를 전달한다. incomplete 입력은 명시 옵션 없이는 build를 거부한다.
-- lock과 임시 디렉터리 rename으로 이전 정상 Wiki를 보존한다.
+- lock과 임시 generation rename 후 `current-wiki.json` pointer를 원자적으로 교체해 이전 정상 Wiki를 보존한다.
 
 ### 2. Node 표준 라이브러리 lexical ranking을 만든다
 
@@ -44,7 +45,7 @@ project·repository·module·path scope filter와 top-k 상한을 제공한다.
 
 `memory/cli.ts`에 `build`와 `search`를 추가하고 package scripts `build-memory-wiki`, `memory-search`를 만든다.
 
-`memory-search --query <text> [--project <name>] [--repository <name>] [--path <path>] [--top-k <n>] [--data-dir <path>]`는 stdout에 JSON 하나만 쓴다.
+`memory-search --query <text> [--project <name>] [--repository <name>] [--path <path>] [--top-k <n>] [--data-dir <path>] [--allow-incomplete]`는 stdout에 JSON 하나만 쓴다.
 응답에는 `results`, 각 result의 `id`, `title`, `kind`, `status`, `confidence`, `summary`, `score`, `matchedTerms`, 전체 `sourceRefs`와 `searchMs`, `documentsScanned`, `returned`를 포함한다.
 정상 0건은 exit 0과 `results: []`다. incomplete index는 `--allow-incomplete` 없이는 실패한다.
 
