@@ -374,7 +374,7 @@ Memory system의 역할은:
 freshness
 provenance
 confidence
-lifecycle
+status
 
 ```
 
@@ -628,16 +628,9 @@ gh issue list --state all
 
 ---
 
-# 10. 첫 번째 산출물: Problem Statement
+# 10. 기존 PRD 갱신: Problem Statement
 
-코드를 변경하기 전에 다음 문서를 작성하라.
-
-예:
-
-```text
-docs/memory/problem-statement.md
-
-```
+코드를 변경하기 전에 새 문서를 만들지 말고 `docs/prd.md`의 기존 소유 범위 안에서 문제 정의를 갱신한다.
 
 이 문서는 다음을 포함한다.
 
@@ -666,14 +659,10 @@ Coding Agent Memory로 사용하려면 무엇이 달라져야 하는가.
 
 ---
 
-# 11. 두 번째 산출물: Architecture Proposal
+# 11. 기존 흐름·아키텍처 문서 갱신
 
-다음과 유사한 문서를 만든다.
-
-```text
-docs/memory/architecture-proposal.md
-
-```
+새 문서를 만들지 않는다.
+단계 흐름은 `docs/flow.md`, 모듈 책임과 의존 방향은 `docs/code-architecture.md`에 갱신한다.
 
 다음을 포함한다.
 
@@ -710,7 +699,10 @@ Agent Retrieval
 
 ---
 
-# 12. 세 번째 산출물: Memory Schema Proposal
+# 12. 기존 데이터 스키마 문서 갱신
+
+Memory schema는 `docs/data-schema.md`에 갱신한다.
+코드로 자명하지 않은 장기 결정만 `docs/adr/`에 추가한다.
 
 Memory entity 후보를 먼저 검토한 후 최소 스키마를 제안한다.
 
@@ -749,7 +741,7 @@ source_refs[]
 
 ```
 
-특히 lifecycle을 반드시 고민한다.
+특히 status 전이를 반드시 고민한다.
 
 ```text
 active
@@ -763,7 +755,9 @@ uncertain
 
 ---
 
-# 13. 네 번째 산출물: Retrieval Proposal
+# 13. 기존 문서의 Retrieval 계약 갱신
+
+Retrieval 흐름은 `docs/flow.md`, interface와 구현 경계는 `docs/code-architecture.md`, 응답 계약은 `docs/data-schema.md`에 갱신한다.
 
 Agent에게 제공할 interface를 최소화한다.
 
@@ -874,7 +868,7 @@ Handle superseded decisions
 Design memory markdown format
 Generate per-project index
 Generate compact memory documents
-Add lifecycle metadata
+Add status metadata
 Add deterministic build
 
 ```
@@ -1059,7 +1053,7 @@ NO라면 Memory에 넣지 않는 것을 고려한다.
 2. 현재 GraphRAG의 실제 책임과 비용 정리
 3. 현재 추출 자산 중 재사용 가능한 부분 식별
 4. Coding Agent Memory 문제 정의
-5. Experience Memory taxonomy 제안
+5. Experience Memory kind와 status 제안
 6. Compact Wiki representation 제안
 7. 최소 retrieval architecture 제안
 8. 평가 전략 작성
@@ -1145,7 +1139,7 @@ Issue 생성 후 최종적으로 다음 형태의 dependency map을 출력한다
  │
  ├── #2 Baseline benchmark
  │
- └── #3 Experience taxonomy
+ └── #3 Experience kind와 status
           │
           ├── #4 Extraction pipeline
           │

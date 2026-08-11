@@ -1,9 +1,76 @@
-# 흐름 — 파이프라인과 질의응답
+# 흐름 — Experience Memory와 GraphRAG
 
-- 상태: 기준선 (2026-07-29 작성)
+- 상태: plan012 목표 상태와 기존 GraphRAG 기준선
 
 이 문서는 **무엇이 어디로 흐르는가**를 소유한다 — 단계 순서, 상태 전이, 실패와 부분 성공이다.
 모듈 배치는 `docs/code-architecture.md`, 데이터 형식은 `docs/data-schema.md` 가 소유한다.
+
+## Experience Memory 흐름
+
+Experience Memory는 기존 GraphRAG와 별도 파일 체인으로 동작한다.
+GraphRAG를 제거하거나 그 산출물을 입력으로 사용하지 않는다.
+
+```mermaid
+flowchart TD
+    DT["Dooray 업무와 댓글"] --> N["normalize-memory"]
+    DW["Dooray Wiki"] --> N
+    GR["OCR Git 저장소<br/>기본 branch commit과 경험 문서"] --> N
+    N --> E["evidence.jsonl<br/>source-manifest.json"]
+    E --> X["extract-memory<br/>gpt-5.6-luna"]
+    C[("evidence hash cache")] -.-> X
+    X --> D["extracted.jsonl<br/>extraction-report.json"]
+    D --> B["build-memory-wiki"]
+    B --> M["compact Markdown<br/>index.json"]
+    M --> S["memory-search<br/>lexical ranking"]
+    S --> A["Coding Agent<br/>결론과 원문 link"]
+```
+
+### Memory 단계별 계약
+
+| 단계 | 입력 | 출력 | 성격 | 재실행 비용 |
+| --- | --- | --- | --- | --- |
+| `normalize-memory` | 최신 Dooray raw, Git 기본 branch | evidence와 source manifest | 결정적 | Git 읽기와 파일 생성 |
+| `extract-memory` | evidence | Experience draft와 report | LLM | cache miss packet 수만큼 Luna 호출 |
+| `build-memory-wiki` | 검증된 draft | Markdown과 JSON index | 결정적 | 파일 생성 |
+| `memory-search` | query, 선택 scope, index | 상위 Memory JSON | 결정적 | index 선형 탐색 |
+
+Dooray 최신화는 기존 `fetch-dooray`가 소유한다.
+`normalize-memory`는 원천을 직접 호출하지 않고 고정된 raw snapshot을 읽는다.
+Git은 각 저장소의 `origin/HEAD`를 우선하고 없으면 현재 HEAD를 사용하며, 선택한 revision을 manifest에 기록한다.
+
+### 원문 link
+
+업무와 댓글은 raw 업무의 전역 ID로 `/project/tasks/{id}` 링크를 만든다.
+Wiki는 raw 페이지 ID로 `/project/pages/{id}` 링크를 만든다.
+댓글은 고유 ID를 provenance로 유지하면서 부모 업무 링크로 원문을 연다.
+
+Git commit은 원격 URL과 SHA로 `/commit/{sha}` 링크를 만든다.
+현재 경험 문서는 pinned revision과 경로로 `/blob/{sha}/{path}` 링크를 만든다.
+URL은 이동할 수 있으므로 `sourceType`과 `sourceId`를 별도 식별자로 유지한다.
+
+### 실패, 빈 상태, 동시 실행
+
+| 상황 | 처리 |
+| --- | --- |
+| Dooray raw 없음 | 정규화를 시작하지 않고 실패 |
+| Git root 없음 또는 저장소 0개 | 필수 원천 누락으로 실패 |
+| Git 저장소 하나를 읽지 못함 | 해당 저장소와 오류를 report에 남기고 전체 정규화 실패 |
+| 모델이 `gpt-5.6-luna`가 아님 | LLM 호출 전에 실패 |
+| Luna 호출 일부 실패 | 성공분과 실패 report를 저장하지만 index를 incomplete로 표시 |
+| incomplete index 검색 | 기본 거부, 조사 목적의 명시 옵션에서만 허용 |
+| 검색 결과 0건 | 정상 응답으로 빈 `results`와 검색 측정값 반환 |
+| build 동시 실행 | lock을 먼저 얻은 실행만 진행하고 나머지는 실패 |
+
+각 파일은 임시 파일에 완전히 쓴 뒤 rename한다.
+중단된 실행이 기존 정상 index를 부분 파일로 덮지 않게 한다.
+
+### Coding Agent 호출
+
+Coding Agent가 기억해야 하는 명령은 `memory-search` 하나다.
+Agent가 Memory 필요 여부와 query를 판단하며, 저장 방식이나 kind별 API를 알 필요가 없다.
+
+기본 사용은 한 번의 검색으로 끝난다.
+결과의 confidence가 낮거나 status가 `uncertain`이거나 현재 source와 충돌할 때만 원문 link를 추가로 연다.
 
 ## 파이프라인 — 파일로 이어진 배치 체인
 

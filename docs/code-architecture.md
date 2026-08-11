@@ -1,6 +1,6 @@
 # 코드 아키텍처
 
-- 상태: 기준선 (2026-07-29 작성)
+- 상태: plan012 목표 상태와 기존 GraphRAG 기준선
 
 이 문서는 **모듈 책임과 의존 방향**을 소유한다.
 단계 흐름은 `docs/flow.md`, 데이터 계약은 `docs/data-schema.md` 가 소유한다.
@@ -15,6 +15,8 @@
 | LLM | 구독 계정 토큰을 쓰고 종량제 API 는 금지한다 ([ADR 0002](adr/0002-llm-via-subscription-cli.md)).<br>Responses 직접 호출이 기본이고 상주 `codex app-server` 는 되돌리기 경로다 ([ADR 0009](adr/0009-direct-responses-transport.md)) |
 | 원천 접근 | 기존 `dooray-cli` 를 자식 프로세스로 호출해 재사용한다. 인증을 다시 구현하지 않는다 |
 | 실행 환경 | 로컬 개발 기계 |
+| Experience Memory | Markdown 문서와 JSON index. 검색 경로는 filesystem만 사용한다 |
+| Memory 추출 모델 | `gpt-5.6-luna`와 low reasoning effort로 고정한다. fallback하지 않는다 |
 
 ## 분할 기준
 
@@ -39,9 +41,10 @@ zod 스키마는 `*.schema.ts`, 상수는 `*.const.ts` 로 분리한다.
 pnpm workspaces monorepo 다.
 
 ```
-packages/shared/     온톨로지 계약 · API 타입 · Concept 표준 사전 코어
+packages/shared/     온톨로지, API, Concept, Experience Memory 계약
 packages/llm/        LLM 호출 전송 — Responses 직접 호출과 상주 app-server, 설정으로 고른다
 apps/pipeline/       수집 → 추출 → 적재 CLI
+                      Experience evidence → 추출 → Wiki → lexical 검색 CLI
 apps/api/            질의응답 REST (NestJS)
 apps/web/            React 와 Vite UI
 .claude/skills/      저장소 전용 개발·평가 절차와 번들 스크립트
@@ -87,6 +90,7 @@ ADR 0005가 채택한 판단 저장소는 `packages/registry`가 소유한다.
 | `api/` | REST 요청·응답 스키마 |
 | `concept/` | Concept 표준 사전 코어 (도메인 무관 기술 용어) |
 | `raw/` | 원본 문서 스키마 |
+| `memory/` | Experience evidence, Memory, provenance, 검색 응답 계약 |
 
 ## packages/registry
 
@@ -162,9 +166,50 @@ responses.client.ts       →  요청 본문 조립 · SSE 파싱 · 오류 판�
 | `neo4j/` | `sync-neo4j`·`apply-schema` | DB 를 건드리는 것만 모은다 |
 | `config/` | — | 환경변수 검증과 주입 |
 | `llm/` | — | `packages/llm` 의 전송 어댑터를 파이프라인 설정에 묶는다. Responses가 기본이고 상주·`claude -p` 어댑터도 남는다 |
+| `memory/` | `normalize-memory`·`extract-memory`·`build-memory-wiki`·`memory-search` | 세 원천 정규화, Luna 추출, compact Wiki 생성, lexical 검색 |
 | `raw-reader.ts` | — | 원본 읽기. `parse` 와 `infer` 가 함께 쓴다.<br>텍스트 추출이 두 종류다 — 참조 추출용(개행을 공백으로 병합)과 저장용(개행 보존) |
 
 `raw-reader.ts` 가 루트에 있는 이유 — 두 단계가 공용으로 쓰므로 한쪽에 넣으면 의존이 역류한다.
+
+### `memory/`는 GraphRAG를 모른다
+
+Experience Memory는 `parsed.jsonl`, `inferred.jsonl`, Neo4j schema를 읽지 않는다.
+Dooray raw-reader와 LLM 전송만 재사용하고 별도 evidence와 Memory 계약을 만든다.
+
+```text
+apps/pipeline/src/memory/
+  evidence-normalizer.ts   세 원천을 evidence packet으로 변환
+  dooray-source.ts         업무, 댓글, Wiki segment와 원문 link
+  git-source.ts            기본 branch commit, diff, 경험 문서와 원문 link
+  experience-extractor.ts  Luna 호출, cache, provenance 검증
+  experience-prompt.ts     Experience 전용 추출 지시와 version
+  wiki-builder.ts          결정적 Markdown과 JSON index 생성
+  lexical-search.ts        tokenization, ranking, scope filter
+  cli.ts                   네 operator 명령과 단일 agent 검색 표면
+```
+
+각 모듈의 경계는 재실행 비용으로 가른다.
+Git과 Dooray 정규화, Wiki build, lexical 검색은 결정적이다.
+`experience-extractor.ts`만 LLM을 호출한다.
+
+Git 원천은 `/Users/nhn/projects/OCR` 아래의 저장소를 읽기 전용으로 연다.
+수집 중 checkout, fetch, reset, clean을 실행하지 않는다.
+현재 working tree branch와 무관하게 `origin/HEAD` revision의 object를 `git show`로 읽는다.
+
+### Memory 모델 강제 위치
+
+Memory model은 환경변수 기본값이 아니다.
+Memory 도메인의 상수 `gpt-5.6-luna`를 호출 옵션에 직접 전달하고, 다른 model 인자를 받지 않는다.
+provider가 Codex가 아니거나 모델을 사용할 수 없으면 호출 전에 또는 첫 호출에서 실패한다.
+
+일반 GraphRAG의 `LLM_MODEL`과 `QUERY_LLM_MODEL`은 기존 비교군의 설정으로 남는다.
+Memory 경로가 두 값을 fallback으로 읽지 않는다.
+
+### Agent 검색 표면
+
+첫 구현은 HTTP endpoint나 MCP server를 추가하지 않는다.
+`memory-search` CLI가 JSON 한 번으로 결과와 측정값을 반환한다.
+Claude Code와 Codex 사용 지침은 같은 명령을 가리키며 저장 구조를 노출하지 않는다.
 
 **원천 형식에 종속된 판정 규칙은 전용 모듈로 뺀다.** GitHub 훅 댓글 판정과 머리말 제거가 그 예다.
 `structural-extractor.ts` 안에 정규식으로 섞어 두면 세 가지가 나빠진다.
