@@ -25,6 +25,9 @@
 `.claude/skills/kg-eval/scripts/memory/suite.mjs`는 공개 suite를 검증한다.
 `source-lock.mjs`는 내부 URL, 절대 repository path, 40자 base·target revision, prompt, 허용 경로, 검증 명령, oracle query를 검증한다.
 두 파일의 canonical hash를 함께 반환하고 task id·sourceLockKey의 전단사 대응을 강제한다.
+`loadMemoryEvaluationInputs({ suitePath, sourceLockPath })` import API를 제공하고,
+`validate-memory-suite.mjs --suite <public> --source-lock <private>` CLI는 private 값을 포함하지 않는 한 줄 JSON
+`{ schemaVersion, suiteHash, sourceLockHash, taskCount }`만 stdout에 출력한다.
 
 ### 3. 원천 저장소를 건드리지 않는 workspace를 만든다
 
@@ -32,11 +35,13 @@
 그 디렉터리에 평가용 로컬 Git 저장소를 새로 만들어 기준 commit과 최종 diff hash를 계산한다.
 원천 repository에서 checkout, fetch, reset, clean, worktree 명령을 실행하면 안 된다.
 
-### 4. raw result의 재개·원자 저장을 구현한다
+### 4. raw result의 저장과 판정을 분리한다
 
 `.claude/skills/kg-eval/scripts/memory/result.mjs`는 `(taskId, condition, repetition)`을 유일 키로 사용한다.
 suite hash, source lock hash, base revision, validation command, Memory index hash가 다르면 이어 쓰기를 거부한다.
 임시 파일 검증 뒤 rename하고 lock 충돌과 중단 뒤 재개를 테스트한다.
+`judge.mjs`는 validation 결과, 허용 경로 밖 변경, 최종 diff와 실행 event를 받아
+`taskSuccess`, `wrongEditCount`, `reworkCount`를 판정하며 저장 계층이나 Agent process를 직접 호출하지 않는다.
 
 ### 5. 공개 suite metadata와 단위 테스트를 추가한다
 
@@ -54,9 +59,12 @@ code-only와 experience-needed를 각각 2개, relationship-heavy를 최소 1개
 | `.claude/skills/kg-eval/references/result-contract.md` | suite·lock·run 계약 추가 |
 | `.claude/skills/kg-eval/scripts/memory/suite.mjs` | 신규 |
 | `.claude/skills/kg-eval/scripts/memory/source-lock.mjs` | 신규 |
+| `.claude/skills/kg-eval/scripts/validate-memory-suite.mjs` | 검증 CLI 신규 |
 | `.claude/skills/kg-eval/scripts/memory/workspace.mjs` | 신규 |
 | `.claude/skills/kg-eval/scripts/memory/result.mjs` | 신규 |
+| `.claude/skills/kg-eval/scripts/memory/judge.mjs` | task 성공·오수정·재작업 판정 신규 |
 | `.claude/skills/kg-eval/tests/memory-foundation.test.mjs` | 신규 |
+| `.claude/skills/kg-eval/tests/memory-judge.test.mjs` | 신규 |
 | `eval/suites/tc-ocr-memory.json` | 신규 |
 
 ## 검증
@@ -64,6 +72,8 @@ code-only와 experience-needed를 각각 2개, relationship-heavy를 최소 1개
 ```bash
 # cwd: 저장소 루트
 node --test .claude/skills/kg-eval/tests/memory-foundation.test.mjs
+node --test .claude/skills/kg-eval/tests/memory-judge.test.mjs
+node .claude/skills/kg-eval/scripts/validate-memory-suite.mjs --suite eval/suites/tc-ocr-memory.json --source-lock eval/runs/plan013-memory-source-lock.json
 python3 /Users/nhn/.codex/skills/.system/skill-creator/scripts/quick_validate.py .claude/skills/kg-eval
 git diff --check
 ```

@@ -23,7 +23,7 @@
       "number": 3,
       "file": "phase-03.md",
       "title": "실제 OCR task와 Memory index로 수직 smoke를 검증한다",
-      "execution_profile": "standard",
+      "execution_profile": "deep",
       "status": "pending"
     },
     {

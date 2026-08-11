@@ -35,7 +35,7 @@ Graph, 대체 retrieval, automatic retrieval은 같은 lock을 사용하는 격�
 ## 결과
 
 평가에는 Agent 반복 실행 비용이 들며 token usage가 제공되지 않는 Agent는 `null`로 남는다.
-Spike가 이겨도 production 변경은 자동으로 일어나지 않고 별도 결정이 필요하다.
+비교 실험이 이겨도 production 변경은 자동으로 일어나지 않고 별도 결정이 필요하다.
 
 ## 관련
 

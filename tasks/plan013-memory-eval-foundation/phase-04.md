@@ -62,6 +62,8 @@ git diff --check
 git status --short
 ```
 
+모든 신규 Node test는 `.claude/skills/kg-eval/tests/` 바로 아래 `*.test.mjs`에 두어 위 glob에 포함한다.
+fixture만 `tests/fixtures/memory/` 하위에 둔다.
 실행된 test 수와 skip 수를 보고하고 plan012보다 test 수가 줄면 완료하지 않는다.
 
 ## 의도 메모 (왜)

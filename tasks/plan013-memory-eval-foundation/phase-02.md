@@ -37,6 +37,8 @@ Codex adapter는 `codex exec --json`, Claude adapter는 `claude -p --output-form
 `.claude/skills/kg-eval/scripts/memory/telemetry.mjs`는 turns, toolCalls, sourceReads, memoryCalls, graphCalls, inputTokens, outputTokens, reworkCount를 계산한다.
 Agent가 usage를 제공하지 않으면 token은 `null`이며 문자 수로 대체하지 않는다.
 Memory call은 실제 `memory-search` command event로만 센다.
+Codex fixture는 `item.completed`의 `command_execution`과 `turn.completed.usage`를,
+Claude fixture는 `assistant.message.content[].tool_use`와 `result.usage`를 고정한다.
 
 ### 5. 조건 입력과 회귀 테스트를 구현한다
 
@@ -57,6 +59,9 @@ fixture JSONL로 Codex·Claude parser, code-only skip, uncertain source 확인 �
 | `.claude/skills/kg-eval/scripts/memory/telemetry.mjs` | 신규 |
 | `.claude/skills/kg-eval/scripts/memory/condition.mjs` | 신규 |
 | `.claude/skills/kg-eval/tests/memory-agent.test.mjs` | 신규 |
+| `.claude/skills/kg-eval/tests/fixtures/memory/codex-command.jsonl` | Codex command·usage fixture 신규 |
+| `.claude/skills/kg-eval/tests/fixtures/memory/claude-command.jsonl` | Claude tool_use·usage fixture 신규 |
+| `.claude/skills/kg-eval/tests/fixtures/memory/usage-missing.jsonl` | token `null` fixture 신규 |
 | `apps/pipeline/src/memory/agent-policy.test.ts` | 두 marker 동등성 검사 신규 |
 
 ## 검증
