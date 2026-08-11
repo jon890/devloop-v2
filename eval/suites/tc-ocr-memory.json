@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "memory-eval-suite/v1",
+  "project": "tc-ocr",
+  "suiteId": "tc-ocr-memory-foundation",
+  "title": "tc-ocr Coding Agent Memory foundation evaluation suite",
+  "sourceSnapshot": "private source lock",
+  "tasks": [
+    {
+      "id": "MEM-CODE-001",
+      "category": "code-only",
+      "taskType": "localized-bugfix",
+      "sourceLockKey": "tc-ocr-memory-lock-001",
+      "expectedTrigger": "code-context",
+      "tags": []
+    },
+    {
+      "id": "MEM-CODE-002",
+      "category": "code-only",
+      "taskType": "test-repair",
+      "sourceLockKey": "tc-ocr-memory-lock-002",
+      "expectedTrigger": "code-context",
+      "tags": []
+    },
+    {
+      "id": "MEM-EXP-001",
+      "category": "experience-needed",
+      "taskType": "regression-avoidance",
+      "sourceLockKey": "tc-ocr-memory-lock-003",
+      "expectedTrigger": "experience-memory",
+      "tags": [
+        "relationship-heavy"
+      ]
+    },
+    {
+      "id": "MEM-EXP-002",
+      "category": "experience-needed",
+      "taskType": "cross-file-rework",
+      "sourceLockKey": "tc-ocr-memory-lock-004",
+      "expectedTrigger": "experience-memory",
+      "tags": []
+    }
+  ]
+}
