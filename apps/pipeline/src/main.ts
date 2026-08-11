@@ -8,19 +8,19 @@ import { IngestService } from "./fetch/ingest.service";
 import { seedConcepts } from "./concepts/concept-seeder";
 import { extractLlm } from "./infer/llm-extractor";
 import { extractStructural } from "./parse/structural-extractor";
-import { AppServerCliAdapter, ClaudeCliAdapter, type LlmCli } from "./llm";
+import { AppServerCliAdapter, ClaudeCliAdapter, ResponsesCliAdapter, type LlmCli } from "./llm";
 import { runExportCuration } from "./registry/export-curation";
 import { runImportCuration } from "./registry/import-curation";
 import { runRegisterProject } from "./registry/register-project";
 
 /**
- * `codex` 는 상주 app-server 를 띄우므로 비동기다.
- * 서버를 죽이는 것은 어댑터 자신이다 — 호출자는 `close?.()` 만 부른다.
+ * 세 전송 중 설정이 고른 하나만 만든다. 상주 전송만 서버 기동을 기다리므로 비동기다.
  */
-async function llmAdapter(provider: PipelineConfig["llm"]["provider"]): Promise<LlmCli> {
-  if (provider === "codex") return AppServerCliAdapter.start(resolveRepositoryRoot());
-  if (provider === "claude") return new ClaudeCliAdapter();
-  throw new Error(`Unsupported LLM_PROVIDER=${provider}; expected codex or claude.`);
+export async function llmAdapter(config: PipelineConfig["llm"]): Promise<LlmCli> {
+  console.log(`[llm] transport=${config.transport}`);
+  if (config.transport === "responses") return new ResponsesCliAdapter();
+  if (config.transport === "app-server") return AppServerCliAdapter.start(resolveRepositoryRoot());
+  return new ClaudeCliAdapter();
 }
 
 const KNOWN_STAGES = ["fetch-dooray", "seed-concepts", "parse-structure", "infer-knowledge", "all"];
@@ -84,7 +84,7 @@ async function bootstrap(): Promise<void> {
       const model = config.llm.model;
       if (!model) throw new Error("LLM_MODEL is required for LLM extraction.");
       // 서버는 이 단계에서만 산다. 예외로 끝나도 자식 app-server 를 남기지 않도록 finally 로 닫는다.
-      const llm = await llmAdapter(config.llm.provider);
+      const llm = await llmAdapter(config.llm);
       try {
         const result = await extractLlm({
           dataRoot,

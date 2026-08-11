@@ -4,11 +4,11 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
-const { AppServerCliAdapter, ClaudeCliAdapter, createLlmCli } = require('../dist/llm-cli');
+const { AppServerCliAdapter, ClaudeCliAdapter, ResponsesCliAdapter, createLlmCli } = require('../dist/llm-cli');
 const { QueryService } = require('../dist/query/query.service');
 const { testApiConfig } = require('./helpers/test-config');
 
-// codex 경로는 상주 app-server 를 쓴다. 그 계약 검증은 `@devloop/llm` 이 갖는다.
+// codex 전송 계약 검증은 Responses 직접 호출과 상주 app-server 모두 `@devloop/llm` 이 갖는다.
 // 여기 남은 것은 자식 프로세스로 도는 `claude` 어댑터의 인자다.
 test('API Claude 어댑터는 effort를 무시하고 모델만 넘긴다', async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'devloop-api-cli-test-'));
@@ -27,7 +27,7 @@ process.stdin.on('end', () => process.stdout.write('mock response'));
   process.env.PATH = `${temporary}:${previousPath}`;
   process.env.DEVLOOP_API_ARGS_FILE = argsFile;
   const lowEffortConfig = testApiConfig({
-    llm: { provider: 'claude', queryModel: 'query-model', reasoningEffort: 'low' },
+    llm: { provider: 'claude', transport: 'claude', queryModel: 'query-model', reasoningEffort: 'low' },
   });
   try {
     const claude = await new ClaudeCliAdapter(lowEffortConfig).complete('prompt', {
@@ -51,8 +51,11 @@ process.stdin.on('end', () => process.stdout.write('mock response'));
   }
 });
 
-test('createLlmCli가 환경설정의 LLM_PROVIDER로 어댑터를 고른다', async () => {
-  assert.ok(createLlmCli(testApiConfig({ llm: { provider: 'claude', queryModel: 'm' } })) instanceof ClaudeCliAdapter);
+test('createLlmCli가 환경설정의 LLM_TRANSPORT로 세 어댑터를 고른다', async () => {
+  assert.ok(
+    createLlmCli(testApiConfig({ llm: { provider: 'claude', transport: 'claude', queryModel: 'm' } })) instanceof ClaudeCliAdapter,
+  );
+  assert.ok(createLlmCli(testApiConfig()) instanceof ResponsesCliAdapter);
 
   // codex 경로는 상주 어댑터를 준다. 서버가 준비되지 않으면 기동이 실패해야 한다.
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'devloop-api-cli-test-'));
@@ -63,7 +66,7 @@ test('createLlmCli가 환경설정의 LLM_PROVIDER로 어댑터를 고른다', a
   const previousPath = process.env.PATH;
   process.env.PATH = `${temporary}:${previousPath}`;
   try {
-    const started = createLlmCli(testApiConfig({ llm: { provider: 'codex', queryModel: 'm' } }));
+    const started = createLlmCli(testApiConfig({ llm: { provider: 'codex', transport: 'app-server', queryModel: 'm' } }));
     assert.ok(started instanceof Promise);
     await assert.rejects(started, /app-server/);
     assert.equal(typeof AppServerCliAdapter.start, 'function');
@@ -73,7 +76,7 @@ test('createLlmCli가 환경설정의 LLM_PROVIDER로 어댑터를 고른다', a
   }
 });
 
-test('QueryService가 환경설정의 질의 모델을 LLM 호출에 전달한다', async () => {
+test('QueryService가 환경설정의 질의 모델과 추론 강도를 LLM 호출에 전달한다', async () => {
   const options = [];
   const llmCli = {
     async complete(prompt, opts) {
@@ -86,6 +89,7 @@ test('QueryService가 환경설정의 질의 모델을 LLM 호출에 전달한�
   await service.generateCypher('질문', []);
 
   assert.deepEqual(options.map((option) => option.model), ['terra-model']);
+  assert.deepEqual(options.map((option) => option.effort), ['high']);
 });
 
 test('Cypher 생성 프롬프트가 TAGGED 차원과 차원 조합 집계 패턴을 설명한다', async () => {

@@ -1,0 +1,44 @@
+{
+  "name": "plan011-direct-responses-transport",
+  "description": "LLM 호출을 Responses 엔드포인트로 직접 보내 에이전트 비계를 벗기고, 추론 강도를 명시로 못 박아 전송 교체가 품질을 조용히 바꾸지 않게 한다",
+  "status": "completed",
+  "created_at": "2026-08-06",
+  "total_phases": 5,
+  "phases": [
+    {
+      "number": 1,
+      "file": "phase-01.md",
+      "title": "packages/llm 에 Responses 직접 전송을 만든다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 2,
+      "file": "phase-02.md",
+      "title": "추론 강도를 설정으로 못 박고 두 전송에 같은 값을 싣는다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 3,
+      "file": "phase-03.md",
+      "title": "기본 전송을 직접 호출로 바꾸고 상주 전송을 스위치로 남긴다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 4,
+      "file": "phase-04.md",
+      "title": "두 전송을 번갈아 측정한다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 5,
+      "file": "phase-05.md",
+      "title": "리포트를 남기고 plan 을 닫는다",
+      "execution_profile": "standard",
+      "status": "completed"
+    }
+  ]
+}

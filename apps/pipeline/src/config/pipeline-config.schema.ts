@@ -3,9 +3,11 @@ import {
   DEFAULT_LLM_CONCURRENCY,
   DEFAULT_LLM_PROVIDER,
   DEFAULT_LLM_TIMEOUT_MS,
+  DEFAULT_LLM_TRANSPORT,
   DEFAULT_NEO4J_AUTH,
   LLM_PROVIDERS,
   LLM_REASONING_EFFORTS,
+  LLM_TRANSPORTS,
 } from "./pipeline-config.const";
 
 /**
@@ -28,6 +30,7 @@ export const PipelineEnvSchema = z.object({
   NEO4J_PASSWORD: optionalRawText,
   REGISTRY_DATABASE_URL: optionalRawText,
   LLM_PROVIDER: z.enum(LLM_PROVIDERS).default(DEFAULT_LLM_PROVIDER),
+  LLM_TRANSPORT: z.enum(LLM_TRANSPORTS).optional(),
   LLM_MODEL: optionalRawText,
   LLM_REASONING_EFFORT: z.enum(LLM_REASONING_EFFORTS).optional(),
   LLM_CONCURRENCY: z.preprocess(emptyStringToUndefined, z.coerce.number().int().positive().default(DEFAULT_LLM_CONCURRENCY)),
@@ -40,6 +43,7 @@ export interface PipelineConfig {
   registry: { databaseUrl?: string };
   llm: {
     provider: (typeof LLM_PROVIDERS)[number];
+    transport: (typeof LLM_TRANSPORTS)[number];
     model?: string;
     reasoningEffort?: (typeof LLM_REASONING_EFFORTS)[number];
     concurrency: number;
@@ -52,8 +56,9 @@ export interface ValidatedPipelineConfig {
   pipeline: PipelineConfig;
 }
 
-export const PipelineConfigSchema = PipelineEnvSchema.transform((env): PipelineConfig => {
+export const PipelineConfigSchema = PipelineEnvSchema.transform((env, ctx): PipelineConfig => {
   const credentials = resolveNeo4jCredentials(env);
+  const transport = resolveLlmTransport(env.LLM_PROVIDER, env.LLM_TRANSPORT, ctx);
   return {
     neo4j: {
       uri: env.NEO4J_URI,
@@ -65,6 +70,7 @@ export const PipelineConfigSchema = PipelineEnvSchema.transform((env): PipelineC
     },
     llm: {
       provider: env.LLM_PROVIDER,
+      transport,
       model: env.LLM_MODEL,
       reasoningEffort: env.LLM_REASONING_EFFORT,
       concurrency: env.LLM_CONCURRENCY,
@@ -73,6 +79,29 @@ export const PipelineConfigSchema = PipelineEnvSchema.transform((env): PipelineC
     pipelineDataDir: env.PIPELINE_DATA_DIR,
   };
 });
+
+function resolveLlmTransport(
+  provider: (typeof LLM_PROVIDERS)[number],
+  configured: (typeof LLM_TRANSPORTS)[number] | undefined,
+  ctx: z.RefinementCtx,
+): (typeof LLM_TRANSPORTS)[number] {
+  const transport = configured ?? (provider === "claude" ? "claude" : DEFAULT_LLM_TRANSPORT);
+  if (provider === "claude" && transport !== "claude") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["LLM_TRANSPORT"],
+      message: `LLM_PROVIDER=claude 는 LLM_TRANSPORT=claude 와만 함께 쓸 수 있다 (받은 값: ${transport}).`,
+    });
+  }
+  if (provider === "codex" && transport === "claude") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["LLM_TRANSPORT"],
+      message: "LLM_TRANSPORT=claude 를 쓰려면 LLM_PROVIDER=claude 여야 한다.",
+    });
+  }
+  return transport;
+}
 
 /**
  * ConfigModule 의 검증 훅. 실패하면 예외를 던져 기동을 막는다.

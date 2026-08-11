@@ -7,7 +7,7 @@ function config(databaseUrl?: string): PipelineConfig {
   return {
     neo4j: { uri: undefined, user: "neo4j", password: "devloop-password" },
     registry: { databaseUrl },
-    llm: { provider: "codex", model: undefined, reasoningEffort: undefined, concurrency: 4, timeoutMs: 120_000 },
+    llm: { provider: "codex", transport: "responses", model: undefined, reasoningEffort: undefined, concurrency: 4, timeoutMs: 120_000 },
     pipelineDataDir: undefined,
   };
 }

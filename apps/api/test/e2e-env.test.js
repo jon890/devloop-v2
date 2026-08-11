@@ -78,6 +78,7 @@ const CONFIG_ENV_KEYS = [
   'NEO4J_PASSWORD',
   'NEO4J_DATABASE',
   'LLM_PROVIDER',
+  'LLM_TRANSPORT',
   'LLM_MODEL',
   'QUERY_LLM_MODEL',
   'LLM_REASONING_EFFORT',
@@ -94,7 +95,7 @@ function cleanEnv() {
  *
  * 검증 대상은 **로드 순서**다 — 가드가 app.module 보다 먼저 들어와야 테스트 DB 를 문다.
  * 그래서 app.module 은 require 만 하고 띄우는 것은 ApiConfigModule 이다.
- * AppModule 을 띄우면 LLM_CLI 프로바이더가 상주 `codex app-server` 를 실제로 기동한다 —
+ * AppModule 을 띄우면 LLM_CLI 프로바이더가 설정된 실제 LLM 전송을 만든다 —
  * 설정을 읽는 테스트가 LLM 서버에 매달릴 이유가 없다.
  */
 function resolveAppConfig({ preload }) {

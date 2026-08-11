@@ -35,6 +35,7 @@ test("NEO4J_URI 가 있으면 설정으로 파싱된다", () => {
       },
       llm: {
         provider: "codex",
+        transport: "responses",
         model: undefined,
         reasoningEffort: undefined,
         concurrency: 4,
@@ -78,6 +79,7 @@ test("REGISTRY_DATABASE_URL 은 선택 설정으로 파싱된다", () => {
 test("LLM 선택 값은 기본값과 지정값을 파싱한다", () => {
   const defaults = validatePipelineConfig(validEnv()).pipeline;
   assert.equal(defaults.llm.provider, "codex");
+  assert.equal(defaults.llm.transport, "responses");
   assert.equal(defaults.llm.model, undefined);
   assert.equal(defaults.llm.reasoningEffort, undefined);
   assert.equal(defaults.llm.concurrency, 4);
@@ -95,6 +97,7 @@ test("LLM 선택 값은 기본값과 지정값을 파싱한다", () => {
   ).pipeline;
   assert.deepEqual(configured.llm, {
     provider: "claude",
+    transport: "claude",
     model: "gpt-5.5",
     reasoningEffort: "high",
     concurrency: 8,
@@ -108,8 +111,22 @@ test("LLM_PROVIDER 오타와 잘못된 effort는 거부한다", () => {
   assert.throws(() => validatePipelineConfig(validEnv({ LLM_REASONING_EFFORT: "extreme" })), /LLM_REASONING_EFFORT/);
 });
 
-test("빈 LLM_PROVIDER 와 빈 LLM_REASONING_EFFORT 는 기본값으로 바꾸지 않고 거부한다", () => {
+test("LLM_TRANSPORT 허용 목록과 provider 모순을 거부한다", () => {
+  assert.equal(validatePipelineConfig(validEnv({ LLM_TRANSPORT: "app-server" })).pipeline.llm.transport, "app-server");
+  assert.throws(() => validatePipelineConfig(validEnv({ LLM_TRANSPORT: "agent" })), /LLM_TRANSPORT/);
+  assert.throws(
+    () => validatePipelineConfig(validEnv({ LLM_PROVIDER: "claude", LLM_TRANSPORT: "app-server" })),
+    /LLM_PROVIDER=claude.*LLM_TRANSPORT=claude/,
+  );
+  assert.throws(
+    () => validatePipelineConfig(validEnv({ LLM_PROVIDER: "codex", LLM_TRANSPORT: "claude" })),
+    /LLM_TRANSPORT=claude.*LLM_PROVIDER=claude/,
+  );
+});
+
+test("빈 LLM_PROVIDER, LLM_TRANSPORT, LLM_REASONING_EFFORT 는 기본값으로 바꾸지 않고 거부한다", () => {
   assert.throws(() => validatePipelineConfig(validEnv({ LLM_PROVIDER: "" })), /LLM_PROVIDER/);
+  assert.throws(() => validatePipelineConfig(validEnv({ LLM_TRANSPORT: "" })), /LLM_TRANSPORT/);
   assert.throws(() => validatePipelineConfig(validEnv({ LLM_REASONING_EFFORT: "" })), /LLM_REASONING_EFFORT/);
 });
 
@@ -257,6 +274,7 @@ test("PIPELINE_CONFIG 토큰으로 검증된 설정 객체를 주입한다", asy
           },
           llm: {
             provider: "codex",
+            transport: "responses",
             model: undefined,
             reasoningEffort: undefined,
             concurrency: 4,

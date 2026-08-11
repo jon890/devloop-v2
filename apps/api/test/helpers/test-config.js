@@ -11,7 +11,9 @@ function testApiConfig(overrides = {}) {
     },
     llm: {
       provider: 'codex',
+      transport: 'responses',
       queryModel: 'configured-query-model',
+      reasoningEffort: 'high',
       ...(overrides.llm ?? {}),
     },
     ...Object.fromEntries(Object.entries(overrides).filter(([key]) => key !== 'neo4j' && key !== 'llm')),

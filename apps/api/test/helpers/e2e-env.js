@@ -22,6 +22,7 @@ const E2E_ENV = {
   LLM_MODEL: 'extraction-test-model',
   QUERY_LLM_MODEL: 'query-test-model',
   LLM_PROVIDER: 'codex',
+  LLM_TRANSPORT: 'responses',
 };
 
 /** 운영 개발 DB 포트를 가리키는 URI 를 거부한다. 포트가 없으면 bolt 기본값 7687 로 본다. */

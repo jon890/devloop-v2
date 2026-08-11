@@ -1,5 +1,14 @@
 import { z } from "zod";
-import { DEFAULT_LLM_PROVIDER, DEFAULT_NEO4J_DATABASE, DEFAULT_PORT, LLM_PROVIDERS, LLM_REASONING_EFFORTS } from "./api-config.const";
+import {
+  DEFAULT_LLM_PROVIDER,
+  DEFAULT_LLM_REASONING_EFFORT,
+  DEFAULT_LLM_TRANSPORT,
+  DEFAULT_NEO4J_DATABASE,
+  DEFAULT_PORT,
+  LLM_PROVIDERS,
+  LLM_REASONING_EFFORTS,
+  LLM_TRANSPORTS,
+} from "./api-config.const";
 
 /** 빈 문자열은 "값 없음"으로 취급한다. `.env` 에 `KEY=` 로 남은 줄이 기본값을 건너뛰지 않게 한다. */
 function emptyToUndefined(value: unknown): unknown {
@@ -23,8 +32,9 @@ export const ApiEnvSchema = z.object({
   // 기본값 codex 는 파이프라인(`?? "codex"`)과 맞춘 값이다.
   // 다만 열거형으로 좁혀 오타(`codexx`)가 조용히 codex 로 흘러가지 않게 한다.
   LLM_PROVIDER: z.preprocess(emptyToUndefined, z.enum(LLM_PROVIDERS).default(DEFAULT_LLM_PROVIDER)),
+  LLM_TRANSPORT: z.preprocess(emptyToUndefined, z.enum(LLM_TRANSPORTS).optional()),
   QUERY_LLM_MODEL: requiredText,
-  LLM_REASONING_EFFORT: z.preprocess(emptyToUndefined, z.enum(LLM_REASONING_EFFORTS).optional()),
+  LLM_REASONING_EFFORT: z.preprocess(emptyToUndefined, z.enum(LLM_REASONING_EFFORTS).default(DEFAULT_LLM_REASONING_EFFORT)),
 });
 
 export interface ApiConfig {
@@ -32,13 +42,15 @@ export interface ApiConfig {
   neo4j: { uri: string; database: string; user: string; password: string };
   llm: {
     provider: (typeof LLM_PROVIDERS)[number];
+    transport: (typeof LLM_TRANSPORTS)[number];
     queryModel: string;
-    reasoningEffort?: (typeof LLM_REASONING_EFFORTS)[number];
+    reasoningEffort: (typeof LLM_REASONING_EFFORTS)[number];
   };
 }
 
 export const ApiConfigSchema = ApiEnvSchema.transform((env, ctx): ApiConfig => {
   const credentials = resolveNeo4jCredentials(env, ctx);
+  const transport = resolveLlmTransport(env.LLM_PROVIDER, env.LLM_TRANSPORT, ctx);
   return {
     port: env.PORT,
     neo4j: {
@@ -49,11 +61,27 @@ export const ApiConfigSchema = ApiEnvSchema.transform((env, ctx): ApiConfig => {
     },
     llm: {
       provider: env.LLM_PROVIDER,
+      transport,
       queryModel: env.QUERY_LLM_MODEL,
       reasoningEffort: env.LLM_REASONING_EFFORT,
     },
   };
 });
+
+function resolveLlmTransport(
+  provider: (typeof LLM_PROVIDERS)[number],
+  configured: (typeof LLM_TRANSPORTS)[number] | undefined,
+  ctx: z.RefinementCtx,
+): (typeof LLM_TRANSPORTS)[number] {
+  const transport = configured ?? (provider === "claude" ? "claude" : DEFAULT_LLM_TRANSPORT);
+  if (provider === "claude" && transport !== "claude") {
+    fail(ctx, `LLM_PROVIDER=claude 는 LLM_TRANSPORT=claude 와만 함께 쓸 수 있다 (받은 값: ${transport}).`);
+  }
+  if (provider === "codex" && transport === "claude") {
+    fail(ctx, "LLM_TRANSPORT=claude 를 쓰려면 LLM_PROVIDER=claude 여야 한다.");
+  }
+  return transport;
+}
 
 /**
  * ConfigModule 의 검증 훅. 실패하면 예외를 던져 기동을 막는다.

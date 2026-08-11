@@ -24,6 +24,7 @@ const TEST_CONFIG = {
   },
   llm: {
     provider: "codex" as const,
+    transport: "responses" as const,
     model: undefined,
     reasoningEffort: undefined,
     concurrency: 4,
