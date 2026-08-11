@@ -49,6 +49,7 @@ Dooray 업무·댓글·Wiki와 `/Users/nhn/projects/OCR` 아래 Git 저장소를
 
 - git root의 직계 하위 저장소를 이름순으로 찾고 `origin/HEAD^{commit}`을 고정한다. 없으면 해당 저장소 오류로 전체 정규화를 실패시킨다.
 - remote URL은 `git remote get-url origin`으로 읽어 HTTP 원문 URL의 base로 정규화한다.
+- Git local path는 manifest에 저장하지 않는다. commit source ID는 `<repository>@<revision>`, file source ID는 `<repository>@<revision>:<path>`다.
 - 기본 branch의 non-merge commit message, changed path, 문자 상한이 있는 diff hunk를 가져온다. binary와 생성 파일은 제외한다.
 - 현재 경험 문서는 root의 `README.md`, `CLAUDE.md`, `AGENTS.md`와 `docs/**/*.md`만 pinned revision에서 읽는다.
 - commit URL은 `/commit/{40자 SHA}`, 파일 URL은 `/blob/{40자 SHA}/{path}`다. working tree 파일을 직접 읽지 않는다.
@@ -57,7 +58,7 @@ Dooray 업무·댓글·Wiki와 `/Users/nhn/projects/OCR` 아래 Git 저장소를
 
 `apps/pipeline/src/memory/evidence-normalizer.ts`가 두 source adapter를 합치고 `apps/pipeline/data/memory/<project>/`에 쓴다.
 
-- manifest에는 Dooray canonical content hash·건수와 Git 저장소별 path·remote URL·revision을 기록한다. 존재하지 않는 수집 시각을 추측하지 않는다.
+- manifest에는 Dooray canonical content hash·건수와 Git 저장소별 remote URL·revision을 기록한다. local path와 존재하지 않는 수집 시각을 넣지 않는다.
 - 정렬 기준을 고정한 뒤 canonical JSON의 SHA-256으로 `contentHash`를 만든다.
 - `source-generations/<sourceGenerationId>/`의 manifest와 evidence를 임시 디렉터리에 모두 쓴 뒤 rename한다.
 - 두 파일을 검증한 다음 `current-source.json` pointer만 원자적으로 교체한다. 실패 시 이전 pointer와 generation을 유지한다.

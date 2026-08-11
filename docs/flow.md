@@ -18,7 +18,8 @@ flowchart TD
     N --> E["source generation<br/>evidence + manifest"]
     E --> X["extract-memory<br/>gpt-5.6-luna"]
     C[("evidence hash cache")] -.-> X
-    X --> D["extraction generation<br/>records + report"]
+    X --> D["extraction generation<br/>records + deterministic manifest"]
+    X --> R["run report<br/>calls + cache + elapsed"]
     D --> B["build-memory-wiki"]
     B --> M["Wiki generation<br/>Markdown + index"]
     M --> S["memory-search<br/>lexical ranking"]

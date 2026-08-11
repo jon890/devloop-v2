@@ -23,7 +23,7 @@
 
 ### 1. compact Wiki builder를 만든다
 
-`apps/pipeline/src/memory/wiki-builder.ts`가 `current-extraction.json`의 generation을 Zod로 읽어
+`apps/pipeline/src/memory/wiki-builder.ts`가 `current-extraction.json`의 deterministic manifest와 JSONL을 Zod로 읽어
 `wiki-generations/<wikiGenerationId>/` 아래 kind별 디렉터리와 `index.md`, `index.json`을 생성한다.
 
 - Markdown에는 title, status, confidence, scope, summary, why, 선택 doNot, 모든 SourceRef 링크만 쓴다.
@@ -59,6 +59,7 @@ project·repository·module·path scope filter와 top-k 상한을 제공한다.
 - scope filter, status 감점, confidence와 ID tie-break
 - 0건 정상 응답, incomplete 기본 거부
 - 검색 중 LLM/Neo4j/Postgres import와 호출 없음
+- Memory title의 개행 schema 위반 거부
 
 ---
 

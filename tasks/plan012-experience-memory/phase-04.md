@@ -41,9 +41,11 @@ manifest에서 Dooray task·comment·Wiki 건수가 0보다 크고 Git 저장소
 
 ### 3. Coding Agent용 검색 smoke와 비용 지표를 측정한다
 
-추출 결과에서 서로 다른 kind의 첫 Memory title을 최대 3개 고른다.
-kind가 3개보다 적으면 ID 순 첫 Memory로 채우며 Memory 자체가 3개보다 적으면 파일럿 실패로 기록한다.
-선택한 title을 query로 최소 3개 실행한다.
+다음 세 query를 그대로 실행해 exact title self-hit가 아닌 기본 lexical 동작을 확인한다.
+
+- `설계 결정 대안 이유`
+- `운영 장애 변경 금지 제약`
+- `실패 migration 교훈`
 
 - 결과 relevance와 원문 link 유효성
 - `searchMs`, `documentsScanned`, `returned`
@@ -51,6 +53,8 @@ kind가 3개보다 적으면 ID 순 첫 Memory로 채우며 Memory 자체가 3�
 - 현재 source에서 재구성 가능한 사실이 상위 결과를 오염시키는지
 
 단위가 다른 Retrieval Tax와 Memory Benefit을 하나의 점수로 임의 합산하지 않는다.
+세 query 중 0건 결과는 숨기지 않고 lexical 기준선의 gap으로 기록한다.
+이 phase는 기계적 검색과 link 경로만 smoke하며 task utility 판정은 Issue #9가 소유한다.
 실제 관측 가능한 값만 `eval/reports/2026-08-XX-plan012-experience-memory.md`에 남기고 token을 문자 수로 추정하지 않는다.
 
 ### 4. 기존 관리 문서와 task 상태를 닫는다
@@ -84,14 +88,9 @@ pnpm --filter pipeline normalize-memory -- --project tc-ocr --git-root /Users/nh
 pnpm --filter pipeline extract-memory -- --project tc-ocr --sample-per-source 3
 pnpm --filter pipeline extract-memory -- --project tc-ocr --sample-per-source 3
 pnpm --filter pipeline build-memory-wiki -- --project tc-ocr --allow-incomplete
-wiki_generation=$(jq -r .generationId apps/pipeline/data/memory/tc-ocr/current-wiki.json)
-index_path="apps/pipeline/data/memory/tc-ocr/wiki-generations/${wiki_generation}/index.json"
-query_count=$(jq '(.memories | sort_by(.kind, .id) | group_by(.kind) | map(.[0])) as $distinct | ($distinct + [.memories[] | select(.id as $id | all($distinct[]; .id != $id))]) | .[:3] | length' "$index_path")
-test "$query_count" -eq 3
-jq -r '(.memories | sort_by(.kind, .id) | group_by(.kind) | map(.[0])) as $distinct | ($distinct + [.memories[] | select(.id as $id | all($distinct[]; .id != $id))]) | .[:3] | .[].title' "$index_path" |
-  while IFS= read -r query; do
-    pnpm --filter pipeline memory-search -- --project tc-ocr --query "$query" --allow-incomplete
-  done
+pnpm --filter pipeline memory-search -- --project tc-ocr --query "설계 결정 대안 이유" --allow-incomplete
+pnpm --filter pipeline memory-search -- --project tc-ocr --query "운영 장애 변경 금지 제약" --allow-incomplete
+pnpm --filter pipeline memory-search -- --project tc-ocr --query "실패 migration 교훈" --allow-incomplete
 pnpm --filter pipeline test
 pnpm -r build
 pnpm format:check

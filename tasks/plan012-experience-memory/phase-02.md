@@ -37,6 +37,7 @@ Memory extractor는 `ResponsesCliAdapter`를 직접 생성한다.
 - 출력 kind는 `decision`, `constraint`, `incident`, `failed-attempt`, `lesson`뿐이다.
 - 현재 source에서 다시 찾을 class·symbol·호출 관계는 제외한다.
 - 원문 인용을 복제하지 않고 `sourceRefKeys`만 선택하게 한다.
+- title은 개행 없는 한 줄이어야 한다.
 - 직접 근거가 없으면 생성하지 않으며 현재 유효성이 불명확하면 status는 `uncertain`이다.
 - repair prompt로 추가 호출하지 않고 strict structured output 한 번을 기본으로 한다.
 
@@ -60,9 +61,11 @@ Memory ID는 kind, 정규화 title, 정렬한 sourceRefKey의 SHA-256으로 계�
 cache key와 envelope에 `contentHash`, prompt version, Memory schema version, exact model, exact effort를 모두 넣는다.
 cache hit에서는 LLM을 호출하지 않고 Zod·provenance를 다시 검증한다.
 
-`extraction-generations/<extractionGenerationId>/`에 `extracted.jsonl`과 `extraction-report.json`을 함께 쓰고 디렉터리를 rename한다.
-report에는 source generation ID·manifest hash·selection·실패 packet·calls·cache hits·elapsed time·model·effort·prompt version을 기록한다.
+`extraction-generations/<extractionGenerationId>/`에 `extracted.jsonl`과 deterministic `extraction-manifest.json`을 함께 쓰고 디렉터리를 rename한다.
+manifest에는 source generation ID·manifest hash·selection·성공·실패 packet ID·결과 content hash·model·effort·prompt version·complete만 기록한다.
 두 파일 검증 후 `current-extraction.json` pointer만 원자적으로 교체한다.
+calls·cache hits·elapsed time·원래 오류 문자열은 `extraction-runs/<runId>/extraction-run-report.json`에 기록하고 `latest-extraction-run.json`을 원자적으로 교체한다.
+같은 generation의 cache 재실행은 generation byte를 바꾸지 않고 새 run report에 calls 0을 기록한다.
 실패가 있거나 `--limit`·`--ids`·`--sample-per-source`를 사용하면 `complete: false`다.
 
 ### 5. extract 명령과 테스트를 추가한다
@@ -78,6 +81,7 @@ fake `LlmCli`로 다음을 검증한다.
 - cache hit 0 calls와 prompt/schema/model/effort 변화 시 miss
 - 모르는 source ref, invalid enum, 빈 summary 거부
 - 일부 실패와 부분 실행의 `complete: false`
+- 첫 실행과 cache 재실행이 같은 extraction generation을 가리키면서 run 통계만 달라짐
 
 ---
 

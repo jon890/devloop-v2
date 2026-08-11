@@ -425,7 +425,9 @@ memory/<project>/
     evidence.jsonl
   extraction-generations/<extractionGenerationId>/
     extracted.jsonl
-    extraction-report.json
+    extraction-manifest.json
+  extraction-runs/<runId>/
+    extraction-run-report.json
   wiki-generations/<wikiGenerationId>/
     decisions/
     constraints/
@@ -436,13 +438,15 @@ memory/<project>/
     index.json
   current-source.json
   current-extraction.json
+  latest-extraction-run.json
   current-wiki.json
 ```
 
 각 generation은 임시 디렉터리에 완전히 쓴 뒤 rename하며 생성 후에는 수정하지 않는다.
 마지막에 `current-*.json` pointer 하나를 임시 파일에서 원자적으로 교체한다.
 여러 산출물을 차례로 덮어쓰지 않으므로 중간에 중단돼도 이전 pointer와 정상 generation을 유지한다.
-세 pointer의 공통 형식은 `{ "schemaVersion": 1, "generationId": "<stage-prefix>-<hash>" }`다.
+세 generation pointer의 공통 형식은 `{ "schemaVersion": 1, "generationId": "<stage-prefix>-<hash>" }`다.
+`latest-extraction-run.json`은 `{ "schemaVersion": 1, "runId": "run-<unique-id>" }` 형식이다.
 
 ### Source manifest
 
@@ -462,7 +466,6 @@ memory/<project>/
   "gitRepositories": [
     {
       "name": "OCR.API",
-      "path": "/Users/nhn/projects/OCR/OCR.API",
       "remoteUrl": "https://github.nhnent.com/TOASTCloud/OCR.API",
       "revision": "cb39cd99efc261cdf730d35078ddaa52a298bded"
     }
@@ -470,7 +473,7 @@ memory/<project>/
 }
 ```
 
-Git `path`는 수집 환경 정보이며 Memory 검색 결과에 노출하지 않는다.
+Git local `path`는 실행 시점 입력일 뿐 manifest와 Memory 검색 결과에 저장하지 않는다.
 기존 `fetch-dooray`는 수집 시각을 저장하지 않으므로 시각을 추측하지 않는다.
 `sourceGenerationId`는 Dooray canonical content hash와 정렬한 Git revision·remote URL의 hash로 만든다.
 같은 source snapshot은 실행 시각과 무관하게 같은 manifest byte와 generation ID를 만든다.
@@ -495,6 +498,11 @@ URL은 식별자가 아니다.
 Dooray 이동이나 Git remote 변경 시 안정 ID와 revision으로 다시 생성할 수 있다.
 segment와 LLM draft가 SourceRef를 가리킬 때는 저장 필드를 추가하지 않고
 `sourceRefKey = "${sourceType}:${sourceId}"` 합성 키를 사용한다.
+
+Git SourceRef의 `sourceId`는 원격 저장소 사이의 충돌을 막기 위해 다음과 같이 만든다.
+
+- `git-commit`: `<repository>@<40자 revision>`
+- `git-file`: `<repository>@<40자 revision>:<path>`
 
 ### EvidencePacket
 
@@ -570,6 +578,7 @@ Git commit evidence는 commit message, changed paths, 제한된 diff hunk를 seg
 | `kind` | `decision`, `constraint`, `incident`, `failed-attempt`, `lesson` |
 | `status` | `active`, `superseded`, `deprecated`, `historical`, `uncertain` |
 | `confidence` | `high`, `medium`, `low` |
+| `title` | 개행 없는 한 줄 |
 | `summary` | 결론 한 문단. 원문 복제 금지 |
 | `why` | 코드에서 재구성하기 어려운 이유나 맥락 |
 | `doNot` | 근거가 있을 때만 기록하는 금지·주의 배열 |
@@ -585,9 +594,14 @@ Memory ID는 kind, 정규화한 title, 정렬한 `sourceRefKey`의 SHA-256으로
 ### 검색 index와 응답
 
 `current-extraction.json`은 하나의 immutable extraction generation을 가리킨다.
-그 generation의 report는 `sourceGenerationId`, `sourceManifestHash`, selection, model, effort,
-prompt version, calls, cache hits, failures, elapsed time, `complete`를 가진다.
-builder는 report와 JSONL이 같은 generation에 있을 때만 읽는다.
+그 generation의 deterministic manifest는 `sourceGenerationId`, `sourceManifestHash`, selection,
+model, effort, prompt version, 성공·실패 packet ID, 결과 content hash, `complete`를 가진다.
+builder는 manifest와 JSONL이 같은 generation에 있을 때만 읽는다.
+
+calls, cache hits, elapsed time, 원래 오류 문자열처럼 실행마다 달라지는 값은 generation에 넣지 않는다.
+매 실행은 `extraction-runs/<runId>/extraction-run-report.json`에 이 값을 기록하고
+`latest-extraction-run.json` pointer를 원자적으로 교체한다.
+같은 generation을 cache로 재사용해도 새 run report는 calls 0을 기록할 수 있다.
 
 `current-wiki.json`이 가리키는 `wiki-generations/<wikiGenerationId>/index.json`은
 검증된 MemoryRecord와 검색용 정규화 필드를 가진다.
@@ -606,7 +620,9 @@ Markdown을 다시 parsing하지 않는다.
 ```
 
 source, extraction, Wiki generation ID에는 실행 시각을 넣지 않는다.
-동일 입력과 schema·prompt·selection은 같은 generation byte를 만든다.
+동일 source snapshot은 같은 source generation을 만든다.
+동일한 검증 완료 MemoryRecord와 extraction identity는 같은 extraction generation을 만들고,
+동일 extraction generation과 Wiki schema는 같은 Wiki generation을 만든다.
 
 검색 응답은 query와 결과 외에 `searchMs`, `documentsScanned`, `returned`를 기록한다.
 결과는 lexical score 내림차순, confidence, Memory ID 순으로 정렬해 같은 index와 query에서 결정적이다.
