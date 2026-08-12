@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 function isSafeRunKey(runKey) {
@@ -93,24 +94,34 @@ async function materializeMemoryWorkspace({ source, runKey, runsRoot = "eval/run
   return { workspacePath, baselineCommit };
 }
 
-async function prepareActiveWorkspaceRoot({ runtimeRoot, activeWorkspaceDirectoryName = "active-workspace" }) {
-  const canonicalRuntimeRoot = path.resolve(runtimeRoot);
-  const activeWorkspaceRoot = path.resolve(canonicalRuntimeRoot, activeWorkspaceDirectoryName);
-  const relative = path.relative(canonicalRuntimeRoot, activeWorkspaceRoot);
-  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative) || path.basename(activeWorkspaceRoot) !== activeWorkspaceDirectoryName) {
-    throw new Error("active workspace root must be an explicit directory inside runtimeRoot");
+async function prepareActiveWorkspaceRoot({ tempDirectory = tmpdir(), activeWorkspacePrefix = "devloop-memory-eval-" } = {}) {
+  const canonicalTempDirectory = path.resolve(tempDirectory);
+  const activeWorkspaceRoot = await mkdtemp(path.join(canonicalTempDirectory, activeWorkspacePrefix));
+  const canonicalActiveWorkspaceRoot = path.resolve(activeWorkspaceRoot);
+  const relative = path.relative(canonicalTempDirectory, canonicalActiveWorkspaceRoot);
+  if (
+    relative === "" ||
+    relative.startsWith("..") ||
+    path.isAbsolute(relative) ||
+    path.dirname(canonicalActiveWorkspaceRoot) !== canonicalTempDirectory ||
+    !path.basename(canonicalActiveWorkspaceRoot).startsWith(activeWorkspacePrefix)
+  ) {
+    throw new Error("active workspace root must be an explicit mkdtemp directory inside OS temp");
   }
-  await rm(activeWorkspaceRoot, { recursive: true, force: true });
-  await mkdir(activeWorkspaceRoot, { recursive: true });
-  return activeWorkspaceRoot;
+  return canonicalActiveWorkspaceRoot;
 }
 
-async function cleanupActiveWorkspaceRoot({ runtimeRoot, activeWorkspaceRoot, activeWorkspaceDirectoryName = "active-workspace" }) {
-  const canonicalRuntimeRoot = path.resolve(runtimeRoot);
+async function cleanupActiveWorkspaceRoot({ activeWorkspaceRoot, tempDirectory = tmpdir(), activeWorkspacePrefix = "devloop-memory-eval-" }) {
+  const canonicalTempDirectory = path.resolve(tempDirectory);
   const canonicalActiveWorkspaceRoot = path.resolve(activeWorkspaceRoot);
-  const expected = path.resolve(canonicalRuntimeRoot, activeWorkspaceDirectoryName);
-  const relative = path.relative(canonicalRuntimeRoot, canonicalActiveWorkspaceRoot);
-  if (canonicalActiveWorkspaceRoot !== expected || relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
+  const relative = path.relative(canonicalTempDirectory, canonicalActiveWorkspaceRoot);
+  if (
+    relative === "" ||
+    relative.startsWith("..") ||
+    path.isAbsolute(relative) ||
+    path.dirname(canonicalActiveWorkspaceRoot) !== canonicalTempDirectory ||
+    !path.basename(canonicalActiveWorkspaceRoot).startsWith(activeWorkspacePrefix)
+  ) {
     throw new Error("refusing to delete unexpected active workspace root");
   }
   await rm(canonicalActiveWorkspaceRoot, { recursive: true, force: true });

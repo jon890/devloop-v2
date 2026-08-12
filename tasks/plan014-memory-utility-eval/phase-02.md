@@ -23,8 +23,8 @@
 `run-memory.mjs`에는 두 순서를 모두 결정적으로 만드는 순수 함수를 두고, interleaved를 명시한 실행만 새 순서를 사용한다.
 
 각 attempt의 Agent가 시작될 때 파일시스템에는 현재 attempt의 source-locked workspace만 있어야 한다.
-이전·다른 condition workspace는 attempt 시작 전에 안전한 고정 active workspace root에서 제거하고, 성공·실패·availability failure와 관계없이 attempt 종료 시 `finally`에서 다시 제거한다.
-Agent prompt는 현재 repository 밖의 파일을 읽지 않도록 명시한다.
+현재 workspace는 private run artifact의 상위·형제 경로가 아닌 OS 임시 디렉터리의 고유 `mkdtemp` root에 만들고, 성공·실패·availability failure와 관계없이 attempt 종료 시 `finally`에서 제거한다.
+Agent prompt는 현재 repository 밖의 파일을 읽지 않도록 명시하되 제공된 Experience Memory 검색 명령만 예외로 둔다.
 Agent command telemetry에서 다른 `MEM-*` workspace 또는 benchmark transcript·diff를 읽은 흔적이 발견되면 그 raw run은 독립 실행 근거로 사용할 수 없다.
 transcript와 diff는 Agent가 종료된 뒤 active workspace 밖의 private run artifact로만 보존한다.
 

@@ -201,6 +201,34 @@ test("detects forbidden workspace paths across multi-line commands without flagg
       workspaceContaminationCount: 0,
     },
   );
+  assert.deepEqual(
+    detectWorkspaceContamination(
+      [{ type: "item.completed", item: { type: "command_execution", command: "git -C /tmp/devloop-memory-eval-abc123/MEM-EXP-001-agent-triggered-3/.git status" } }],
+      { currentWorkspacePath: "/tmp/devloop-memory-eval-abc123/MEM-EXP-001-agent-triggered-3" },
+    ),
+    {
+      workspaceContamination: false,
+      workspaceContaminationCount: 0,
+    },
+  );
+  assert.deepEqual(
+    detectWorkspaceContamination([{ type: "item.completed", item: { type: "command_execution", command: "cat ../MEM-CODE-001-no-memory-1/service.txt" } }], {
+      currentWorkspacePath: "/tmp/devloop-memory-eval-abc123/MEM-EXP-001-agent-triggered-3",
+    }),
+    {
+      workspaceContamination: true,
+      workspaceContaminationCount: 1,
+    },
+  );
+  assert.deepEqual(
+    detectWorkspaceContamination([{ type: "item.completed", item: { type: "command_execution", command: "cat /tmp/x/eval/runs/transcripts/MEM-CODE-001-no-memory-1.stdout.jsonl" } }], {
+      currentWorkspacePath: "/tmp/devloop-memory-eval-abc123/MEM-EXP-001-agent-triggered-3",
+    }),
+    {
+      workspaceContamination: true,
+      workspaceContaminationCount: 1,
+    },
+  );
 });
 
 test("prints help without requiring private inputs", () => {
@@ -460,7 +488,8 @@ test("sequential attempts remove prior active workspace while preserving result 
       runAgentFn: async ({ cwd }) => {
         if (seenCwds.length === 1) {
           await assert.rejects(() => access(seenCwds[0]));
-          assert.equal(path.basename(path.dirname(cwd)), "active-workspace");
+          assert.notEqual(path.dirname(path.dirname(cwd)), path.dirname(outPath));
+          assert.match(path.basename(path.dirname(cwd)), /^devloop-memory-eval-/);
         }
         seenCwds.push(cwd);
         await writeFile(path.join(cwd, "service.txt"), "changed\n");
@@ -469,11 +498,13 @@ test("sequential attempts remove prior active workspace while preserving result 
     });
     const stored = JSON.parse(await readFile(outPath, "utf8"));
     assert.equal(stored.attempts.length, 2);
+    assert.notEqual(path.dirname(seenCwds[0]), path.dirname(seenCwds[1]));
+    assert.match(path.basename(path.dirname(seenCwds[0])), /^devloop-memory-eval-/);
+    assert.match(path.basename(path.dirname(seenCwds[1])), /^devloop-memory-eval-/);
     await access(stored.attempts[0].stdoutTranscriptPath);
     await access(stored.attempts[1].stdoutTranscriptPath);
     await access(path.join(path.dirname(outPath), "memory-diffs", "MEM-CODE-001-no-memory-1.patch"));
     await access(path.join(path.dirname(outPath), "memory-diffs", "MEM-CODE-001-agent-triggered-1.patch"));
-    await assert.rejects(() => access(path.join(path.dirname(outPath), "active-workspace")));
     assert.equal(git(["status", "--short"], fixture.sourceRepo.repoPath), sourceBefore);
   } finally {
     await rm(fixture.root, { recursive: true, force: true });

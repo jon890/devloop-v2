@@ -376,12 +376,16 @@ function commandEvents(events) {
   return commands;
 }
 
-function detectWorkspaceContamination(events) {
+function detectWorkspaceContamination(events, { currentWorkspacePath = null } = {}) {
   const forbiddenPathPattern =
-    /(^|[\s"'`([{/])(?:\.\.\/MEM-[A-Za-z0-9_.-]+|(?:\.\/)?eval\/runs\/(?:workspaces|active-workspace|memory-diffs|transcripts)(?:\/|$)|(?:\.\.\/)*(?:\.\/)?(?:memory-diffs|transcripts)\/MEM-[A-Za-z0-9_.-]+)/;
+    /(^|[\s"'`([{/])(?:\.\.\/MEM-[A-Za-z0-9_.-]+|(?:\.\/)?eval\/runs\/(?:workspaces|memory-diffs|transcripts)(?:\/|$)|(?:\.\.\/)*(?:\.\/)?(?:memory-diffs|transcripts)\/MEM-[A-Za-z0-9_.-]+)/;
+  const currentWorkspace = typeof currentWorkspacePath === "string" ? path.resolve(currentWorkspacePath) : null;
   const contaminatedCommands = commandEvents(events)
     .map((command) => commandText(command).replace(/\s+/g, " "))
-    .filter((text) => forbiddenPathPattern.test(text));
+    .filter((text) => {
+      const comparable = currentWorkspace ? text.split(currentWorkspace).join("<current-workspace>") : text;
+      return forbiddenPathPattern.test(comparable);
+    });
   return {
     workspaceContamination: contaminatedCommands.length > 0,
     workspaceContaminationCount: contaminatedCommands.length,
@@ -396,7 +400,7 @@ async function requiredMemoryIdsForAttempt({ options, sourceTask, topK, rootCwd 
 
 async function executeAttempt({ options, sourceTask, condition, repetition, runKey, rootCwd }) {
   const runtimeRoot = options.runtimeRoot ?? path.dirname(options.outPath);
-  const workspaceRoot = await prepareActiveWorkspaceRoot({ runtimeRoot });
+  const workspaceRoot = await prepareActiveWorkspaceRoot();
   try {
     const { workspacePath } = await materializeMemoryWorkspace({
       source: sourceTask,
@@ -493,7 +497,7 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
       diff: { patch: await readFile(diffPath, "utf8") },
       events,
     });
-    const contamination = detectWorkspaceContamination(events);
+    const contamination = detectWorkspaceContamination(events, { currentWorkspacePath: workspacePath });
     return {
       taskId: sourceTask.taskId,
       condition,
@@ -519,7 +523,7 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
       ...judgment,
     };
   } finally {
-    await cleanupActiveWorkspaceRoot({ runtimeRoot, activeWorkspaceRoot: workspaceRoot });
+    await cleanupActiveWorkspaceRoot({ activeWorkspaceRoot: workspaceRoot });
   }
 }
 
