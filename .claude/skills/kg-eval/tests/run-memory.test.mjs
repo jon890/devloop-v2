@@ -5,7 +5,16 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { assertAcceptedAttempts, buildAttemptSchedule, memorySearchArgv, memorySearchCommand, parseArgs, runMemoryEvaluation, usableMemorySearchResult } from "../scripts/run-memory.mjs";
+import {
+  assertAcceptedAttempts,
+  buildAttemptSchedule,
+  detectWorkspaceContamination,
+  memorySearchArgv,
+  memorySearchCommand,
+  parseArgs,
+  runMemoryEvaluation,
+  usableMemorySearchResult,
+} from "../scripts/run-memory.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RUNNER = path.resolve(__dirname, "../scripts/run-memory.mjs");
@@ -91,7 +100,7 @@ async function makeFixture() {
   }));
   await writeJson(suitePath, suite);
   await writeJson(sourceLockPath, { schemaVersion: "memory-source-lock/v1", suiteId: suite.suiteId, sourceSnapshot: "fixture", tasks });
-  return { root, dataDir, suitePath, sourceLockPath };
+  return { root, dataDir, suitePath, sourceLockPath, sourceRepo };
 }
 
 test("parses help, dry-run, and bounded execution options", () => {
@@ -167,6 +176,31 @@ test("builds the archived-workspace Memory search command with devloop root and 
   assert(argv.includes("tc-ocr"));
   assert(argv.includes("--allow-incomplete"));
   assert.match(memorySearchCommand({ query: "can't leak", dataDir: "./data dir", devloopRoot: "/repo/root" }), /^'pnpm' '--dir'/);
+});
+
+test("detects forbidden workspace paths across multi-line commands without flagging memory-search", () => {
+  const commandEvents = [
+    "python <<'PY'\nfrom pathlib import Path\nprint(Path('../MEM-CODE-001-no-memory-1/service.txt').read_text())\nPY",
+    "node <<'JS'\nrequire('fs').readFileSync('eval/runs/workspaces/MEM-CODE-001-no-memory-1/service.txt','utf8')\nJS",
+    "cp ../MEM-CODE-001-no-memory-1/service.txt ./copied.txt",
+    "awk '{print}' memory-diffs/MEM-CODE-001-no-memory-1.patch",
+    "wc -l transcripts/MEM-CODE-001-no-memory-1.stdout.jsonl",
+    "wc -l ../../transcripts/MEM-CODE-001-no-memory-1.stdout.jsonl",
+    "cat /tmp/x/eval/runs/workspaces/MEM-CODE-001-no-memory-1/service.txt",
+  ].map((command) => ({ type: "item.completed", item: { type: "command_execution", command } }));
+  assert.deepEqual(detectWorkspaceContamination(commandEvents), {
+    workspaceContamination: true,
+    workspaceContaminationCount: 7,
+  });
+
+  const generated = memorySearchCommand({ query: "MEM-CODE-001", dataDir: "/repo/root/apps/pipeline/data", devloopRoot: "/repo/root" });
+  assert.deepEqual(
+    detectWorkspaceContamination([{ type: "item.completed", item: { type: "command_execution", command: generated } }]),
+    {
+      workspaceContamination: false,
+      workspaceContaminationCount: 0,
+    },
+  );
 });
 
 test("prints help without requiring private inputs", () => {
@@ -400,6 +434,118 @@ test("spawn availability failure is stored without consuming the attempt", async
         normalizedCode: "agent_spawn_failed",
       },
     ]);
+    await assert.rejects(() => access(path.join(path.dirname(outPath), "active-workspace")));
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("sequential attempts remove prior active workspace while preserving result artifacts and source repo", async () => {
+  const fixture = await makeFixture();
+  try {
+    const outPath = path.join(fixture.root, "sequential.json");
+    const sourceBefore = git(["status", "--short"], fixture.sourceRepo.repoPath);
+    const seenCwds = [];
+    await runMemoryEvaluation({
+      suitePath: fixture.suitePath,
+      sourceLockPath: fixture.sourceLockPath,
+      dataDir: fixture.dataDir,
+      outPath,
+      agent: "codex",
+      agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+      taskIds: ["MEM-CODE-001"],
+      conditions: ["no-memory", "agent-triggered"],
+      repeats: 1,
+      timeoutMs: 1000,
+      runAgentFn: async ({ cwd }) => {
+        if (seenCwds.length === 1) {
+          await assert.rejects(() => access(seenCwds[0]));
+          assert.equal(path.basename(path.dirname(cwd)), "active-workspace");
+        }
+        seenCwds.push(cwd);
+        await writeFile(path.join(cwd, "service.txt"), "changed\n");
+        return { status: 0, signal: null, timedOut: false, outputOverflow: null, stdout: JSON.stringify({ type: "turn.completed" }), stderr: "" };
+      },
+    });
+    const stored = JSON.parse(await readFile(outPath, "utf8"));
+    assert.equal(stored.attempts.length, 2);
+    await access(stored.attempts[0].stdoutTranscriptPath);
+    await access(stored.attempts[1].stdoutTranscriptPath);
+    await access(path.join(path.dirname(outPath), "memory-diffs", "MEM-CODE-001-no-memory-1.patch"));
+    await access(path.join(path.dirname(outPath), "memory-diffs", "MEM-CODE-001-agent-triggered-1.patch"));
+    await assert.rejects(() => access(path.join(path.dirname(outPath), "active-workspace")));
+    assert.equal(git(["status", "--short"], fixture.sourceRepo.repoPath), sourceBefore);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("oracle failure cleans active workspace before returning the error", async () => {
+  const fixture = await makeFixture();
+  try {
+    const outPath = path.join(fixture.root, "oracle-cleanup.json");
+    await assert.rejects(
+      () =>
+        runMemoryEvaluation({
+          suitePath: fixture.suitePath,
+          sourceLockPath: fixture.sourceLockPath,
+          dataDir: fixture.dataDir,
+          outPath,
+          agent: "codex",
+          taskIds: ["MEM-EXP-001"],
+          conditions: ["oracle-memory"],
+          repeats: 1,
+          timeoutMs: 1000,
+          runMemorySearchFn: async () => ({ ok: false, reason: "emptyResults", result: { status: 0 }, memory: { results: [] } }),
+          runAgentFn: async () => {
+            throw new Error("oracle failure must stop before Agent execution");
+          },
+        }),
+      /oracle memory unavailable/,
+    );
+    await assert.rejects(() => access(path.join(path.dirname(outPath), "active-workspace")));
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("sibling benchmark artifact command access records contamination and fails acceptance", async () => {
+  const fixture = await makeFixture();
+  try {
+    const outPath = path.join(fixture.root, "contamination.json");
+    await assert.rejects(
+      () =>
+        runMemoryEvaluation({
+          suitePath: fixture.suitePath,
+          sourceLockPath: fixture.sourceLockPath,
+          dataDir: fixture.dataDir,
+          outPath,
+          agent: "codex",
+          agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+          taskIds: ["MEM-CODE-001"],
+          conditions: ["agent-triggered"],
+          repeats: 1,
+          timeoutMs: 1000,
+          runAgentFn: async ({ cwd }) => {
+            await writeFile(path.join(cwd, "service.txt"), "changed\n");
+            return {
+              status: 0,
+              signal: null,
+              timedOut: false,
+              outputOverflow: null,
+              stdout: JSON.stringify({ type: "item.completed", item: { type: "command_execution", command: "cat ../MEM-CODE-001-no-memory-1/service.txt" } }),
+              stderr: "",
+            };
+          },
+        }),
+      /memory run acceptance failed/,
+    );
+    const stored = JSON.parse(await readFile(outPath, "utf8"));
+    assert.equal(stored.attempts[0].workspaceContamination, true);
+    assert.equal(stored.attempts[0].workspaceContaminationCount, 1);
+    assert.equal(Object.hasOwn(stored.attempts[0], "workspaceContaminationCommands"), false);
+    assert.equal(stored.attempts[0].failureBoundary, "MEMORY");
+    await assert.rejects(() => access(path.join(path.dirname(outPath), "active-workspace")));
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }
@@ -449,7 +595,7 @@ test("resumed memory run rejects changed agent options but accepts canonical nul
   }
 });
 
-test("isolates workspaces and diffs under the output directory", async () => {
+test("isolates active workspaces and preserves transcripts and diffs under the output directory", async () => {
   const fixture = await makeFixture();
   try {
     const isolated = path.join(fixture.root, "isolated-runs");
@@ -472,7 +618,11 @@ test("isolates workspaces and diffs under the output directory", async () => {
         return { status: 0, signal: null, timedOut: false, outputOverflow: null, stdout: JSON.stringify({ type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } }), stderr: "" };
       },
     });
-    await access(path.join(isolated, "workspaces", "MEM-CODE-001-agent-triggered-1", ".git"));
+    const stored = JSON.parse(await readFile(outPath, "utf8"));
+    await assert.rejects(() => access(path.join(isolated, "active-workspace")));
+    await assert.rejects(() => access(path.join(isolated, "workspaces")));
+    await access(stored.attempts[0].stdoutTranscriptPath);
+    await access(stored.attempts[0].stderrTranscriptPath);
     await access(path.join(isolated, "memory-diffs", "MEM-CODE-001-agent-triggered-1.patch"));
     const globalAfter = await stat(globalWorkspace).catch(() => null);
     assert.equal(globalAfter?.mtimeMs ?? null, globalBefore?.mtimeMs ?? null);

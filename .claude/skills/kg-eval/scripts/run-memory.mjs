@@ -10,7 +10,7 @@ import { normalizeAgentTelemetryJsonl, parseJsonl } from "./memory/telemetry.mjs
 import { judgeMemoryAttempt } from "./memory/judge.mjs";
 import { canonicalExecutionPlan, withMemoryRun } from "./memory/result.mjs";
 import { retrievalObservations } from "./memory/retrieval-observation.mjs";
-import { diffHash, materializeMemoryWorkspace, writeDiff } from "./memory/workspace.mjs";
+import { cleanupActiveWorkspaceRoot, cleanupLegacyWorkspaceRoot, diffHash, materializeMemoryWorkspace, prepareActiveWorkspaceRoot, writeDiff } from "./memory/workspace.mjs";
 
 const DEFAULT_DATA_DIR = "apps/pipeline/data";
 const DEFAULT_OUT = "eval/runs/plan013-memory-smoke-run.json";
@@ -161,7 +161,8 @@ function buildAgentPrompt(input) {
   return [
     "You are executing a source-locked Coding Agent Memory benchmark task.",
     input.memoryInformation.instruction,
-    "Modify only what is required, keep changes inside the repository, and run the provided validation command before stopping.",
+    "Modify only what is required, keep changes inside the repository, do not read sibling benchmark workspaces or run artifacts, and run the provided validation command before stopping.",
+    "The provided Experience Memory search command is the only allowed external read for this benchmark prompt.",
     "",
     `Task:\n${input.prompt}`,
     "",
@@ -304,6 +305,7 @@ function assertAcceptedAttempts({ attempts, selected, conditions, repeats, requi
   for (const attempt of selectedAttempts) {
     const publicTask = publicByTask.get(attempt.taskId);
     const agentMemoryCalls = attempt.agentMemoryCalls ?? attempt.memoryCalls;
+    if (attempt.workspaceContamination) failures.conditionContamination += 1;
     if (attempt.condition === "no-memory" && agentMemoryCalls !== 0) failures.conditionContamination += 1;
     if (attempt.condition === "oracle-memory" && ((attempt.oracleMemoryProvided ?? 0) !== 1 || agentMemoryCalls !== 0)) failures.conditionContamination += 1;
     if (requireExpectedTrigger && (!publicTask || triggerMismatch(publicTask, attempt))) failures.triggerMismatch += 1;
@@ -352,6 +354,40 @@ function executionPlanFromOptions(options) {
   });
 }
 
+function commandText(command) {
+  if (Array.isArray(command)) return command.join(" ");
+  if (typeof command === "string") return command;
+  if (Array.isArray(command?.argv)) return command.argv.join(" ");
+  if (typeof command?.command === "string") return command.command;
+  return "";
+}
+
+function commandEvents(events) {
+  const commands = [];
+  for (const event of events ?? []) {
+    if (event?.item?.type === "command_execution") commands.push(event.item.command ?? event.item.argv ?? event.item);
+    const content = event?.message?.content ?? event?.content;
+    if (!Array.isArray(content)) continue;
+    for (const item of content) {
+      if (item?.type !== "tool_use" || item.name !== "Bash") continue;
+      commands.push(item.input?.command ?? item.input?.cmd ?? item.input);
+    }
+  }
+  return commands;
+}
+
+function detectWorkspaceContamination(events) {
+  const forbiddenPathPattern =
+    /(^|[\s"'`([{/])(?:\.\.\/MEM-[A-Za-z0-9_.-]+|(?:\.\/)?eval\/runs\/(?:workspaces|active-workspace|memory-diffs|transcripts)(?:\/|$)|(?:\.\.\/)*(?:\.\/)?(?:memory-diffs|transcripts)\/MEM-[A-Za-z0-9_.-]+)/;
+  const contaminatedCommands = commandEvents(events)
+    .map((command) => commandText(command).replace(/\s+/g, " "))
+    .filter((text) => forbiddenPathPattern.test(text));
+  return {
+    workspaceContamination: contaminatedCommands.length > 0,
+    workspaceContaminationCount: contaminatedCommands.length,
+  };
+}
+
 async function requiredMemoryIdsForAttempt({ options, sourceTask, topK, rootCwd }) {
   const oracle = await (options.runMemorySearchFn ?? runMemorySearch)({ query: sourceTask.oracleQuery, dataDir: options.dataDir, cwd: rootCwd, topK });
   if (!oracle.ok) return [];
@@ -360,124 +396,131 @@ async function requiredMemoryIdsForAttempt({ options, sourceTask, topK, rootCwd 
 
 async function executeAttempt({ options, sourceTask, condition, repetition, runKey, rootCwd }) {
   const runtimeRoot = options.runtimeRoot ?? path.dirname(options.outPath);
-  const { workspacePath } = await materializeMemoryWorkspace({
-    source: sourceTask,
-    runKey,
-    runsRoot: options.workspaceRoot ?? path.join(runtimeRoot, "workspaces"),
-  });
-  const oracle =
-    condition === "oracle-memory"
-      ? await (options.runMemorySearchFn ?? runMemorySearch)({ query: sourceTask.oracleQuery, dataDir: options.dataDir, cwd: rootCwd })
-      : { ok: true, result: null, memory: null };
-  if (!oracle.ok) {
-    const error = new Error(`oracle memory unavailable: ${JSON.stringify(oracleFailureCounts(oracle))}`);
-    error.failures = oracleFailureCounts(oracle);
-    throw error;
-  }
-  const input = buildMemoryConditionInputs({ task: sourceTask, oracleMemory: oracle.memory }).find((item) => item.condition === condition);
-  const voluntaryMemorySearchCommand =
-    condition === "agent-triggered"
-      ? memorySearchCommand({ query: sourceTask.oracleQuery, dataDir: options.dataDir, devloopRoot: rootCwd })
-      : null;
-  const memoryTriggerInstruction =
-    condition === "agent-triggered" && options.requireExpectedTrigger && options.publicTask?.category === "experience-needed"
-      ? "This task is classified as experience-needed; run this exact Experience Memory search command once before editing:"
-      : "Use this exact command if Experience Memory search is warranted:";
-  const startedAt = Date.now();
-  const runAgentFn = options.runAgentFn ?? runAgent;
-  let agentResult;
+  const workspaceRoot = await prepareActiveWorkspaceRoot({ runtimeRoot });
   try {
-    agentResult = await runAgentFn({
-      agent: options.agent,
-      prompt: buildAgentPrompt({ ...input, voluntaryMemorySearchCommand, memoryTriggerInstruction }),
-      cwd: workspacePath,
-      agentOptions: options.agentOptions,
-      timeoutMs: options.timeoutMs,
-      ...(options.maxOutputBytes === undefined ? {} : { maxStdoutBytes: options.maxOutputBytes, maxStderrBytes: options.maxOutputBytes }),
+    const { workspacePath } = await materializeMemoryWorkspace({
+      source: sourceTask,
+      runKey,
+      runsRoot: workspaceRoot,
     });
-  } catch (error) {
-    const availabilityFailure = spawnAvailabilityFailure(error);
-    if (availabilityFailure) return { availabilityFailure };
-    throw error;
-  }
-  const wallTimeMs = Date.now() - startedAt;
-  const transcriptRoot = options.transcriptRoot ?? path.join(runtimeRoot, "transcripts");
-  await mkdir(transcriptRoot, { recursive: true });
-  const stdoutTranscriptPath = path.join(transcriptRoot, `${runKey}.stdout.jsonl`);
-  const stderrTranscriptPath = path.join(transcriptRoot, `${runKey}.stderr.txt`);
-  await writeFile(stdoutTranscriptPath, agentResult.stdout);
-  await writeFile(stderrTranscriptPath, agentResult.stderr);
-  let events = [];
-  try {
-    events = parseJsonl(agentResult.stdout);
-  } catch {
-    events = [];
-  }
-  const preToolAvailabilityFailure = structuredPreToolAvailabilityFailure(events);
-  if (preToolAvailabilityFailure) {
-    return { availabilityFailure: preToolAvailabilityFailure };
-  }
-  const telemetry = normalizeAgentTelemetryJsonl(agentResult.stdout);
-  const agentMemoryCalls = telemetry.memoryCalls;
-  const oracleMemoryProvided = oracle.result ? 1 : 0;
-  telemetry.memoryCalls += oracleMemoryProvided;
-  let observedRetrievals = [];
-  if (condition === "agent-triggered") {
-    const preliminary = retrievalObservations({
-      agent: options.agent,
-      events,
-      sourceRunKey: runKey,
-      requiredMemoryIds: [],
-      currentMemoryIndexHash: options.memoryIndexHash,
-    });
-    const requiredByTopK = new Map();
-    for (const observation of preliminary) {
-      if (!requiredByTopK.has(observation.topK)) {
-        requiredByTopK.set(observation.topK, await requiredMemoryIdsForAttempt({ options, sourceTask, topK: observation.topK, rootCwd }));
-      }
+    const oracle =
+      condition === "oracle-memory"
+        ? await (options.runMemorySearchFn ?? runMemorySearch)({ query: sourceTask.oracleQuery, dataDir: options.dataDir, cwd: rootCwd })
+        : { ok: true, result: null, memory: null };
+    if (!oracle.ok) {
+      const error = new Error(`oracle memory unavailable: ${JSON.stringify(oracleFailureCounts(oracle))}`);
+      error.failures = oracleFailureCounts(oracle);
+      throw error;
     }
-    observedRetrievals = retrievalObservations({
-      agent: options.agent,
+    const input = buildMemoryConditionInputs({ task: sourceTask, oracleMemory: oracle.memory }).find((item) => item.condition === condition);
+    const voluntaryMemorySearchCommand =
+      condition === "agent-triggered"
+        ? memorySearchCommand({ query: sourceTask.oracleQuery, dataDir: options.dataDir, devloopRoot: rootCwd })
+        : null;
+    const memoryTriggerInstruction =
+      condition === "agent-triggered" && options.requireExpectedTrigger && options.publicTask?.category === "experience-needed"
+        ? "This task is classified as experience-needed; run this exact Experience Memory search command once before editing:"
+        : "Use this exact command if Experience Memory search is warranted:";
+    const startedAt = Date.now();
+    const runAgentFn = options.runAgentFn ?? runAgent;
+    let agentResult;
+    try {
+      agentResult = await runAgentFn({
+        agent: options.agent,
+        prompt: buildAgentPrompt({ ...input, voluntaryMemorySearchCommand, memoryTriggerInstruction }),
+        cwd: workspacePath,
+        agentOptions: options.agentOptions,
+        timeoutMs: options.timeoutMs,
+        ...(options.maxOutputBytes === undefined ? {} : { maxStdoutBytes: options.maxOutputBytes, maxStderrBytes: options.maxOutputBytes }),
+      });
+    } catch (error) {
+      const availabilityFailure = spawnAvailabilityFailure(error);
+      if (availabilityFailure) return { availabilityFailure };
+      throw error;
+    }
+    const wallTimeMs = Date.now() - startedAt;
+    const transcriptRoot = options.transcriptRoot ?? path.join(runtimeRoot, "transcripts");
+    await mkdir(transcriptRoot, { recursive: true });
+    const stdoutTranscriptPath = path.join(transcriptRoot, `${runKey}.stdout.jsonl`);
+    const stderrTranscriptPath = path.join(transcriptRoot, `${runKey}.stderr.txt`);
+    await writeFile(stdoutTranscriptPath, agentResult.stdout);
+    await writeFile(stderrTranscriptPath, agentResult.stderr);
+    let events = [];
+    try {
+      events = parseJsonl(agentResult.stdout);
+    } catch {
+      events = [];
+    }
+    const preToolAvailabilityFailure = structuredPreToolAvailabilityFailure(events);
+    if (preToolAvailabilityFailure) {
+      return { availabilityFailure: preToolAvailabilityFailure };
+    }
+    const telemetry = normalizeAgentTelemetryJsonl(agentResult.stdout);
+    const agentMemoryCalls = telemetry.memoryCalls;
+    const oracleMemoryProvided = oracle.result ? 1 : 0;
+    telemetry.memoryCalls += oracleMemoryProvided;
+    let observedRetrievals = [];
+    if (condition === "agent-triggered") {
+      const preliminary = retrievalObservations({
+        agent: options.agent,
+        events,
+        sourceRunKey: runKey,
+        requiredMemoryIds: [],
+        currentMemoryIndexHash: options.memoryIndexHash,
+      });
+      const requiredByTopK = new Map();
+      for (const observation of preliminary) {
+        if (!requiredByTopK.has(observation.topK)) {
+          requiredByTopK.set(observation.topK, await requiredMemoryIdsForAttempt({ options, sourceTask, topK: observation.topK, rootCwd }));
+        }
+      }
+      observedRetrievals = retrievalObservations({
+        agent: options.agent,
+        events,
+        sourceRunKey: runKey,
+        requiredMemoryIds: requiredByTopK,
+        currentMemoryIndexHash: options.memoryIndexHash,
+      });
+    }
+    const validationResult = await runValidation(sourceTask.validationCommand, workspacePath);
+    const workspaceDiffHash = await diffHash(workspacePath);
+    const diffRoot = options.diffRoot ?? path.join(runtimeRoot, "memory-diffs");
+    const diffPath = path.join(diffRoot, `${runKey}.patch`);
+    await writeDiff(workspacePath, diffPath);
+    const judgment = judgeMemoryAttempt({
+      validationResult,
+      allowedPaths: sourceTask.allowedPaths,
+      diff: { patch: await readFile(diffPath, "utf8") },
       events,
-      sourceRunKey: runKey,
-      requiredMemoryIds: requiredByTopK,
-      currentMemoryIndexHash: options.memoryIndexHash,
     });
+    const contamination = detectWorkspaceContamination(events);
+    return {
+      taskId: sourceTask.taskId,
+      condition,
+      repetition,
+      agent: options.agent,
+      agentOptions: options.agentOptions,
+      status: agentResult.status,
+      signal: agentResult.signal,
+      timedOut: agentResult.timedOut,
+      outputOverflow: agentResult.outputOverflow,
+      stdoutTranscriptPath,
+      stderrTranscriptPath,
+      wallTimeMs,
+      validationStatus: validationResult.status,
+      failureBoundary: contamination.workspaceContamination ? "MEMORY" : judgment.taskSuccess ? "NONE" : validationResult.status === 0 ? "IMPLEMENTATION" : "VALIDATION",
+      workspaceDiffHash,
+      ...telemetry,
+      agentMemoryCalls,
+      oracleMemoryProvided,
+      ...contamination,
+      triggerOutcome: triggerOutcome(options.publicTask, { condition, memoryCalls: telemetry.memoryCalls, agentMemoryCalls, oracleMemoryProvided }),
+      ...(condition === "agent-triggered" ? { retrievalObservations: observedRetrievals } : {}),
+      ...judgment,
+    };
+  } finally {
+    await cleanupActiveWorkspaceRoot({ runtimeRoot, activeWorkspaceRoot: workspaceRoot });
   }
-  const validationResult = await runValidation(sourceTask.validationCommand, workspacePath);
-  const workspaceDiffHash = await diffHash(workspacePath);
-  const diffRoot = options.diffRoot ?? path.join(runtimeRoot, "memory-diffs");
-  const diffPath = path.join(diffRoot, `${runKey}.patch`);
-  await writeDiff(workspacePath, diffPath);
-  const judgment = judgeMemoryAttempt({
-    validationResult,
-    allowedPaths: sourceTask.allowedPaths,
-    diff: { patch: await readFile(diffPath, "utf8") },
-    events,
-  });
-  return {
-    taskId: sourceTask.taskId,
-    condition,
-    repetition,
-    agent: options.agent,
-    agentOptions: options.agentOptions,
-    status: agentResult.status,
-    signal: agentResult.signal,
-    timedOut: agentResult.timedOut,
-    outputOverflow: agentResult.outputOverflow,
-    stdoutTranscriptPath,
-    stderrTranscriptPath,
-    wallTimeMs,
-    validationStatus: validationResult.status,
-    failureBoundary: judgment.taskSuccess ? "NONE" : validationResult.status === 0 ? "IMPLEMENTATION" : "VALIDATION",
-    workspaceDiffHash,
-    ...telemetry,
-    agentMemoryCalls,
-    oracleMemoryProvided,
-    triggerOutcome: triggerOutcome(options.publicTask, { condition, memoryCalls: telemetry.memoryCalls, agentMemoryCalls, oracleMemoryProvided }),
-    ...(condition === "agent-triggered" ? { retrievalObservations: observedRetrievals } : {}),
-    ...judgment,
-  };
 }
 
 async function runMemoryEvaluation(options) {
@@ -498,6 +541,7 @@ async function runMemoryEvaluation(options) {
 
   const rootCwd = process.cwd();
   await mkdir(path.dirname(options.outPath), { recursive: true });
+  await cleanupLegacyWorkspaceRoot({ runtimeRoot: path.dirname(options.outPath) });
   let completed = 0;
   let storedRun;
   await withMemoryRun(
@@ -569,6 +613,7 @@ export {
   assertAcceptedAttempts,
   buildAttemptSchedule,
   buildAgentPrompt,
+  detectWorkspaceContamination,
   memoryIndexHash,
   memorySearchArgv,
   memorySearchCommand,
