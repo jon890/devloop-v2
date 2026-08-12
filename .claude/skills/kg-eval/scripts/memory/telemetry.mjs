@@ -23,13 +23,70 @@ function commandText(command) {
   return "";
 }
 
+function tokenizeCommand(text) {
+  const tokens = [];
+  let current = "";
+  let quote = null;
+  let escaping = false;
+  for (const char of String(text ?? "")) {
+    if (escaping) {
+      current += char;
+      escaping = false;
+      continue;
+    }
+    if (char === "\\" && quote !== "'") {
+      escaping = true;
+      continue;
+    }
+    if (quote) {
+      if (char === quote) quote = null;
+      else current += char;
+      continue;
+    }
+    if (char === "'" || char === '"') {
+      quote = char;
+      continue;
+    }
+    if (/\s/.test(char)) {
+      if (current.length > 0) {
+        tokens.push(current);
+        current = "";
+      }
+      continue;
+    }
+    current += char;
+  }
+  if (escaping) current += "\\";
+  if (current.length > 0) tokens.push(current);
+  return tokens;
+}
+
+function commandArgv(command) {
+  if (Array.isArray(command)) return command.map(String);
+  if (Array.isArray(command?.argv)) return command.argv.map(String);
+  return tokenizeCommand(commandText(command));
+}
+
 function firstWord(command) {
-  return commandText(command).trim().split(/\s+/)[0] ?? "";
+  return commandArgv(command)[0] ?? "";
 }
 
 function isMemoryCommand(command) {
   const text = commandText(command);
-  return /^\s*(pnpm\s+(--silent\s+)?)?memory-search(\s|$)/.test(text) || /^\s*(node\s+)?dist\/memory\/cli\.js\s+search(\s|$)/.test(text);
+  const parts = commandArgv(command);
+  if (parts[0] === "memory-search") return true;
+  if (parts[0] === "pnpm") {
+    for (let index = 1; index < parts.length; index += 1) {
+      const part = parts[index];
+      if (part === "--dir" || part === "-C") {
+        index += 1;
+        continue;
+      }
+      if (part === "--silent" || part === "-s") continue;
+      return part === "memory-search";
+    }
+  }
+  return /^\s*(node\s+)?dist\/memory\/cli\.js\s+search(\s|$)/.test(text);
 }
 
 function isGraphCommand(command) {
@@ -38,7 +95,7 @@ function isGraphCommand(command) {
 }
 
 function isSourceReadCommand(command) {
-  const parts = commandText(command).trim().split(/\s+/);
+  const parts = commandArgv(command);
   if (SOURCE_READ_COMMANDS.has(parts[0])) return true;
   return parts[0] === "git" && SOURCE_READ_GIT_SUBCOMMANDS.has(parts[1]);
 }
@@ -129,4 +186,5 @@ export {
   normalizeAgentTelemetry,
   normalizeAgentTelemetryJsonl,
   parseJsonl,
+  tokenizeCommand,
 };

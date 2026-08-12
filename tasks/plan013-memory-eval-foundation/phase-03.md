@@ -54,8 +54,15 @@ Codex와 Claude를 각각 최소 한 task에 실행하고 memoryCalls·sourceRea
 | 파일 | 변경 |
 | --- | --- |
 | `apps/pipeline/src/memory/experience-extractor.test.ts` | 기존 `--ids` 순서·generation 동일성 회귀 보강 |
+| `.claude/skills/kg-eval/references/result-contract.md` | Memory raw run taskInputs lock 계약 보강 |
 | `.claude/skills/kg-eval/scripts/run-memory.mjs` | 수직 실행 entrypoint 신규 |
+| `.claude/skills/kg-eval/scripts/memory/result.mjs` | task별 입력 lock 비교 보강 |
+| `.claude/skills/kg-eval/scripts/memory/agent-runner.mjs` | Claude stream-json 실행 계약 보강 |
+| `.claude/skills/kg-eval/scripts/memory/telemetry.mjs` | 실제 memory-search 명령 telemetry 보강 |
 | `.claude/skills/kg-eval/scripts/memory/privacy.mjs` | tracked 산출물 비공개 정보 누출 검사 신규 |
+| `.claude/skills/kg-eval/scripts/memory/report.mjs` | 공개 report digest 일관성 검사 신규 |
+| `.claude/skills/kg-eval/tests/memory-foundation.test.mjs` | taskInputs lock 회귀 보강 |
+| `.claude/skills/kg-eval/tests/memory-agent.test.mjs` | Claude 실행·telemetry 회귀 보강 |
 | `.claude/skills/kg-eval/tests/run-memory.test.mjs` | 재개·동일성·실패 테스트 신규 |
 | `.claude/skills/kg-eval/tests/memory-privacy.test.mjs` | path·URL·prompt·diff·전문·domain 누출 검사 신규 |
 | `eval/runs/plan013-memory-source-lock.json` | 생성하지만 커밋하지 않음 |

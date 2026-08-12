@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import { buildAgentInvocation, assertEquivalentAgentOptions, runArgvProcess } from "../scripts/memory/agent-runner.mjs";
 import { assertOnlyMemoryInformationDiffers, buildMemoryConditionInputs } from "../scripts/memory/condition.mjs";
 import { normalizeAgentTelemetryJsonl } from "../scripts/memory/telemetry.mjs";
+import { memorySearchCommand } from "../scripts/run-memory.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const fixtures = path.join(__dirname, "fixtures", "memory");
@@ -41,7 +42,7 @@ test("builds Codex and Claude invocations with argv arrays", () => {
   });
   assert.deepEqual(buildAgentInvocation({ agent: "claude", prompt: "fix it", agentOptions: { model: "claude-x", effort: "low", permissionMode: "dontAsk" } }), {
     command: "claude",
-    args: ["-p", "--output-format", "stream-json", "--model", "claude-x", "--effort", "low", "--permission-mode", "dontAsk", "fix it"],
+    args: ["-p", "--output-format", "stream-json", "--verbose", "--model", "claude-x", "--effort", "low", "--permission-mode", "dontAsk", "fix it"],
   });
 });
 
@@ -52,7 +53,8 @@ test("renders only option names present in local CLI help", () => {
     for (const option of ["--model", "-c", "--sandbox"]) assert.match(codexHelp.stdout, new RegExp(`(^|\\s)${option.replace("-", "\\-")}(,|\\s)`));
   }
   if (claudeHelp.status === 0) {
-    for (const option of ["--model", "--effort", "--permission-mode"]) assert.match(claudeHelp.stdout, new RegExp(`(^|\\s)${option.replace("-", "\\-")}(,|\\s)`));
+    for (const option of ["--model", "--effort", "--permission-mode", "--verbose"])
+      assert.match(claudeHelp.stdout, new RegExp(`(^|\\s)${option.replace("-", "\\-")}(,|\\s)`));
   }
 });
 
@@ -110,6 +112,28 @@ test("keeps tokens null when usage is missing and only counts actual memory-sear
     outputTokens: null,
     reworkCount: 0,
   });
+});
+
+test("counts real pnpm --dir memory-search argv shape without counting echo mentions", () => {
+  const generated = memorySearchCommand({ query: "can't leak", dataDir: "/repo/root/apps/pipeline/data", devloopRoot: "/repo/root" });
+  const text = [
+    JSON.stringify({
+      type: "item.completed",
+      item: {
+        type: "command_execution",
+        command: generated,
+      },
+    }),
+    JSON.stringify({
+      type: "assistant",
+      message: {
+        content: [{ type: "tool_use", name: "Bash", input: { command: `echo ${generated}` } }],
+      },
+    }),
+  ].join("\n");
+  const telemetry = normalizeAgentTelemetryJsonl(text);
+  assert.equal(telemetry.memoryCalls, 1);
+  assert.equal(telemetry.toolCalls, 2);
 });
 
 test("builds three memory condition inputs with only Memory information different", () => {

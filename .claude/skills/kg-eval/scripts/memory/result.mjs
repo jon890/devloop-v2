@@ -95,12 +95,31 @@ function newMemoryRun(conditions) {
     sourceLockPath: conditions.sourceLockPath,
     suiteHash: conditions.suiteHash,
     sourceLockHash: conditions.sourceLockHash,
-    baseRevision: conditions.baseRevision,
-    validationCommand: conditions.validationCommand,
+    taskInputs: canonicalTaskInputs(conditions.taskInputs),
     memoryIndexHash: conditions.memoryIndexHash,
     startedAt: new Date().toISOString(),
     attempts: [],
   };
+}
+
+function canonicalTaskInputs(taskInputs) {
+  if (!Array.isArray(taskInputs) || taskInputs.length === 0) {
+    throw new Error("taskInputs must contain at least one task input");
+  }
+  return taskInputs
+    .map((input, index) => {
+      if (!hasText(input?.taskId)) throw new Error(`taskInputs[${index}].taskId: required non-empty string`);
+      if (!hasText(input?.baseRevision)) throw new Error(`taskInputs[${index}].baseRevision: required non-empty string`);
+      if (!Array.isArray(input?.validationCommand) || input.validationCommand.length === 0) {
+        throw new Error(`taskInputs[${index}].validationCommand: required non-empty array`);
+      }
+      return {
+        taskId: input.taskId,
+        baseRevision: input.baseRevision,
+        validationCommand: input.validationCommand,
+      };
+    })
+    .sort((left, right) => left.taskId.localeCompare(right.taskId));
 }
 
 function comparableRunFields(run) {
@@ -108,8 +127,7 @@ function comparableRunFields(run) {
     schemaVersion: run.schemaVersion,
     suiteHash: run.suiteHash,
     sourceLockHash: run.sourceLockHash,
-    baseRevision: run.baseRevision,
-    validationCommand: run.validationCommand,
+    taskInputs: canonicalTaskInputs(run.taskInputs),
     memoryIndexHash: run.memoryIndexHash,
   };
 }
@@ -173,6 +191,7 @@ export {
   loadOrCreateMemoryRun,
   releaseRunLock,
   upsertMemoryAttempt,
+  canonicalTaskInputs,
   validateAttemptShape,
   validateAttempts,
   withMemoryRun,

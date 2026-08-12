@@ -72,7 +72,7 @@ function buildAgentInvocation({ agent, prompt, agentOptions = {} }) {
     args.push(prompt);
     return { command: "codex", args };
   }
-  const args = ["-p", "--output-format", "stream-json"];
+  const args = ["-p", "--output-format", "stream-json", "--verbose"];
   appendClaudeOptions(args, agentOptions);
   args.push(prompt);
   return { command: "claude", args };

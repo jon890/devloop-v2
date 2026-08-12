@@ -23,6 +23,20 @@ function git(args, cwd) {
   return result.stdout.trim();
 }
 
+function runConditions({ suitePath, sourceLockPath, sourceRepo }) {
+  return {
+    suitePath,
+    sourceLockPath,
+    suiteHash: "suite-hash",
+    sourceLockHash: "source-lock-hash",
+    taskInputs: [
+      { taskId: "MEM-CODE-002", baseRevision: sourceRepo.targetRevision, validationCommand: ["node", "--version"] },
+      { taskId: "MEM-CODE-001", baseRevision: sourceRepo.baseRevision, validationCommand: ["node", "--version"] },
+    ],
+    memoryIndexHash: "memory-index-hash",
+  };
+}
+
 async function makeSourceRepo(root) {
   const repoPath = path.join(root, "source-repo");
   await mkdir(repoPath, { recursive: true });
@@ -236,15 +250,7 @@ test("rejects unsafe run keys before workspace deletion", async () => {
 test("stores memory results atomically and resumes only with matching conditions", async () => {
   await withFixture(async ({ root, sourceRepo, suitePath, sourceLockPath }) => {
     const outPath = path.join(root, "run.json");
-    const conditions = {
-      suitePath,
-      sourceLockPath,
-      suiteHash: "suite-hash",
-      sourceLockHash: "source-lock-hash",
-      baseRevision: sourceRepo.baseRevision,
-      validationCommand: ["node", "--version"],
-      memoryIndexHash: "memory-index-hash",
-    };
+    const conditions = runConditions({ suitePath, sourceLockPath, sourceRepo });
     await withMemoryRun(outPath, conditions, async ({ upsert }) => {
       await upsert({
         taskId: "MEM-CODE-001",
@@ -269,9 +275,35 @@ test("stores memory results atomically and resumes only with matching conditions
 
     const resumed = await loadOrCreateMemoryRun(outPath, conditions);
     assert.equal(resumed.attempts.length, 1);
+    assert.deepEqual(
+      resumed.taskInputs.map((input) => input.taskId),
+      ["MEM-CODE-001", "MEM-CODE-002"],
+    );
+    await loadOrCreateMemoryRun(outPath, {
+      ...conditions,
+      taskInputs: [...conditions.taskInputs].reverse(),
+    });
     await assert.rejects(
       () => loadOrCreateMemoryRun(outPath, { ...conditions, memoryIndexHash: "other-index" }),
       /conditions differ: memoryIndexHash/,
+    );
+    await assert.rejects(
+      () =>
+        loadOrCreateMemoryRun(outPath, {
+          ...conditions,
+          taskInputs: conditions.taskInputs.map((input) => (input.taskId === "MEM-CODE-001" ? { ...input, baseRevision: sourceRepo.targetRevision } : input)),
+        }),
+      /conditions differ: taskInputs/,
+    );
+    await assert.rejects(
+      () =>
+        loadOrCreateMemoryRun(outPath, {
+          ...conditions,
+          taskInputs: conditions.taskInputs.map((input) =>
+            input.taskId === "MEM-CODE-002" ? { ...input, validationCommand: ["node", "--version", "--extra"] } : input,
+          ),
+        }),
+      /conditions differ: taskInputs/,
     );
 
     const lock = await acquireRunLock(outPath);
@@ -286,23 +318,14 @@ test("stores memory results atomically and resumes only with matching conditions
 test("rejects invalid existing attempts and duplicate attempt keys", async () => {
   await withFixture(async ({ root, sourceRepo, suitePath, sourceLockPath }) => {
     const outPath = path.join(root, "invalid-run.json");
-    const conditions = {
-      suitePath,
-      sourceLockPath,
-      suiteHash: "suite-hash",
-      sourceLockHash: "source-lock-hash",
-      baseRevision: sourceRepo.baseRevision,
-      validationCommand: ["node", "--version"],
-      memoryIndexHash: "memory-index-hash",
-    };
+    const conditions = runConditions({ suitePath, sourceLockPath, sourceRepo });
     const baseRun = {
       schemaVersion: "memory-eval-run/v1",
       suitePath,
       sourceLockPath,
       suiteHash: conditions.suiteHash,
       sourceLockHash: conditions.sourceLockHash,
-      baseRevision: conditions.baseRevision,
-      validationCommand: conditions.validationCommand,
+      taskInputs: conditions.taskInputs,
       memoryIndexHash: conditions.memoryIndexHash,
       startedAt: new Date().toISOString(),
       attempts: [],

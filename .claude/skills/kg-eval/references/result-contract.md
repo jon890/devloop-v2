@@ -262,13 +262,16 @@ Memory 원시 실행 결과는 `schemaVersion=memory-eval-run/v1`을 사용하�
 | `sourceLockPath` | string | private source lock 경로 |
 | `suiteHash` | string | 공개 suite canonical hash |
 | `sourceLockHash` | string | private source lock canonical hash |
-| `baseRevision` | string | 실행 기준 revision |
-| `validationCommand` | string[] | 실행 조건으로 고정한 검증 명령 |
+| `taskInputs` | array | task별 실행 입력 lock. `taskId` 기준 정렬 |
 | `memoryIndexHash` | string | 사용한 Memory index hash |
 | `attempts` | array | task·condition·repetition별 결과 |
 
+`taskInputs` 항목은 `{ "taskId": string, "baseRevision": string, "validationCommand": string[] }` 형식이다.
+runner는 `taskId` 기준 canonical order로 저장하고 비교한다.
+
 `attempts`의 유일 키는 `(taskId, condition, repetition)`이다.
-이어 쓰기는 `suiteHash`, `sourceLockHash`, `baseRevision`, `validationCommand`, `memoryIndexHash`가 모두 같을 때만 허용한다.
+이어 쓰기는 `suiteHash`, `sourceLockHash`, `taskInputs`, `memoryIndexHash`가 모두 같을 때만 허용한다.
+task 순서만 바뀐 입력은 같은 조건으로 보지만, task 하나의 `baseRevision` 또는 `validationCommand`가 바뀌면 다른 실행으로 거부한다.
 저장은 임시 JSON 파일을 파싱해 검증한 뒤 rename한다.
 동시에 같은 결과 파일을 쓰려 하면 `<out>.lock` 충돌로 실패해야 한다.
 
