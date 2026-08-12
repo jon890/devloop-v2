@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 import { assertOnlyMemoryInformationDiffers, buildMemoryConditionInputs, MEMORY_CONDITIONS } from "../scripts/memory/condition.mjs";
 import { materializeMemoryWorkspace } from "../scripts/memory/workspace.mjs";
 import { loadMemoryEvaluationInputs } from "../scripts/validate-memory-suite.mjs";
-import { runMemoryEvaluation } from "../scripts/run-memory.mjs";
+import { buildAttemptSchedule, runMemoryEvaluation } from "../scripts/run-memory.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../../../..");
@@ -184,4 +184,32 @@ test("Plan014 dry-run plans four tasks across three conditions and three repetit
   assert.match(result.suiteHash, /^[0-9a-f]{64}$/);
   assert.match(result.sourceLockHash, /^[0-9a-f]{64}$/);
   assert.match(result.memoryIndexHash, /^sha256:[0-9a-f]{64}$/);
+});
+
+test("Plan014 utility schedule keeps default compatibility and supports interleaving", { skip: !(await exists(PRIVATE_SOURCE_LOCK)) }, async () => {
+  const { sourceLock } = await loadMemoryEvaluationInputs({ suitePath: PRIVATE_SUITE, sourceLockPath: PRIVATE_SOURCE_LOCK });
+  const tasks = sourceLock.tasks.slice(0, 1).map((sourceTask) => ({ sourceTask }));
+  const conditions = ["no-memory", "agent-triggered", "oracle-memory"];
+  assert.deepEqual(
+    buildAttemptSchedule({ tasks, conditions, repeats: 2, schedule: "default" }).map(({ condition, repetition }) => [condition, repetition]),
+    [
+      ["no-memory", 1],
+      ["no-memory", 2],
+      ["agent-triggered", 1],
+      ["agent-triggered", 2],
+      ["oracle-memory", 1],
+      ["oracle-memory", 2],
+    ],
+  );
+  assert.deepEqual(
+    buildAttemptSchedule({ tasks, conditions, repeats: 2, schedule: "interleaved" }).map(({ condition, repetition }) => [condition, repetition]),
+    [
+      ["no-memory", 1],
+      ["agent-triggered", 1],
+      ["oracle-memory", 1],
+      ["no-memory", 2],
+      ["agent-triggered", 2],
+      ["oracle-memory", 2],
+    ],
+  );
 });

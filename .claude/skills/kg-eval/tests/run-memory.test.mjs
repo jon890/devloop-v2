@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { assertAcceptedAttempts, memorySearchArgv, memorySearchCommand, parseArgs, runMemoryEvaluation, usableMemorySearchResult } from "../scripts/run-memory.mjs";
+import { assertAcceptedAttempts, buildAttemptSchedule, memorySearchArgv, memorySearchCommand, parseArgs, runMemoryEvaluation, usableMemorySearchResult } from "../scripts/run-memory.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RUNNER = path.resolve(__dirname, "../scripts/run-memory.mjs");
@@ -109,13 +109,55 @@ test("parses help, dry-run, and bounded execution options", () => {
     "agent-triggered",
     "--repeats",
     "2",
+    "--schedule",
+    "interleaved",
     "--require-expected-trigger",
   ]);
   assert.equal(parsed.agent, "codex");
   assert.deepEqual(parsed.taskIds, ["A", "B"]);
   assert.deepEqual(parsed.conditions, ["agent-triggered"]);
   assert.equal(parsed.repeats, 2);
+  assert.equal(parsed.schedule, "interleaved");
   assert.equal(parsed.requireExpectedTrigger, true);
+});
+
+test("builds deterministic default and interleaved schedules", () => {
+  const tasks = [{ id: "T1" }, { id: "T2" }];
+  const conditions = ["no-memory", "agent-triggered", "oracle-memory"];
+  assert.deepEqual(
+    buildAttemptSchedule({ tasks, conditions, repeats: 2, schedule: "default" }).map(({ task, condition, repetition }) => [task.id, condition, repetition]),
+    [
+      ["T1", "no-memory", 1],
+      ["T1", "no-memory", 2],
+      ["T1", "agent-triggered", 1],
+      ["T1", "agent-triggered", 2],
+      ["T1", "oracle-memory", 1],
+      ["T1", "oracle-memory", 2],
+      ["T2", "no-memory", 1],
+      ["T2", "no-memory", 2],
+      ["T2", "agent-triggered", 1],
+      ["T2", "agent-triggered", 2],
+      ["T2", "oracle-memory", 1],
+      ["T2", "oracle-memory", 2],
+    ],
+  );
+  assert.deepEqual(
+    buildAttemptSchedule({ tasks, conditions, repeats: 2, schedule: "interleaved" }).map(({ task, condition, repetition }) => [task.id, condition, repetition]),
+    [
+      ["T1", "no-memory", 1],
+      ["T1", "agent-triggered", 1],
+      ["T1", "oracle-memory", 1],
+      ["T1", "no-memory", 2],
+      ["T1", "agent-triggered", 2],
+      ["T1", "oracle-memory", 2],
+      ["T2", "no-memory", 1],
+      ["T2", "agent-triggered", 1],
+      ["T2", "oracle-memory", 1],
+      ["T2", "no-memory", 2],
+      ["T2", "agent-triggered", 2],
+      ["T2", "oracle-memory", 2],
+    ],
+  );
 });
 
 test("builds the archived-workspace Memory search command with devloop root and data dir", () => {
@@ -187,13 +229,30 @@ test("executes one fake agent attempt, records telemetry, and resumes without du
     };
 
     const first = await runMemoryEvaluation(options);
+    const firstBytes = await readFile(outPath, "utf8");
     const second = await runMemoryEvaluation(options);
+    const secondBytes = await readFile(outPath, "utf8");
     const stored = JSON.parse(await readFile(outPath, "utf8"));
 
     assert.equal(first.completedAttempts, 1);
     assert.equal(second.completedAttempts, 0);
+    assert.equal(secondBytes, firstBytes);
     assert.equal(stored.attempts.length, 1);
     assert.equal(stored.attempts[0].memoryCalls, 1);
+    assert.equal(stored.attempts[0].agentMemoryCalls, 1);
+    assert.equal(stored.attempts[0].oracleMemoryProvided, 0);
+    assert.equal(stored.attempts[0].triggerOutcome, "expected_search");
+    assert.deepEqual(stored.attempts[0].retrievalObservations, [
+      {
+        sourceRunKey: "MEM-EXP-001-agent-triggered-1",
+        query: "q",
+        topK: 10,
+        requiredMemoryIds: [],
+        retrievedMemoryIds: [],
+        memoryIndexHash: null,
+        outcome: "unobserved",
+      },
+    ]);
     await access(stored.attempts[0].stdoutTranscriptPath);
     await access(stored.attempts[0].stderrTranscriptPath);
     assert.equal(stored.attempts[0].sourceReads, 1);
@@ -202,6 +261,145 @@ test("executes one fake agent attempt, records telemetry, and resumes without du
     assert.equal(stored.agent, "codex");
     assert.deepEqual(stored.agentOptions, { model: "gpt-5.6-luna", effort: "low", permissionMode: null });
     assert.match(stored.attempts[0].workspaceDiffHash, /^[0-9a-f]{64}$/);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("executionPlan mismatches fail before Agent execution", async () => {
+  const fixture = await makeFixture();
+  try {
+    const outPath = path.join(fixture.root, "execution-plan.json");
+    await runMemoryEvaluation({
+      suitePath: fixture.suitePath,
+      sourceLockPath: fixture.sourceLockPath,
+      dataDir: fixture.dataDir,
+      outPath,
+      agent: "codex",
+      agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+      taskIds: ["MEM-CODE-001"],
+      conditions: ["agent-triggered"],
+      repeats: 1,
+      schedule: "default",
+      timeoutMs: 1000,
+      maxOutputBytes: 2048,
+      runAgentFn: async ({ cwd }) => {
+        await writeFile(path.join(cwd, "service.txt"), "changed\n");
+        return { status: 0, signal: null, timedOut: false, outputOverflow: null, stdout: JSON.stringify({ type: "turn.completed" }), stderr: "" };
+      },
+    });
+    const stored = JSON.parse(await readFile(outPath, "utf8"));
+    assert.deepEqual(stored.executionPlan, {
+      conditions: ["agent-triggered"],
+      repeats: 1,
+      schedule: "default",
+      requireExpectedTrigger: false,
+      timeoutMs: 1000,
+      maxOutputBytes: 2048,
+    });
+
+    for (const changed of [
+      { conditions: ["no-memory"] },
+      { repeats: 2 },
+      { schedule: "interleaved" },
+      { requireExpectedTrigger: true },
+      { timeoutMs: 2000 },
+      { maxOutputBytes: 4096 },
+    ]) {
+      await assert.rejects(
+        () =>
+          runMemoryEvaluation({
+            suitePath: fixture.suitePath,
+            sourceLockPath: fixture.sourceLockPath,
+            dataDir: fixture.dataDir,
+            outPath,
+            agent: "codex",
+            agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+            taskIds: ["MEM-CODE-001"],
+            conditions: ["agent-triggered"],
+            repeats: 1,
+            schedule: "default",
+            timeoutMs: 1000,
+            maxOutputBytes: 2048,
+            ...changed,
+            runAgentFn: async () => {
+              throw new Error("executionPlan mismatch must stop before Agent execution");
+            },
+          }),
+        /conditions differ: executionPlan/,
+      );
+    }
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("started non-zero Agent result is appended and does not fail utility acceptance", async () => {
+  const fixture = await makeFixture();
+  try {
+    const outPath = path.join(fixture.root, "started-failure.json");
+    const result = await runMemoryEvaluation({
+      suitePath: fixture.suitePath,
+      sourceLockPath: fixture.sourceLockPath,
+      dataDir: fixture.dataDir,
+      outPath,
+      agent: "codex",
+      agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+      taskIds: ["MEM-CODE-001"],
+      conditions: ["agent-triggered"],
+      repeats: 1,
+      timeoutMs: 1000,
+      runAgentFn: async () => ({
+        status: 1,
+        signal: null,
+        timedOut: false,
+        outputOverflow: null,
+        stdout: JSON.stringify({ type: "item.completed", item: { type: "command_execution", command: "rg service" } }),
+        stderr: "failed after start",
+      }),
+    });
+    const stored = JSON.parse(await readFile(outPath, "utf8"));
+    assert.equal(result.completedAttempts, 1);
+    assert.equal(stored.attempts.length, 1);
+    assert.equal(stored.attempts[0].status, 1);
+    assert.equal(stored.attempts[0].sourceReads, 1);
+    assert.equal(stored.availabilityFailures.length, 0);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("spawn availability failure is stored without consuming the attempt", async () => {
+  const fixture = await makeFixture();
+  try {
+    const outPath = path.join(fixture.root, "spawn-failure.json");
+    const result = await runMemoryEvaluation({
+      suitePath: fixture.suitePath,
+      sourceLockPath: fixture.sourceLockPath,
+      dataDir: fixture.dataDir,
+      outPath,
+      agent: "codex",
+      agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+      taskIds: ["MEM-CODE-001"],
+      conditions: ["agent-triggered"],
+      repeats: 1,
+      timeoutMs: 1000,
+      runAgentFn: async () => {
+        throw Object.assign(new Error("spawn codex ENOENT"), { code: "ENOENT" });
+      },
+    });
+    const stored = JSON.parse(await readFile(outPath, "utf8"));
+    assert.equal(result.completedAttempts, 0);
+    assert.equal(result.availabilityFailures, 1);
+    assert.deepEqual(stored.attempts, []);
+    assert.deepEqual(stored.availabilityFailures, [
+      {
+        taskId: "MEM-CODE-001",
+        condition: "agent-triggered",
+        repetition: 1,
+        normalizedCode: "agent_spawn_failed",
+      },
+    ]);
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }
@@ -407,38 +605,80 @@ test("oracle-memory counts exactly one successful usable oracle injection", asyn
     });
     const stored = JSON.parse(await readFile(outPath, "utf8"));
     assert.equal(stored.attempts[0].memoryCalls, 1);
+    assert.equal(stored.attempts[0].agentMemoryCalls, 0);
+    assert.equal(stored.attempts[0].oracleMemoryProvided, 1);
     assert.equal(stored.attempts[0].taskSuccess, true);
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }
 });
 
-test("fail-closed acceptance rejects private-safe aggregate failure counts", () => {
+test("voluntary trigger mismatch is recorded by default and only fails when required", () => {
+  const input = {
+    attempts: [
+      {
+        taskId: "MEM-EXP-001",
+        condition: "agent-triggered",
+        repetition: 1,
+        status: 0,
+        timedOut: false,
+        outputOverflow: null,
+        validationStatus: 0,
+        taskSuccess: true,
+        memoryCalls: 0,
+      },
+    ],
+    selected: [{ publicTask: { id: "MEM-EXP-001", category: "experience-needed" } }],
+    conditions: ["agent-triggered"],
+    repeats: 1,
+  };
+  assert.doesNotThrow(() => assertAcceptedAttempts(input));
   assert.throws(
-    () =>
-      assertAcceptedAttempts({
-        attempts: [
-          {
-            taskId: "MEM-EXP-001",
-            condition: "agent-triggered",
-            repetition: 1,
-            status: 0,
-            timedOut: false,
-            outputOverflow: null,
-            validationStatus: 0,
-            taskSuccess: true,
-            memoryCalls: 0,
-          },
-        ],
-        selected: [{ publicTask: { id: "MEM-EXP-001", category: "experience-needed" } }],
-        conditions: ["agent-triggered"],
-        repeats: 1,
-      }),
+    () => assertAcceptedAttempts({ ...input, requireExpectedTrigger: true }),
     (error) => {
       assert.match(error.message, /memory run acceptance failed/);
       assert.equal(error.message.includes("MEM-EXP-001"), false);
       assert.equal(error.failures.triggerMismatch, 1);
       return true;
     },
+  );
+});
+
+test("oracle-memory accepts exactly one injected oracle and rejects Agent memory search contamination", () => {
+  assert.doesNotThrow(() =>
+    assertAcceptedAttempts({
+      attempts: [
+        {
+          taskId: "MEM-EXP-001",
+          condition: "oracle-memory",
+          repetition: 1,
+          memoryCalls: 1,
+          agentMemoryCalls: 0,
+          oracleMemoryProvided: 1,
+        },
+      ],
+      selected: [{ publicTask: { id: "MEM-EXP-001", category: "experience-needed" } }],
+      conditions: ["oracle-memory"],
+      repeats: 1,
+    }),
+  );
+  assert.throws(
+    () =>
+      assertAcceptedAttempts({
+        attempts: [
+          {
+            taskId: "MEM-EXP-001",
+            condition: "oracle-memory",
+            repetition: 1,
+            memoryCalls: 2,
+            agentMemoryCalls: 1,
+            oracleMemoryProvided: 1,
+          },
+        ],
+        selected: [{ publicTask: { id: "MEM-EXP-001", category: "experience-needed" } }],
+        conditions: ["oracle-memory"],
+        repeats: 1,
+      }),
+    /memory run acceptance failed/,
   );
 });

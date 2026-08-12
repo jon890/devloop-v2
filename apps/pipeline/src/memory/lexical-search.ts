@@ -1,7 +1,7 @@
 import type { MemoryRecord, SourceRef } from "@devloop/shared";
 import { normalizeProjectCode } from "../cli-options";
 import { compareText } from "./evidence-serialization";
-import { readCurrentWikiIndex, type WikiIndex, type WikiIndexEntry } from "./wiki-builder";
+import { readCurrentWikiIndexWithHash, type WikiIndex, type WikiIndexEntry } from "./wiki-builder";
 
 const MAX_TOP_K = 50;
 const DEFAULT_TOP_K = 10;
@@ -67,6 +67,7 @@ export interface MemorySearchResponse {
   searchMs: number;
   documentsScanned: number;
   returned: number;
+  memoryIndexHash?: string;
 }
 
 export function tokenize(value: string): string[] {
@@ -121,7 +122,7 @@ function limitTopK(topK: number | undefined): number {
   return Math.min(topK, MAX_TOP_K);
 }
 
-export function searchWikiIndex(index: WikiIndex, options: SearchOptions): MemorySearchResponse {
+export function searchWikiIndex(index: WikiIndex, options: SearchOptions, metadata: { memoryIndexHash?: string } = {}): MemorySearchResponse {
   const startedAt = performance.now();
   if (!index.complete && !options.allowIncomplete) throw new Error("incomplete index는 --allow-incomplete 없이는 검색할 수 없습니다.");
   const terms = tokenize(options.query);
@@ -151,6 +152,7 @@ export function searchWikiIndex(index: WikiIndex, options: SearchOptions): Memor
     };
   });
   return {
+    ...(metadata.memoryIndexHash ? { memoryIndexHash: metadata.memoryIndexHash } : {}),
     results,
     searchMs: Math.max(0, Math.round(performance.now() - startedAt)),
     documentsScanned: filtered.length,
@@ -160,6 +162,6 @@ export function searchWikiIndex(index: WikiIndex, options: SearchOptions): Memor
 
 export async function searchMemory(dataDir: string, project: string, options: Omit<SearchOptions, "project">): Promise<MemorySearchResponse> {
   const projectCode = normalizeProjectCode(project);
-  const index = await readCurrentWikiIndex(dataDir, projectCode);
-  return searchWikiIndex(index, { ...options, project: projectCode });
+  const { index, memoryIndexHash } = await readCurrentWikiIndexWithHash(dataDir, projectCode);
+  return searchWikiIndex(index, { ...options, project: projectCode }, { memoryIndexHash });
 }

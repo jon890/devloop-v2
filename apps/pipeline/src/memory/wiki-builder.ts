@@ -346,11 +346,21 @@ export async function buildMemoryWiki(options: BuildMemoryWikiOptions): Promise<
   });
 }
 
-export async function readCurrentWikiIndex(dataDir: string, project: string): Promise<WikiIndex> {
+async function readCurrentWikiIndexText(dataDir: string, project: string): Promise<string> {
   const projectCode = normalizeProjectCode(project);
   const projectDirectory = path.join(dataDir, "memory", projectCode);
   const pointer = WikiPointerSchema.parse(JSON.parse(await readFile(path.join(projectDirectory, CURRENT_WIKI_POINTER_FILE), "utf8")) as unknown);
-  return WikiIndexSchema.parse(
-    JSON.parse(await readFile(path.join(projectDirectory, WIKI_GENERATIONS_DIRECTORY, pointer.generationId, WIKI_INDEX_FILE), "utf8")) as unknown,
-  );
+  return readFile(path.join(projectDirectory, WIKI_GENERATIONS_DIRECTORY, pointer.generationId, WIKI_INDEX_FILE), "utf8");
+}
+
+export async function readCurrentWikiIndex(dataDir: string, project: string): Promise<WikiIndex> {
+  return WikiIndexSchema.parse(JSON.parse(await readCurrentWikiIndexText(dataDir, project)) as unknown);
+}
+
+export async function readCurrentWikiIndexWithHash(dataDir: string, project: string): Promise<{ index: WikiIndex; memoryIndexHash: string }> {
+  const indexText = await readCurrentWikiIndexText(dataDir, project);
+  return {
+    index: WikiIndexSchema.parse(JSON.parse(indexText) as unknown),
+    memoryIndexHash: sha256(indexText),
+  };
 }

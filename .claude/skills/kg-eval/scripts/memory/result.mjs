@@ -44,6 +44,71 @@ function validateAttempts(attempts) {
   }
 }
 
+function validateAvailabilityFailure(failure, index = null) {
+  const prefix = index === null ? "availabilityFailure" : `availabilityFailures[${index}]`;
+  if (failure === null || typeof failure !== "object" || Array.isArray(failure)) {
+    throw new Error(`${prefix}: required object`);
+  }
+  const keys = Object.keys(failure).sort();
+  if (JSON.stringify(keys) !== JSON.stringify(["condition", "normalizedCode", "repetition", "taskId"])) {
+    throw new Error(`${prefix}: must contain exactly taskId, condition, repetition, normalizedCode`);
+  }
+  for (const field of ["taskId", "condition", "normalizedCode"]) {
+    if (!hasText(failure[field])) {
+      throw new Error(`${prefix}.${field}: required non-empty string`);
+    }
+  }
+  if (!Number.isInteger(failure.repetition) || failure.repetition < 1) {
+    throw new Error(`${prefix}.repetition: must be a positive integer`);
+  }
+}
+
+function validateAvailabilityFailures(failures) {
+  if (failures === undefined) return;
+  if (!Array.isArray(failures)) {
+    throw new Error("existing run availabilityFailures must be an array");
+  }
+  for (let index = 0; index < failures.length; index += 1) {
+    validateAvailabilityFailure(failures[index], index);
+  }
+}
+
+function canonicalExecutionPlan(executionPlan) {
+  if (executionPlan === null || typeof executionPlan !== "object" || Array.isArray(executionPlan)) {
+    throw new Error("executionPlan must be an object");
+  }
+  if (!Array.isArray(executionPlan.conditions) || executionPlan.conditions.length === 0) {
+    throw new Error("executionPlan.conditions must contain at least one condition");
+  }
+  const conditions = executionPlan.conditions.map((condition, index) => {
+    if (!hasText(condition)) throw new Error(`executionPlan.conditions[${index}]: required non-empty string`);
+    return condition;
+  });
+  if (!Number.isInteger(executionPlan.repeats) || executionPlan.repeats < 1) {
+    throw new Error("executionPlan.repeats must be a positive integer");
+  }
+  if (!hasText(executionPlan.schedule)) {
+    throw new Error("executionPlan.schedule: required non-empty string");
+  }
+  if (typeof executionPlan.requireExpectedTrigger !== "boolean") {
+    throw new Error("executionPlan.requireExpectedTrigger must be boolean");
+  }
+  if (!Number.isInteger(executionPlan.timeoutMs) || executionPlan.timeoutMs < 1) {
+    throw new Error("executionPlan.timeoutMs must be a positive integer");
+  }
+  if (executionPlan.maxOutputBytes !== null && (!Number.isInteger(executionPlan.maxOutputBytes) || executionPlan.maxOutputBytes < 1)) {
+    throw new Error("executionPlan.maxOutputBytes must be null or a positive integer");
+  }
+  return {
+    conditions,
+    repeats: executionPlan.repeats,
+    schedule: executionPlan.schedule,
+    requireExpectedTrigger: executionPlan.requireExpectedTrigger,
+    timeoutMs: executionPlan.timeoutMs,
+    maxOutputBytes: executionPlan.maxOutputBytes,
+  };
+}
+
 async function readJsonIfExists(filePath) {
   try {
     return JSON.parse(await readFile(filePath, "utf8"));
@@ -59,6 +124,7 @@ async function writeJsonAtomic(filePath, value) {
   if (Array.isArray(value?.attempts)) {
     validateAttempts(value.attempts);
   }
+  validateAvailabilityFailures(value?.availabilityFailures);
   await mkdir(path.dirname(filePath), { recursive: true });
   const tmpPath = `${filePath}.${process.pid}.tmp`;
   await writeFile(tmpPath, `${JSON.stringify(value, null, 2)}\n`);
@@ -97,10 +163,12 @@ function newMemoryRun(conditions) {
     sourceLockHash: conditions.sourceLockHash,
     taskInputs: canonicalTaskInputs(conditions.taskInputs),
     memoryIndexHash: conditions.memoryIndexHash,
+    executionPlan: canonicalExecutionPlan(conditions.executionPlan),
     agent: conditions.agent,
     agentOptions: canonicalAgentOptions(conditions.agentOptions),
     startedAt: new Date().toISOString(),
     attempts: [],
+    availabilityFailures: [],
   };
 }
 
@@ -142,6 +210,7 @@ function comparableRunFields(run) {
     sourceLockHash: run.sourceLockHash,
     taskInputs: canonicalTaskInputs(run.taskInputs),
     memoryIndexHash: run.memoryIndexHash,
+    executionPlan: canonicalExecutionPlan(run.executionPlan),
     agent: run.agent,
     agentOptions: canonicalAgentOptions(run.agentOptions),
   };
@@ -170,18 +239,25 @@ async function loadOrCreateMemoryRun(outPath, conditions) {
   }
   assertConditionsMatch(existing, expected);
   validateAttempts(existing.attempts);
+  validateAvailabilityFailures(existing.availabilityFailures);
+  if (!Array.isArray(existing.availabilityFailures)) existing.availabilityFailures = [];
   return existing;
 }
 
-function upsertMemoryAttempt(run, attempt) {
+function appendMemoryAttempt(run, attempt) {
   validateAttemptShape(attempt);
   const key = attemptKey(attempt);
   const existingIndex = run.attempts.findIndex((item) => attemptKey(item) === key);
   if (existingIndex >= 0) {
-    run.attempts[existingIndex] = attempt;
-    return;
+    throw new Error(`duplicate attempt key ${key}`);
   }
   run.attempts.push(attempt);
+}
+
+function appendAvailabilityFailure(run, failure) {
+  validateAvailabilityFailure(failure);
+  if (!Array.isArray(run.availabilityFailures)) run.availabilityFailures = [];
+  run.availabilityFailures.push(failure);
 }
 
 async function withMemoryRun(outPath, conditions, callback) {
@@ -189,15 +265,25 @@ async function withMemoryRun(outPath, conditions, callback) {
   try {
     lock = await acquireRunLock(outPath);
     const run = await loadOrCreateMemoryRun(outPath, conditions);
+    let dirty = false;
     const result = await callback({
       run,
-      save: async () => writeJsonAtomic(outPath, run),
-      upsert: async (attempt) => {
-        upsertMemoryAttempt(run, attempt);
+      save: async () => {
+        dirty = true;
+        await writeJsonAtomic(outPath, run);
+      },
+      appendAttempt: async (attempt) => {
+        appendMemoryAttempt(run, attempt);
+        dirty = true;
+        await writeJsonAtomic(outPath, run);
+      },
+      appendAvailabilityFailure: async (failure) => {
+        appendAvailabilityFailure(run, failure);
+        dirty = true;
         await writeJsonAtomic(outPath, run);
       },
     });
-    await writeJsonAtomic(outPath, run);
+    if (dirty) await writeJsonAtomic(outPath, run);
     return result;
   } finally {
     await releaseRunLock(lock);
@@ -207,12 +293,16 @@ async function withMemoryRun(outPath, conditions, callback) {
 export {
   MEMORY_RUN_SCHEMA_VERSION,
   acquireRunLock,
+  appendAvailabilityFailure,
+  appendMemoryAttempt,
   attemptKey,
+  canonicalExecutionPlan,
   loadOrCreateMemoryRun,
   releaseRunLock,
-  upsertMemoryAttempt,
   canonicalTaskInputs,
   canonicalAgentOptions,
+  validateAvailabilityFailure,
+  validateAvailabilityFailures,
   validateAttemptShape,
   validateAttempts,
   withMemoryRun,

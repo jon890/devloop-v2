@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, it } from "node:test";
 import { MEMORY_SCHEMA_VERSION } from "@devloop/shared";
 import { parseBuildArgs, parseExtractArgs, parseNormalizeArgs, parseSearchArgs, runMemoryCli } from "./cli";
-import { canonicalString } from "./evidence-serialization";
+import { canonicalString, sha256 } from "./evidence-serialization";
 import { CURRENT_WIKI_POINTER_FILE, WIKI_GENERATIONS_DIRECTORY, WIKI_INDEX_FILE } from "./wiki-builder";
 
 const temporaryDirectories: string[] = [];
@@ -178,7 +178,9 @@ describe("memory wiki/search CLI", () => {
     try {
       await runMemoryCli(["search", "--query", "검색", "--data-dir", dataDir]);
       assert.equal(lines.length, 1);
-      const output = JSON.parse(lines[0]) as { returned: number; results: Array<{ sourceRefs: Array<{ url: string }> }> };
+      const output = JSON.parse(lines[0]) as { memoryIndexHash: string; returned: number; results: Array<{ sourceRefs: Array<{ url: string }> }> };
+      const indexText = await readFile(path.join(generationDirectory, WIKI_INDEX_FILE), "utf8");
+      assert.equal(output.memoryIndexHash, sha256(indexText));
       assert.equal(output.returned, 1);
       assert.equal(output.results[0]?.sourceRefs[0]?.url, "https://example.com/task-a");
     } finally {
