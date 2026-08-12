@@ -302,6 +302,36 @@ describe("Experience extractor", () => {
     assert.equal(fake.calls[0]?.prompt.includes('"id":"task-a"'), true);
     assert.equal(fake.calls[1]?.prompt.includes('"id":"wiki-a"'), true);
   });
+
+  it("--ids selection은 입력 순서와 중복이 달라도 같은 generation identity를 사용한다", async () => {
+    const dataDir = await temporaryDirectory();
+    const first = packet("packet-a");
+    const second = packet("packet-b", "dooray-wiki");
+    const third = packet("packet-c");
+    await publishSource(dataDir, [third, first, second]);
+    const fake = new FakeLlm([
+      JSON.stringify({ memories: [draft(first.segments[0].sourceRefKey)] }),
+      JSON.stringify({ memories: [draft(second.segments[0].sourceRefKey)] }),
+    ]);
+
+    const selected = await extractExperienceWithLlmForTest({ project: "tc-ocr", dataDir, ids: ["packet-b", "packet-a", "packet-b"] }, fake);
+    const cached = await extractExperienceWithLlmForTest({ project: "tc-ocr", dataDir, ids: ["packet-a", "packet-b"] }, new FakeLlm([]));
+
+    assert.equal(selected.complete, false);
+    assert.equal(selected.selectedPackets, 2);
+    assert.equal(selected.succeededPackets, 2);
+    assert.equal(selected.calls, 2);
+    assert.equal(cached.extractionGenerationId, selected.extractionGenerationId);
+    assert.equal(cached.calls, 0);
+    assert.equal(cached.cacheHits, 2);
+    assert.deepEqual(
+      fake.calls.map((call) => {
+        const match = call.prompt.match(/"id":"(packet-[ab])"/);
+        return match?.[1];
+      }),
+      ["packet-a", "packet-b"],
+    );
+  });
 });
 
 describe("Experience extraction cache identity", () => {

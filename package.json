@@ -6,6 +6,7 @@
   "scripts": {
     "build": "pnpm -r build",
     "pipeline": "pnpm --filter pipeline pipeline",
+    "memory-search": "pnpm --silent --filter pipeline memory-search",
     "apply-schema": "pnpm --filter pipeline apply-schema",
     "migrate-registry": "pnpm --filter pipeline migrate-registry",
     "api": "pnpm --filter api start",

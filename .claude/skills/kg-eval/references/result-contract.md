@@ -3,6 +3,9 @@
 이 문서는 `kg-eval`의 세트, 원시 실행 결과, 요약 결과 JSON 형식을 소유한다.
 판정 기준은 `docs/EVAL-RUBRIC.md` 섹션 3을 단일 소스로 사용한다.
 
+`kg-eval-suite/v1`은 HTTP 질문 평가 계약이고, `memory-eval-suite/v1`은 Coding Agent Memory 평가 계약이다.
+두 suite 형식은 같은 파일명 공간(`eval/suites/`)을 쓰지만 필드와 실행기는 분리한다.
+
 ## 평가 세트
 
 평가 세트는 `eval/suites/<flow>.json`에 둔다.
@@ -182,3 +185,99 @@
 의미 판정을 하지 않은 측정에서는 `improved`·`regressed`·`unchanged` 버킷을 근거로 쓰지 마라.
 그 버킷은 `finalVerdict` 등급 비교이고, 판정하지 않은 문항은 `REVIEW`로 두기 때문이다.
 그럴 때 의미 있는 근거는 `failureBoundaryChanges`와 `axisChanges`뿐이다.
+
+## Memory 평가 공개 세트
+
+Memory 평가 공개 세트는 `schemaVersion=memory-eval-suite/v1`을 사용한다.
+커밋 가능한 파일이며 내부 URL, 절대 repository path, Git revision, prompt, oracle query를 담지 않는다.
+
+최상위 객체는 다음 필드를 가진다.
+
+| 필드 | 형식 | 설명 |
+| --- | --- | --- |
+| `schemaVersion` | string | `memory-eval-suite/v1`만 허용한다 |
+| `project` | string | 대상 프로젝트 코드 |
+| `suiteId` | string | private source lock과 맞출 안정 식별자 |
+| `title` | string | 사람이 읽는 제목 |
+| `sourceSnapshot` | string | 공개 가능한 snapshot 설명. private 값은 쓰지 않는다 |
+| `tasks` | array | 공개 task metadata 목록 |
+
+각 `tasks` 항목은 다음 값을 가진다.
+
+| 필드 | 형식 | 설명 |
+| --- | --- | --- |
+| `id` | string | suite 안에서 유일한 task 식별자 |
+| `category` | `code-only` 또는 `experience-needed` | Memory 필요 여부 분류 |
+| `taskType` | string | 작업 유형 |
+| `sourceLockKey` | string | private source lock 항목을 가리키는 공개 key |
+| `expectedTrigger` | string | 기대되는 실행 trigger 분류 |
+| `tags` | string[] | 선택적 분류 태그. `relationship-heavy`를 사용할 수 있다 |
+
+검증기는 `id`와 `sourceLockKey`의 중복을 거부하고, `code-only`와 `experience-needed`가 각각 두 개 이상이며
+`relationship-heavy` task가 하나 이상인지 확인한다.
+
+## Memory private source lock
+
+Private source lock은 커밋하지 않는다.
+공개 suite의 `tasks[].id`와 `tasks[].sourceLockKey`에 전단사로 대응해야 한다.
+
+최상위 객체는 다음 필드를 가진다.
+
+| 필드 | 형식 | 설명 |
+| --- | --- | --- |
+| `schemaVersion` | string | `memory-source-lock/v1`만 허용한다 |
+| `suiteId` | string | 공개 suite의 `suiteId`와 같아야 한다 |
+| `sourceSnapshot` | string | private source snapshot 설명 |
+| `tasks` | array | task별 private source lock |
+
+각 task lock은 다음 값을 가진다.
+
+| 필드 | 형식 | 설명 |
+| --- | --- | --- |
+| `taskId` | string | 공개 suite의 `tasks[].id` |
+| `sourceLockKey` | string | 공개 suite의 `tasks[].sourceLockKey` |
+| `repositoryPath` | string | 고정 revision을 제공하는 private 실행 저장소의 절대 경로 |
+| `sourceUrl` | string | 내부 원천 URL |
+| `baseRevision` | 40자 hex string | `git archive`로 읽을 기준 revision |
+| `targetRevision` | 40자 hex string | oracle 비교용 목표 revision |
+| `prompt` | string | Agent에게 줄 private task prompt |
+| `allowedPaths` | string[] | 변경 허용 repository 상대 경로 |
+| `validationCommand` | string[] | 평가 workspace에서 실행할 검증 명령 |
+| `oracleQuery` | string | 판정자가 사용할 private oracle query |
+
+Memory workspace 생성기는 private 실행 저장소에서 `git archive <baseRevision>`만 실행한다.
+private 실행 저장소에서 checkout, fetch, reset, clean, worktree 명령을 실행하지 않는다.
+archive 결과는 `eval/runs/workspaces/<run-key>/`에 풀고, 그 디렉터리에서 새 로컬 Git 저장소를 만든다.
+
+## Memory 원시 실행 결과
+
+Memory 원시 실행 결과는 `schemaVersion=memory-eval-run/v1`을 사용하고 `eval/runs/` 아래에 둔다.
+커밋하지 않는다.
+
+최상위 객체는 다음 필드를 가진다.
+
+| 필드 | 형식 | 설명 |
+| --- | --- | --- |
+| `suitePath` | string | 공개 suite 경로 |
+| `sourceLockPath` | string | private source lock 경로 |
+| `suiteHash` | string | 공개 suite canonical hash |
+| `sourceLockHash` | string | private source lock canonical hash |
+| `taskInputs` | array | task별 실행 입력 lock. `taskId` 기준 정렬 |
+| `memoryIndexHash` | string | 사용한 Memory index hash |
+| `agent` | string | 실행한 Agent 종류. 예: `codex`, `claude` |
+| `agentOptions` | object | run-level Agent 옵션 lock. `model`, `effort`, `permissionMode`의 누락 값은 `null`로 정규화 |
+| `attempts` | array | task·condition·repetition별 결과 |
+
+`taskInputs` 항목은 `{ "taskId": string, "baseRevision": string, "validationCommand": string[] }` 형식이다.
+runner는 `taskId` 기준 canonical order로 저장하고 비교한다.
+
+`attempts`의 유일 키는 `(taskId, condition, repetition)`이다.
+이어 쓰기는 `suiteHash`, `sourceLockHash`, `taskInputs`, `memoryIndexHash`, `agent`, `agentOptions`가 모두 같을 때만 허용한다.
+task 순서만 바뀐 입력은 같은 조건으로 보지만, task 하나의 `baseRevision` 또는 `validationCommand`가 바뀌면 다른 실행으로 거부한다.
+`agentOptions` 비교는 `model`, `effort`, `permissionMode`만 사용하며 각 값이 없으면 `null`로 비교한다.
+기존 결과 파일에 run-level `agent` 또는 `agentOptions`가 없으면 다른 실행 조건으로 보고 resume을 거부한다.
+저장은 임시 JSON 파일을 파싱해 검증한 뒤 rename한다.
+동시에 같은 결과 파일을 쓰려 하면 `<out>.lock` 충돌로 실패해야 한다.
+
+판정기는 저장 계층이나 Agent process를 직접 호출하지 않는다.
+validation 결과, 허용 경로 밖 변경, 최종 diff와 실행 event를 입력으로 받아 `taskSuccess`, `wrongEditCount`, `reworkCount`를 계산한다.

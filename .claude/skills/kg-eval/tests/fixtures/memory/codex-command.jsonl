@@ -1,0 +1,6 @@
+{"type":"item.completed","item":{"type":"command_execution","command":"pnpm --silent memory-search -- --query fail-fast --project tc-ocr --allow-incomplete"}}
+{"type":"item.completed","item":{"type":"command_execution","command":"cat src/service.ts"}}
+{"type":"item.completed","item":{"type":"command_execution","command":"git show HEAD:src/service.ts"}}
+{"type":"item.completed","item":{"type":"command_execution","command":"curl http://localhost:3000/api/graph/samples"}}
+{"type":"turn.completed","usage":{"input_tokens":1200,"output_tokens":340}}
+{"type":"turn.completed","usage":{"input_tokens":20,"output_tokens":10}}

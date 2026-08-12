@@ -21,3 +21,5 @@
 | 2026-08-06 | plan011 | plan011-direct-responses-transport | — | 5 | 0 | 0 | 1 | 없음 | 2 | Responses 직접 호출을 기본으로 전환했다. 교차 측정에서 문자당 처리는 빨랐지만 답변이 길어 실제 총지연은 회귀했고, 답변 분량을 후속 과제로 남겼다 |
 | 2026-08-11 | planning | plan012-experience-memory | — | 4 | — | — | 9 | 없음 | 2 | 기존 관리 문서와 task만 갱신했다. 계획 lane과 구현 lane을 분리하고 세 원천, 원문 link, Luna 고정, bounded 파일럿을 확정했다 |
 | 2026-08-11 | build-with-teams | plan012-experience-memory | standard | 4 | 0 | 5 | 7 | 없음 | 0 | 최신 Dooray raw와 OCR Git 9개 repo 수직 검증 완료. schema v2로 Structured Outputs 400을 해소했고 최종 bounded 재실행 calls 0/cacheHits 12, Wiki 37문서, 검색 smoke 1/6/0건을 기록했다 |
+| 2026-08-12 | planning | plan013~017-memory-evaluation | — | 5 | — | — | — | 없음 | 0 | #3~#12 전체 완료를 평가 기반, utility, retrieval, Graph, automatic의 다섯 PR로 분리하고 source-locked 계약을 확정했다 |
+| 2026-08-12 | build-with-teams | plan013-memory-eval-foundation | A | 4 | 3 | 2 | 3 | 있음 | 0 | source-locked suite와 두 Agent voluntary 계측을 구현했다. Claude 첫 task timeout을 보존하고 두 번째 task에서 검색 2회, validation 성공, wrong edit 0건을 확인했다. 독립 code·docs 검토를 통과했다 |

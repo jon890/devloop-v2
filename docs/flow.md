@@ -79,6 +79,24 @@ Agent가 Memory 필요 여부와 query를 판단하며, 저장 방식이나 kind
 기본 사용은 한 번의 검색으로 끝난다.
 결과의 confidence가 낮거나 status가 `uncertain`이거나 현재 source와 충돌할 때만 원문 link를 추가로 연다.
 
+voluntary trigger는 두 Agent에서 같은 규칙을 쓴다.
+
+- 과거 결정 이유, 호환성, 운영 장애, migration, legacy 제약이 성공에 영향을 줄 수 있을 때 검색한다.
+- 현재 코드만 읽어 답할 수 있는 명확한 변경에서는 검색하지 않는다.
+- low confidence, `uncertain`, source 충돌 결과는 답으로 사용하지 않고 원문을 확인한다.
+- Memory는 현재 source보다 우선하지 않는다.
+
+평가 실행은 다음 상태 전이를 따른다.
+
+```text
+suite 검증 → private source lock 검증 → snapshot materialize → condition 실행
+→ Agent event 수집 → 변경·검증 판정 → raw run 원자 저장 → 요약·비교
+```
+
+중단되면 완료한 `(task, condition, repetition)`만 건너뛰어 재개한다.
+같은 suite hash, source lock hash, repository revision, index hash가 아니면 기존 run에 이어 쓰지 않는다.
+원천 OCR checkout은 조회만 하고 평가 workspace는 ignored `eval/runs/` 아래에 따로 만든다.
+
 ## 파이프라인 — 파일로 이어진 배치 체인
 
 각 단계가 결과를 **파일로 떨어뜨리고** 다음 단계가 그 파일을 읽는다. 메모리를 공유하지 않는다.
@@ -312,6 +330,21 @@ LLM 추출은 비결정적이라 일부 실패가 정상 범위다.
 
 평가는 제품 기능이 아니라 저장소 안의 `kg-eval` 스킬이 수행하는 개발 절차다.
 평가 스킬은 현재 질의 API를 읽기 전용으로 호출하며 그래프나 원천 데이터를 바꾸지 않는다.
+
+Experience Memory 평가는 같은 `kg-eval`의 별도 suite type으로 동작한다.
+HTTP 답변 품질 문항과 Coding Agent 변경 task를 한 결과 스키마에 억지로 합치지 않고,
+반복·재개·suite hash·failure boundary 관례만 공유한다.
+
+| 조건 | Memory 제공 방식 | 기대 호출 |
+| --- | --- | --- |
+| `no-memory` | Memory 명령과 결과를 제공하지 않는다 | 0 |
+| `agent-triggered` | 공통 voluntary policy와 `memory-search`만 제공한다 | Agent 판단 |
+| `oracle-memory` | task에 고정한 Memory와 SourceRef를 먼저 제공한다 | runner 1회 |
+| `memory-graph` | Memory와 source-backed graph 이웃을 함께 제공한다 | runner가 계측 |
+| `automatic` | task 시작 전에 policy가 검색하고 안전한 결과만 주입한다 | task당 1회 |
+
+Agent가 실패해도 raw event와 workspace diff를 보존하고 다음 task로 조용히 넘어가지 않는다.
+timeout, 비정상 종료, validation 실패는 서로 다른 실패 경계로 남긴다.
 
 ```mermaid
 flowchart TD
