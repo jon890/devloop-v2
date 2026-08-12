@@ -27,13 +27,15 @@ recall만 좋아지고 비용이 과도하면 채택으로 판정하지 않는�
 
 ### 3. 결과 제한을 드러낸다
 
-hashed n-gram hybrid가 의미 모델이 아니라는 점, query 수, task 수, 변동 구간을 report에 명시한다.
+local TF-IDF hybrid가 pretrained semantic model은 아니라는 점, query 수, task 수, 변동 구간을 report에 명시한다.
 입력이 너무 적으면 `INCONCLUSIVE`로 둔다.
 
 ### 4. 공개 report를 생성한다
 
 `eval/reports/2026-08-12-plan015-memory-retrieval.json`과 `.md`에 내부 query·Memory 전문 없이 hash, 집계, 비용, 판정만 남긴다.
 동일 raw input에서 report가 byte-identical이어야 한다.
+miss가 0건이면 comparison raw나 adapter 표를 요구하지 않고 `decision=NO_CHANGE`, `missCount=0`, `adaptersEvaluated=0`인 결정적 report를 만든다.
+miss가 1건 이상일 때만 comparison raw와 세 adapter 표를 필수로 검증한다.
 
 ### 5. 독립 검증과 완료 마킹을 수행한다
 
@@ -47,6 +49,10 @@ verifier가 miss 추적, corpus/top-k 동일성, 표 집계를 검증한다.
 | 파일 | 변경 |
 | --- | --- |
 | `eval/runs/plan015-retrieval-comparison.json` | raw 비교, commit하지 않음 |
+| `.claude/skills/kg-eval/scripts/report-memory-retrieval.mjs` | miss 0·비교 실행 report 생성 신규 |
+| `.claude/skills/kg-eval/tests/report-memory-retrieval.test.mjs` | no-change·비교·privacy 회귀 신규 |
+| `.claude/skills/kg-eval/scripts/memory/privacy.mjs` | private miss query·Memory ID needle 입력 지원 보강 |
+| `.claude/skills/kg-eval/tests/memory-privacy.test.mjs` | private miss 누출 회귀 보강 |
 | `eval/reports/2026-08-12-plan015-memory-retrieval.json` | 신규 |
 | `eval/reports/2026-08-12-plan015-memory-retrieval.md` | 신규 |
 | `tasks/plan015-memory-retrieval-spike/index.json` | 완료 마킹 |
@@ -58,6 +64,10 @@ verifier가 miss 추적, corpus/top-k 동일성, 표 집계를 검증한다.
 ```bash
 # cwd: 저장소 루트
 node --test .claude/skills/kg-eval/tests/*.test.mjs
+node .claude/skills/kg-eval/scripts/report-memory-retrieval.mjs --misses eval/runs/plan015-retrieval-misses.json --comparison eval/runs/plan015-retrieval-comparison.json --json-out /tmp/plan015-report.json --markdown-out /tmp/plan015-report.md
+cmp /tmp/plan015-report.json eval/reports/2026-08-12-plan015-memory-retrieval.json
+cmp /tmp/plan015-report.md eval/reports/2026-08-12-plan015-memory-retrieval.md
+node .claude/skills/kg-eval/scripts/memory/privacy.mjs --private-inputs eval/runs/plan015-retrieval-misses.json,eval/runs/plan015-retrieval-comparison.json --paths eval/reports/2026-08-12-plan015-memory-retrieval.json,eval/reports/2026-08-12-plan015-memory-retrieval.md
 pnpm -r build
 pnpm format:check
 git diff --check
@@ -65,6 +75,7 @@ git status --short
 ```
 
 private query와 raw 비교 파일은 `git status`에 나타나지 않아야 한다.
+miss 0건이면 report 명령의 `--comparison`은 파일 부재를 허용하고 no-change schema를 선택해야 한다.
 
 ## 의도 메모 (왜)
 
