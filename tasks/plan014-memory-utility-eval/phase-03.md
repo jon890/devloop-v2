@@ -34,6 +34,9 @@ token null을 0이나 문자 추정치로 바꾸지 않는다.
 
 code-only skip과 experience-needed trigger를 기준으로 precision·recall을 계산한다.
 실패를 SOURCE, MEMORY, RETRIEVAL, AGENT, IMPLEMENTATION, VALIDATION으로 나누고 실제 lexical miss query를 private raw run에 표시한다.
+실제 검색 observation에서 `requiredMemoryIds`가 `retrievedMemoryIds` top-k에 하나도 없는 경우만 lexical miss로 센다.
+공개 JSON에는 query·Memory ID 대신 `lexicalMissCount`, `retrievalObservationComplete`, canonical private miss lock의 SHA-256만 기록한다.
+Memory call 중 `outcome=unobserved`가 하나라도 있으면 `retrievalObservationComplete=false`로 남겨 plan015가 fail-close할 수 있게 한다.
 
 ### 5. 공개 report와 완료 상태를 남긴다
 

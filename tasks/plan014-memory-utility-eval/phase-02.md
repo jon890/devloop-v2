@@ -40,6 +40,12 @@ oracle에서 고정 Memory 누락도 조건 오염이다.
 code-only voluntary에서 불필요한 검색과 experience-needed voluntary에서 miss는 runner acceptance를 실패시키지 않고 `triggerOutcome`으로 기록한다.
 `--require-expected-trigger`가 있을 때만 agent-triggered mismatch를 smoke acceptance failure로 다루며, 본 plan의 36회 명령에는 이 flag를 쓰지 않는다.
 
+실제 Memory 검색이 발생하면 Agent event의 command argv와 command output을 private raw에서 구조화한다.
+각 agent-triggered attempt는 `retrievalObservations` 배열을 가지며 관측 항목은 `sourceRunKey`, 실제 `query`, 확정 `topK`, `requiredMemoryIds`, `retrievedMemoryIds`, `memoryIndexHash`, `outcome`을 담는다.
+`topK`는 실제 argv의 `--top-k` 또는 production 기본값 10으로 확정한다.
+`requiredMemoryIds`는 같은 고정 index에서 task의 oracle query를 실행한 결과 ID로 만든다.
+Memory call은 있었지만 query나 JSON output을 복원할 수 없으면 `outcome=unobserved`로 남기고 miss로 추정하지 않는다.
+
 ### 4. raw 결과 무결성을 검사한다
 
 36개 attempt의 task·condition·repetition 조합이 모두 유일해야 한다.
@@ -99,9 +105,11 @@ node .claude/skills/kg-eval/scripts/run-memory.mjs \
 | `.claude/skills/kg-eval/scripts/run-memory.mjs` | interleaved schedule·voluntary 관측·availability 경계 수정 |
 | `.claude/skills/kg-eval/scripts/memory/result.mjs` | append-only attempt·availability failure 저장 계약 수정 |
 | `.claude/skills/kg-eval/scripts/memory/agent-runner.mjs` | Agent 시작 전 구조화된 usage rejection 분류 보강 |
+| `.claude/skills/kg-eval/scripts/memory/retrieval-observation.mjs` | 실제 검색 argv·결과를 private observation으로 정규화 |
 | `.claude/skills/kg-eval/tests/run-memory.test.mjs` | schedule·재개·voluntary acceptance 회귀 보강 |
 | `.claude/skills/kg-eval/tests/memory-foundation.test.mjs` | immutable attempt·availability failure 저장 회귀 보강 |
 | `.claude/skills/kg-eval/tests/memory-agent.test.mjs` | 구조화된 pre-Agent subscription·usage rejection 분류 회귀 보강 |
+| `.claude/skills/kg-eval/tests/retrieval-observation.test.mjs` | Codex·Claude 검색 argv/output·기본 top-k·unobserved 회귀 신규 |
 | `eval/runs/plan014-pilot.json` | 세 조건 pilot 3개, commit하지 않음 |
 | `eval/runs/plan014-utility.json` | 36개 raw run, commit하지 않음 |
 | `eval/runs/workspaces/**` | 회차별 workspace, commit하지 않음 |
@@ -110,18 +118,19 @@ node .claude/skills/kg-eval/scripts/run-memory.mjs \
 
 ```bash
 # cwd: 저장소 루트
-node --test .claude/skills/kg-eval/tests/run-memory.test.mjs .claude/skills/kg-eval/tests/memory-foundation.test.mjs .claude/skills/kg-eval/tests/memory-agent.test.mjs
+node --test .claude/skills/kg-eval/tests/run-memory.test.mjs .claude/skills/kg-eval/tests/memory-foundation.test.mjs .claude/skills/kg-eval/tests/memory-agent.test.mjs .claude/skills/kg-eval/tests/retrieval-observation.test.mjs
 jq '.attempts | length' eval/runs/plan014-pilot.json
 jq '[.attempts[] | has("taskSuccess") and has("memoryCalls") and has("sourceReads") and has("inputTokens") and has("outputTokens")] | all' eval/runs/plan014-pilot.json
 jq '.attempts | length' eval/runs/plan014-utility.json
 jq '[.attempts | group_by([.taskId,.condition,.repetition])[] | select(length != 1)] | length' eval/runs/plan014-utility.json
 jq '[.attempts[] | select(.condition == "no-memory" and .memoryCalls != 0)] | length' eval/runs/plan014-utility.json
 jq '[.attempts[] | select(.condition == "agent-triggered") | has("triggerOutcome")] | all' eval/runs/plan014-utility.json
+jq '[.attempts[] | select(.condition == "agent-triggered") | (.retrievalObservations | type == "array")] | all' eval/runs/plan014-utility.json
 jq '(.availabilityFailures // []) | length' eval/runs/plan014-utility.json
 git status --short
 ```
 
-일곱 `jq` 결과는 각각 3, `true`, 36, 0, 0, `true`, 0이어야 한다.
+여덟 `jq` 결과는 각각 3, `true`, 36, 0, 0, `true`, `true`, 0이어야 한다.
 
 ## 의도 메모 (왜)
 
