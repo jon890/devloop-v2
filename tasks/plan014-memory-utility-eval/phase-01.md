@@ -7,11 +7,11 @@
 
 ## 목표
 
-plan013이 만든 runner와 private source lock을 받아 #9의 세 조건을 비교할 수 있는지 실제 한 task로 사전 검증한다.
+plan013이 만든 runner와 private source lock을 받아 #9의 세 조건 입력이 같은지 Agent 호출 없이 사전 검증한다.
 
 **전제**: plan013이 `main`에 병합돼 `.claude/skills/kg-eval/scripts/run-memory.mjs`와 `eval/suites/tc-ocr-memory.json`이 있어야 한다. 없으면 구현하지 말고 중단한다.
 
-**범위 외**: Agent나 Memory 구현 수정, retrieval·Graph·automatic 조건, 반복 수 축소.
+**범위 외**: Agent나 Memory 제품 구현 수정, retrieval·Graph·automatic 조건, 반복 수 축소, `--require-expected-trigger` 사용.
 
 ---
 
@@ -32,11 +32,24 @@ public suite hash, source lock hash, 네 base revision, Memory index hash를 raw
 동일 task에서 `no-memory`, `agent-triggered`, `oracle-memory`의 prompt, base revision, allowed paths, validation commands가 byte-identical인지 검사한다.
 조건별 차이는 Memory policy와 제공 context뿐이어야 한다.
 
-### 4. 한 task를 조건별 1회 pilot 실행한다
+### 4. 전체 실행 계획을 dry-run한다
 
-Codex `gpt-5.6-luna`, effort `low`를 세 조건에 동일하게 사용한다.
-Luna를 사용할 수 없으면 fallback하지 않는다.
-taskSuccess, wrongEditCount, turns, toolCalls, sourceReads, memoryCalls, 실제 token usage가 raw run에 남는지 확인한다.
+Agent를 호출하지 않고 네 task·세 조건·3회로 36개 attempt가 계획되는지 확인한다.
+phase 01은 현재 plan013 runner의 trigger acceptance semantics를 바꾸지 않는다.
+voluntary mismatch를 관측값으로 바꾸고 실제 세 조건 pilot을 실행하는 책임은 phase 02가 가진다.
+
+```bash
+# cwd: 저장소 루트
+node .claude/skills/kg-eval/scripts/run-memory.mjs \
+  --suite eval/suites/tc-ocr-memory.json \
+  --source-lock eval/runs/plan014-memory-source-lock.json \
+  --data-dir apps/pipeline/data \
+  --conditions no-memory,agent-triggered,oracle-memory \
+  --repeats 3 \
+  --dry-run
+```
+
+출력의 `taskCount`는 4, `plannedAttempts`는 36이어야 한다.
 
 ---
 
@@ -45,7 +58,6 @@ taskSuccess, wrongEditCount, turns, toolCalls, sourceReads, memoryCalls, 실제 
 | 파일 | 변경 |
 | --- | --- |
 | `eval/runs/plan014-memory-source-lock.json` | private lock 복사, commit하지 않음 |
-| `eval/runs/plan014-utility.json` | pilot부터 누적, commit하지 않음 |
 | `.claude/skills/kg-eval/tests/memory-utility.test.mjs` | 조건 동일성·판정 회귀 신규 |
 
 ## 검증
@@ -54,11 +66,12 @@ taskSuccess, wrongEditCount, turns, toolCalls, sourceReads, memoryCalls, 실제 
 # cwd: 저장소 루트
 test -f .claude/skills/kg-eval/scripts/run-memory.mjs
 node --test .claude/skills/kg-eval/tests/memory-utility.test.mjs
-jq '.runs | length' eval/runs/plan014-utility.json
+node .claude/skills/kg-eval/scripts/run-memory.mjs --suite eval/suites/tc-ocr-memory.json --source-lock eval/runs/plan014-memory-source-lock.json --data-dir apps/pipeline/data --conditions no-memory,agent-triggered,oracle-memory --repeats 3 --dry-run | jq '{taskCount,plannedAttempts}'
 git status --short
 ```
 
-pilot raw run과 private lock은 `git status`에 나타나지 않아야 한다.
+private lock은 `git status`에 나타나지 않아야 한다.
+`jq` 결과는 `{"taskCount":4,"plannedAttempts":36}`이어야 한다.
 
 ## 의도 메모 (왜)
 
@@ -68,4 +81,3 @@ pilot raw run과 private lock은 `git status`에 나타나지 않아야 한다.
 ## Blocked 조건
 
 - plan013 산출물이 `main`에 없으면 `PHASE_BLOCKED: plan013 미병합`으로 종료한다.
-- Luna를 사용할 수 없으면 `PHASE_BLOCKED: Luna unavailable`로 종료한다.

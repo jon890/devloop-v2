@@ -7,7 +7,7 @@
 
 ## 목표
 
-36개 raw run을 task success와 wrong edit 우선으로 판정하고 Memory Benefit, Retrieval Tax, trigger 품질, 실패 경계를 공개 가능한 report로 만든다.
+36개 raw attempt를 task success와 wrong edit 우선으로 판정하고 Memory Benefit, Retrieval Tax, trigger 품질, 실패 경계를 공개 가능한 report로 만든다.
 
 **범위 외**: 단일 종합 점수, retrieval backend 채택, Graph 제거, automatic 배포.
 
@@ -17,7 +17,7 @@
 
 ### 1. 요약기를 구현한다
 
-`.claude/skills/kg-eval/scripts/report-memory.mjs`는 raw run을 읽어 task·condition별 안정성을 계산한다.
+`.claude/skills/kg-eval/scripts/report-memory.mjs`는 raw run의 `attempts`를 읽어 task·condition별 안정성을 계산한다.
 3회 판정이 섞이면 개선·회귀로 세지 않고 `INCONCLUSIVE`로 둔다.
 
 ### 2. Memory Benefit을 별도 표로 만든다
@@ -38,7 +38,7 @@ code-only skip과 experience-needed trigger를 기준으로 precision·recall을
 ### 5. 공개 report와 완료 상태를 남긴다
 
 `eval/reports/2026-08-12-plan014-memory-utility.json`과 `.md`는 내부 URL, 실제 SHA, prompt, Agent 전문 없이 hash·task ID·집계·판정만 담는다.
-독립 verifier 두 lane이 raw run과 report 집계를 대조한다.
+독립 verifier 두 lane이 raw attempt와 report 집계를 대조한다.
 `tasks/plan014-memory-utility-eval/index.json`과 phase status를 `completed`로 바꾸고 실행 기록을 추가한다.
 
 ---
@@ -60,14 +60,17 @@ code-only skip과 experience-needed trigger를 기준으로 precision·recall을
 ```bash
 # cwd: 저장소 루트
 node --test .claude/skills/kg-eval/tests/*.test.mjs
+node .claude/skills/kg-eval/scripts/validate-memory-suite.mjs --suite eval/suites/tc-ocr-memory.json --source-lock eval/runs/plan014-memory-source-lock.json
 node .claude/skills/kg-eval/scripts/report-memory.mjs --run eval/runs/plan014-utility.json --json-out /tmp/plan014-report.json --markdown-out /tmp/plan014-report.md
 cmp /tmp/plan014-report.json eval/reports/2026-08-12-plan014-memory-utility.json
 cmp /tmp/plan014-report.md eval/reports/2026-08-12-plan014-memory-utility.md
+node .claude/skills/kg-eval/scripts/memory/privacy.mjs --source-lock eval/runs/plan014-memory-source-lock.json --paths eval/reports/2026-08-12-plan014-memory-utility.json,eval/reports/2026-08-12-plan014-memory-utility.md
 pnpm -r build
 git diff --check
 ```
 
 동일 raw run에서 report가 byte-identical이어야 한다.
+privacy 검사는 private path·URL·revision·prompt·diff·transcript·내부 domain을 출력하지 않고 누출 0건으로 끝나야 한다.
 
 ## 의도 메모 (왜)
 
