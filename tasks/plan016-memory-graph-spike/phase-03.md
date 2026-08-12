@@ -7,7 +7,7 @@
 
 ## 목표
 
-no-memory, Memory, Memory+Graph 결과를 관계형·일반 task별로 비교해 Graph 유지·축소 판단의 근거를 남긴다.
+no-memory, oracle-memory, oracle-memory+Graph 결과를 관계형·일반 task별로 비교해 Graph 유지·축소 판단의 근거를 남긴다.
 
 **범위 외**: Neo4j 제거, ontology 재설계, production route 변경.
 
@@ -26,7 +26,7 @@ task success, wrong edit, validation, wallTime, turns, toolCalls, sourceReads, m
 
 ### 3. 인과 근거를 판정한다
 
-Graph 관계가 성공 run에서 실제 사용됐고 Memory-only 실패를 안정적으로 회복했을 때만 추가 가치로 판정한다.
+Graph 관계가 성공 run에서 실제 사용됐고 oracle-memory 실패를 안정적으로 회복했을 때만 추가 가치로 판정한다.
 혼합 결과는 `INCONCLUSIVE`, 비용만 늘면 `NO_ADDED_VALUE`로 둔다.
 
 ### 4. 공개 report를 생성한다
@@ -46,6 +46,8 @@ verifier 두 lane이 raw 6회와 재사용한 plan014 12회를 report 표에 대
 | --- | --- |
 | `.claude/skills/kg-eval/scripts/report-memory-graph.mjs` | 신규 |
 | `.claude/skills/kg-eval/tests/report-memory-graph.test.mjs` | 신규 |
+| `.claude/skills/kg-eval/scripts/memory/privacy.mjs` | private Graph anchor needle 입력 재사용 |
+| `.claude/skills/kg-eval/tests/memory-privacy.test.mjs` | Graph anchor·URL 누출 회귀 보강 |
 | `eval/reports/2026-08-12-plan016-memory-graph.json` | 신규 |
 | `eval/reports/2026-08-12-plan016-memory-graph.md` | 신규 |
 | `tasks/plan016-memory-graph-spike/index.json` | 완료 마킹 |
@@ -57,6 +59,10 @@ verifier 두 lane이 raw 6회와 재사용한 plan014 12회를 report 표에 대
 ```bash
 # cwd: 저장소 루트
 node --test .claude/skills/kg-eval/tests/*.test.mjs
+node .claude/skills/kg-eval/scripts/report-memory-graph.mjs --baseline eval/runs/plan014-utility.json --graph-run eval/runs/plan016-memory-graph.json --graph-lock eval/runs/plan016-graph-lock.json --json-out /tmp/plan016-report.json --markdown-out /tmp/plan016-report.md
+cmp /tmp/plan016-report.json eval/reports/2026-08-12-plan016-memory-graph.json
+cmp /tmp/plan016-report.md eval/reports/2026-08-12-plan016-memory-graph.md
+node .claude/skills/kg-eval/scripts/memory/privacy.mjs --private-inputs eval/runs/plan016-graph-lock.json,eval/runs/plan016-memory-graph.json --paths eval/reports/2026-08-12-plan016-memory-graph.json,eval/reports/2026-08-12-plan016-memory-graph.md
 pnpm -r build
 pnpm format:check
 git diff --check
