@@ -17,7 +17,8 @@
 
 ### 1. private source lock을 만든다
 
-ignored `eval/runs/plan013-memory-source-lock.json`에 네 task의 실제 OCR repository path·URL, base·target revision, prompt, 허용 경로, 검증 명령, source URL, oracle query를 넣는다.
+ignored `eval/runs/plan013-memory-source-lock.json`에 네 task의 immutable isolated execution repository path·URL, base·target revision, prompt, 허용 경로, 검증 명령, source URL, oracle query를 넣는다.
+실제 OCR repository path는 범용 runner 입력과 분리한 private audit 필드로 보존해 실행 직전과 직후 원본 상태를 비교한다.
 두 code-only, 두 experience-needed, relationship-heavy 최소 하나를 유지한다.
 
 ### 2. 필요한 evidence packet을 한 generation으로 추출한다
@@ -34,7 +35,7 @@ ignored `eval/runs/plan013-memory-source-lock.json`에 네 task의 실제 OCR re
 
 ### 4. #4~#7 acceptance를 다시 점검한다
 
-normalize 전후 OCR repo의 branch, HEAD, tracked status와 `.omc/`를 제외한 source status를 비교한다.
+normalize와 Agent smoke 전후 실제 OCR repo의 branch, HEAD, tracked status와 `.omc/`를 제외한 source status를 비교한다.
 같은 normalize byte/hash, 같은 Wiki tree/hash, 같은 query 순서, 원문 link 누락 0건을 확인한다.
 `.omc/` runtime 변화는 source status에서 제외한 이유와 raw 수치를 공개 report에 익명화해 남긴다.
 `privacy.mjs`는 private lock에서 민감 문자열과 내부 domain을 읽어 tracked suite·report를 검사한다.

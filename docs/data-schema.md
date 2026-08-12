@@ -664,13 +664,15 @@ prompt, 실제 revision, 원문 URL, 허용 경로와 검증 명령은 private s
 ### private source lock
 
 private source lock은 ignored `eval/runs/` 아래에 두며 다음 필드를 task별로 가진다.
-범용 schema는 절대 repository path를 검증하고, plan013 실행 lock은 사용자가 지정한 private source root인 `~/projects/OCR` 아래 실제 Git 저장소만 사용한다.
+범용 schema는 절대 repository path를 검증한다.
+plan013 실행 lock의 `repositoryPath`는 실제 OCR 저장소에서 고정 revision을 읽어 만든 immutable isolated snapshot을 가리킨다.
+실제 OCR 저장소 경로와 실행 전후 상태는 범용 실행 계약과 분리된 private source audit 증거로 보존한다.
 
 | 필드 | 형식 | 제약 |
 | --- | --- | --- |
 | `taskId` | string | 공개 suite task ID와 전단사 대응 |
 | `sourceLockKey` | string | 공개 suite source lock key와 일치 |
-| `repositoryPath` | absolute path | 원천 Git repo의 private 실행 경로 |
+| `repositoryPath` | absolute path | 고정 revision을 제공하는 private 실행 저장소 경로 |
 | `baseRevision` | 40자 SHA | Agent가 수정할 snapshot |
 | `targetRevision` | 40자 SHA | task 분류와 oracle을 확인한 원문 commit |
 | `sourceUrl` | HTTP URL | target commit 원문 link |

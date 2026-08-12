@@ -236,7 +236,7 @@ Private source lock은 커밋하지 않는다.
 | --- | --- | --- |
 | `taskId` | string | 공개 suite의 `tasks[].id` |
 | `sourceLockKey` | string | 공개 suite의 `tasks[].sourceLockKey` |
-| `repositoryPath` | string | 원천 Git 저장소의 절대 경로 |
+| `repositoryPath` | string | 고정 revision을 제공하는 private 실행 저장소의 절대 경로 |
 | `sourceUrl` | string | 내부 원천 URL |
 | `baseRevision` | 40자 hex string | `git archive`로 읽을 기준 revision |
 | `targetRevision` | 40자 hex string | oracle 비교용 목표 revision |
@@ -245,8 +245,8 @@ Private source lock은 커밋하지 않는다.
 | `validationCommand` | string[] | 평가 workspace에서 실행할 검증 명령 |
 | `oracleQuery` | string | 판정자가 사용할 private oracle query |
 
-Memory workspace 생성기는 원천 저장소에서 `git archive <baseRevision>`만 실행한다.
-원천 저장소에서 checkout, fetch, reset, clean, worktree 명령을 실행하지 않는다.
+Memory workspace 생성기는 private 실행 저장소에서 `git archive <baseRevision>`만 실행한다.
+private 실행 저장소에서 checkout, fetch, reset, clean, worktree 명령을 실행하지 않는다.
 archive 결과는 `eval/runs/workspaces/<run-key>/`에 풀고, 그 디렉터리에서 새 로컬 Git 저장소를 만든다.
 
 ## Memory 원시 실행 결과
