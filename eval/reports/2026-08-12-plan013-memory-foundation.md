@@ -33,6 +33,25 @@ private source lock과 raw runs는 ignored `eval/runs/` 아래에만 보존한�
 | Immediate cache rerun calls | 0 |
 | Immediate cache rerun hits | 4 |
 
+## Source Grounding
+
+현재 immutable source generation의 manifest와 evidence packet을 다시 대조했다.
+Dooray 업무, 댓글, Wiki와 OCR Git 저장소가 모두 같은 generation에 포함되어 있다.
+
+| Source | Count |
+| --- | ---: |
+| Dooray tasks | 507 |
+| Dooray comments | 897 |
+| Dooray Wiki pages | 47 |
+| OCR Git repositories | 9 |
+| Dooray task evidence packets | 507 |
+| Dooray Wiki evidence packets | 47 |
+| Git commit evidence packets | 2,073 |
+| Git file evidence packets | 39 |
+
+모든 evidence segment는 HTTP SourceRef를 가지며 원문을 다시 따라갈 수 있다.
+source generation은 content hash로 고정되고 동일 generation ID의 byte 불일치는 거부한다.
+
 ## Benchmark Wiki
 
 | Item | Value |
