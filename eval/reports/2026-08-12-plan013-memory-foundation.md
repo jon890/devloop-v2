@@ -71,9 +71,10 @@ Wiki는 선택한 4개 packet에서 생성된 incomplete benchmark Wiki다.
 | Agent | Category | Agent exit | Validation | Task success | Memory calls | Result |
 | --- | --- | ---: | ---: | --- | ---: | --- |
 | Codex | code-only | 0 | 0 | true | 0 | pass |
-| Claude | experience-needed | 1 | 0 | true | 0 | blocked |
+| Claude | experience-needed | not run | not run | not run | not run | blocked |
 
-Claude subscription smoke는 task validation 자체는 통과했지만, CLI subscription limit 때문에 Agent exit가 비영값이고 voluntary Memory search trigger가 발생하지 않았다.
+과거 Claude attempt는 서로 다른 source lock에서 subscription limit로 종료되어 현재 source lock의 acceptance 근거로 사용하지 않는다.
+현재 source lock의 Claude smoke는 subscription reset 뒤 새 output에서 다시 실행해야 한다.
 no metered API 조건 때문에 fallback API로 우회하지 않았다.
 
 ## Source State
@@ -91,7 +92,7 @@ runner는 ignored isolated snapshot과 per-run workspace만 썼고 원본 source
 
 | Command | Result |
 | --- | --- |
-| `node --test .claude/skills/kg-eval/tests/*.test.mjs` | pass, 76 tests |
+| `node --test .claude/skills/kg-eval/tests/*.test.mjs` | pass, 77 tests |
 | `pnpm --filter pipeline test` | pass, 218 tests |
 | `node .claude/skills/kg-eval/scripts/validate-memory-suite.mjs ...` | pass |
 | `node .claude/skills/kg-eval/scripts/memory/privacy.mjs ...` | pass, violations 0 |
