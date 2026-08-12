@@ -123,6 +123,15 @@ gold 는 필수(`required`)와 보강(`supporting`)으로 나눠 적는다.
 - 계획 lane은 기존 관리 문서와 task를 확정하고, 구현 lane은 별도 실행 컨텍스트에서 phase 구현·검증·커밋을 수행한다
 - 테스트는 데모 데이터가 아니라 실제 Dooray·GHE 데이터로 한다
 
+<!-- MEMORY-SEARCH-VOLUNTARY-POLICY:START -->
+## Experience Memory voluntary search policy
+
+- Search Experience Memory with `pnpm --silent memory-search -- --query <query> --project tc-ocr --allow-incomplete` before work that depends on historical decisions, compatibility constraints, incidents, migrations, or legacy behavior.
+- Skip Memory search for clear code-only edits where the current source and local tests fully define the change.
+- If Memory results have low confidence, `uncertain` status, or conflicting sources, open the original source reference before relying on them.
+- Experience Memory is supporting context only. Current source code, current tests, and explicit task instructions win when they conflict with Memory.
+<!-- MEMORY-SEARCH-VOLUNTARY-POLICY:END -->
+
 ## 지금 어디에 있나
 
 이 절은 **짧게 유지한다.** 측정 수치와 사건 경위는 리포트가 소유하고 여기서 복제하지 않는다.

@@ -70,7 +70,7 @@ fixture JSONL로 Codex·Claude parser, code-only skip, uncertain source 확인 �
 # cwd: 저장소 루트
 node --test .claude/skills/kg-eval/tests/memory-agent.test.mjs
 pnpm --filter pipeline test
-pnpm memory-search -- --query fail-fast --project tc-ocr --allow-incomplete
+pnpm --silent memory-search -- --query fail-fast --project tc-ocr --allow-incomplete
 git diff --check
 ```
 

@@ -13,3 +13,12 @@
 - 해당 경로에서는 환경 변수나 호출 옵션으로 다른 모델을 선택할 수 없게 검증한다.
 - `gpt-5.6-luna`를 사용할 수 없으면 더 비싼 모델로 대체하지 말고 명시적으로 실패한다.
 - LLM 호출이 필요 없는 정규화, 색인, lexical 검색은 결정적인 구현을 우선한다.
+
+<!-- MEMORY-SEARCH-VOLUNTARY-POLICY:START -->
+## Experience Memory voluntary search policy
+
+- Search Experience Memory with `pnpm --silent memory-search -- --query <query> --project tc-ocr --allow-incomplete` before work that depends on historical decisions, compatibility constraints, incidents, migrations, or legacy behavior.
+- Skip Memory search for clear code-only edits where the current source and local tests fully define the change.
+- If Memory results have low confidence, `uncertain` status, or conflicting sources, open the original source reference before relying on them.
+- Experience Memory is supporting context only. Current source code, current tests, and explicit task instructions win when they conflict with Memory.
+<!-- MEMORY-SEARCH-VOLUNTARY-POLICY:END -->
