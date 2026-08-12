@@ -22,6 +22,12 @@
 기본 schedule은 plan013 호환을 위해 task → condition → repetition 순서를 유지하고, `--schedule interleaved`는 task → repetition → condition 순서로만 바꾼다.
 `run-memory.mjs`에는 두 순서를 모두 결정적으로 만드는 순수 함수를 두고, interleaved를 명시한 실행만 새 순서를 사용한다.
 
+각 attempt의 Agent가 시작될 때 파일시스템에는 현재 attempt의 source-locked workspace만 있어야 한다.
+이전·다른 condition workspace는 attempt 시작 전에 안전한 고정 active workspace root에서 제거하고, 성공·실패·availability failure와 관계없이 attempt 종료 시 `finally`에서 다시 제거한다.
+Agent prompt는 현재 repository 밖의 파일을 읽지 않도록 명시한다.
+Agent command telemetry에서 다른 `MEM-*` workspace 또는 benchmark transcript·diff를 읽은 흔적이 발견되면 그 raw run은 독립 실행 근거로 사용할 수 없다.
+transcript와 diff는 Agent가 종료된 뒤 active workspace 밖의 private run artifact로만 보존한다.
+
 ### 2. 실패 보존과 재개 경계를 분리한다
 
 중단되면 같은 명령으로 재개하고 이미 완료된 유일 키를 호출하지 않는다.
@@ -60,6 +66,7 @@ Memory call은 있었지만 command, query, argv, result JSON output을 복원�
 36개 attempt의 task·condition·repetition 조합이 모두 유일해야 한다.
 suite/source lock/revision/index/validation hash가 전부 같고 token null과 0을 구분해야 한다.
 동일 입력으로 재실행하면 Agent 호출 0회이며 raw 결과 바이트가 바뀌지 않아야 한다.
+두 attempt를 연속 실행하는 fixture는 두 번째 Agent가 첫 번째 workspace를 찾을 수 없고, 일반 오류와 availability failure 뒤에도 active workspace가 남지 않음을 증명해야 한다.
 
 paid run 전에 `node --test`와 `git diff --check`를 먼저 통과시켜 fixture drift와 parser drift를 막는다. Codex/Claude event fixtures가 바뀌면 retrieval-observation 테스트도 같은 change에서 함께 갱신한다.
 runner 변경 후 `MEM-CODE-001`을 세 조건에서 1회 실행해 taskSuccess, wrongEditCount, turns, toolCalls, sourceReads, memoryCalls, 실제 token usage가 raw attempt에 남는지 pilot으로 먼저 확인한다.
