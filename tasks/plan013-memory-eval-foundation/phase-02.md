@@ -1,7 +1,7 @@
 # Phase 02 — 두 Agent의 voluntary policy와 실행 계측을 연결한다
 
 **Execution profile**: deep
-**Status**: pending
+**Status**: completed
 
 ---
 

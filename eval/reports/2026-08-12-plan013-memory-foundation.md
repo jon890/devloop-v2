@@ -2,9 +2,9 @@
 
 ## 상태
 
-PHASE_BLOCKED.
+COMPLETED.
 
-phase-03의 코드 보완과 4개 target packet 기반 Memory 생성 경로, source-state stable window를 검증했지만, 최종 acceptance 조건 중 subscription Agent smoke가 충족되지 않았다.
+phase-03의 코드 보완, 4개 target packet 기반 Memory 생성 경로, source-state stable window와 두 Agent smoke를 검증했다.
 private source lock과 raw runs는 ignored `eval/runs/` 아래에만 보존한다.
 이 보고서는 hash, count, anonymous measurement만 기록한다.
 
@@ -71,10 +71,12 @@ Wiki는 선택한 4개 packet에서 생성된 incomplete benchmark Wiki다.
 | Agent | Category | Agent exit | Validation | Task success | Memory calls | Result |
 | --- | --- | ---: | ---: | --- | ---: | --- |
 | Codex | code-only | 0 | 0 | true | 0 | pass |
-| Claude | experience-needed | not run | not run | not run | not run | blocked |
+| Claude | experience-needed | 143 | 2 | false | 2 | timeout observation |
+| Claude | experience-needed | 0 | 0 | true | 2 | pass |
 
-과거 Claude attempt는 서로 다른 source lock에서 subscription limit로 종료되어 현재 source lock의 acceptance 근거로 사용하지 않는다.
-현재 source lock의 Claude smoke는 subscription reset 뒤 새 output에서 다시 실행해야 한다.
+현재 source lock의 첫 Claude task는 voluntary Memory 검색을 2회 수행했지만 10분 제한을 넘겨 실패 관측값으로 보존했다.
+같은 source lock과 Memory index의 두 번째 experience-needed task는 72초 안에 검색 2회, source read 4회, validation 성공, wrong edit 0건으로 완료했다.
+과거 다른 source lock에서 subscription limit로 종료된 attempt는 acceptance 근거로 사용하지 않았다.
 no metered API 조건 때문에 fallback API로 우회하지 않았다.
 
 ## Source State
@@ -98,6 +100,7 @@ runner는 ignored isolated snapshot과 per-run workspace만 썼고 원본 source
 | `node .claude/skills/kg-eval/scripts/memory/privacy.mjs ...` | pass, violations 0 |
 | `node .claude/skills/kg-eval/scripts/validate-suite.mjs ...` | not applicable to Memory suite schema |
 
-## Blocker
+## Result
 
-현재 acceptance를 낮추지 않고 완료하려면 Claude subscription limit reset 이후 experience-needed smoke를 다시 실행해야 한다.
+code-only skip과 experience-needed voluntary trigger를 두 Agent에서 확인했다.
+실패 attempt를 숨기지 않고 보존했으며, 현재 source lock의 성공 smoke와 독립 code·docs 검토를 완료 근거로 사용한다.

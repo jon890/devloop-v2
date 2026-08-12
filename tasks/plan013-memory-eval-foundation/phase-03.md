@@ -1,7 +1,7 @@
 # Phase 03 — 실제 OCR task와 Memory index로 수직 smoke를 검증한다
 
 **Execution profile**: deep
-**Status**: pending
+**Status**: completed
 
 ---
 

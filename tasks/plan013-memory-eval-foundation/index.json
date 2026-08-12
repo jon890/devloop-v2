@@ -1,7 +1,7 @@
 {
   "name": "plan013-memory-eval-foundation",
   "description": "source-locked Coding Agent benchmark와 공통 voluntary Memory 호출·계측 기반을 구현한다",
-  "status": "pending",
+  "status": "completed",
   "created_at": "2026-08-12",
   "total_phases": 4,
   "phases": [
@@ -10,28 +10,28 @@
       "file": "phase-01.md",
       "title": "Memory 평가 suite와 private source lock 계약을 구현한다",
       "execution_profile": "deep",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "number": 2,
       "file": "phase-02.md",
       "title": "두 Agent의 voluntary policy와 실행 계측을 연결한다",
       "execution_profile": "deep",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "number": 3,
       "file": "phase-03.md",
       "title": "실제 OCR task와 Memory index로 수직 smoke를 검증한다",
       "execution_profile": "deep",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "number": 4,
       "file": "phase-04.md",
       "title": "완료 증거와 문서 정합성을 검증한다",
       "execution_profile": "standard",
-      "status": "pending"
+      "status": "completed"
     }
   ]
 }
