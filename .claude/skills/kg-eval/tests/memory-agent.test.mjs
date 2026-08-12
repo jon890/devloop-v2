@@ -142,6 +142,7 @@ test("builds three memory condition inputs with only Memory information differen
       taskId: "MEM-EXP-001",
       prompt: "Fix the migration regression.",
       baseRevision: "a".repeat(40),
+      allowedPaths: ["src/migration.ts"],
       validationCommand: ["pnpm", "test"],
     },
     oracleMemory: [{ id: "mem-1", confidence: "high" }],
