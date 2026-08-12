@@ -96,11 +96,26 @@ async function makeFixture() {
 
 test("parses help, dry-run, and bounded execution options", () => {
   assert.deepEqual(parseArgs(["--help"]), { help: true });
-  const parsed = parseArgs(["--suite", "suite.json", "--source-lock", "lock.json", "--agent", "codex", "--tasks", "A,B", "--conditions", "agent-triggered", "--repeats", "2"]);
+  const parsed = parseArgs([
+    "--suite",
+    "suite.json",
+    "--source-lock",
+    "lock.json",
+    "--agent",
+    "codex",
+    "--tasks",
+    "A,B",
+    "--conditions",
+    "agent-triggered",
+    "--repeats",
+    "2",
+    "--require-expected-trigger",
+  ]);
   assert.equal(parsed.agent, "codex");
   assert.deepEqual(parsed.taskIds, ["A", "B"]);
   assert.deepEqual(parsed.conditions, ["agent-triggered"]);
   assert.equal(parsed.repeats, 2);
+  assert.equal(parsed.requireExpectedTrigger, true);
 });
 
 test("builds the archived-workspace Memory search command with devloop root and data dir", () => {
@@ -116,6 +131,7 @@ test("prints help without requiring private inputs", () => {
   const result = spawnSync(process.execPath, [RUNNER, "--help"], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Usage:/);
+  assert.match(result.stdout, /--require-expected-trigger/);
 });
 
 test("dry-run validates suite and reports private-safe aggregate identity", async () => {
@@ -161,7 +177,9 @@ test("executes one fake agent attempt, records telemetry, and resumes without du
       repeats: 1,
       timeoutMs: 1000,
       runAgentFn: async ({ cwd, prompt }) => {
-        assert.match(prompt, /classified as experience-needed/);
+        assert.doesNotMatch(prompt, /classified as experience-needed/);
+        assert.doesNotMatch(prompt, /run this exact Experience Memory search command once before editing/);
+        assert.match(prompt, /if Experience Memory search is warranted/);
         assert.match(prompt, /pnpm.*memory-search/s);
         await writeFile(path.join(cwd, "service.txt"), "changed\n");
         return { status: 0, signal: null, timedOut: false, outputOverflow: null, stdout: fakeEvents.map((event) => JSON.stringify(event)).join("\n"), stderr: "" };
@@ -214,6 +232,64 @@ test("isolates workspaces and diffs under the output directory", async () => {
     await access(path.join(isolated, "memory-diffs", "MEM-CODE-001-agent-triggered-1.patch"));
     const globalAfter = await stat(globalWorkspace).catch(() => null);
     assert.equal(globalAfter?.mtimeMs ?? null, globalBefore?.mtimeMs ?? null);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("require-expected-trigger only forces the prompt for experience-needed agent-triggered smokes", async () => {
+  const fixture = await makeFixture();
+  try {
+    const prompts = [];
+    await runMemoryEvaluation({
+      suitePath: fixture.suitePath,
+      sourceLockPath: fixture.sourceLockPath,
+      dataDir: fixture.dataDir,
+      outPath: path.join(fixture.root, "forced-exp.json"),
+      agent: "codex",
+      agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+      taskIds: ["MEM-EXP-001"],
+      conditions: ["agent-triggered"],
+      repeats: 1,
+      timeoutMs: 1000,
+      requireExpectedTrigger: true,
+      runAgentFn: async ({ cwd, prompt }) => {
+        prompts.push(prompt);
+        await writeFile(path.join(cwd, "service.txt"), "changed\n");
+        return {
+          status: 0,
+          signal: null,
+          timedOut: false,
+          outputOverflow: null,
+          stdout: JSON.stringify({ type: "item.completed", item: { type: "command_execution", command: "pnpm --silent memory-search -- --query q" } }),
+          stderr: "",
+        };
+      },
+    });
+    assert.match(prompts[0], /classified as experience-needed/);
+    assert.match(prompts[0], /run this exact Experience Memory search command once before editing/);
+
+    await runMemoryEvaluation({
+      suitePath: fixture.suitePath,
+      sourceLockPath: fixture.sourceLockPath,
+      dataDir: fixture.dataDir,
+      outPath: path.join(fixture.root, "forced-code.json"),
+      agent: "codex",
+      agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+      taskIds: ["MEM-CODE-001"],
+      conditions: ["agent-triggered"],
+      repeats: 1,
+      timeoutMs: 1000,
+      requireExpectedTrigger: true,
+      runAgentFn: async ({ cwd, prompt }) => {
+        prompts.push(prompt);
+        await writeFile(path.join(cwd, "service.txt"), "changed\n");
+        return { status: 0, signal: null, timedOut: false, outputOverflow: null, stdout: JSON.stringify({ type: "turn.completed" }), stderr: "" };
+      },
+    });
+    assert.doesNotMatch(prompts[1], /classified as experience-needed/);
+    assert.doesNotMatch(prompts[1], /run this exact Experience Memory search command once before editing/);
+    assert.match(prompts[1], /if Experience Memory search is warranted/);
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }

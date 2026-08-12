@@ -15,7 +15,7 @@ private source lock과 raw runs는 ignored `eval/runs/` 아래에만 보존한�
 | Public suite tasks | 4 |
 | Private source lock tasks | 4 |
 | Suite hash | `484a42b87cf0c79421ba1db14f74cb561701450bfef1e1bb09686d73d5a09bff` |
-| Source lock hash | `dbc2ec8d42f606c266a098e879898c840f437d25f771e16f1de8b023fe7cb360` |
+| Source lock hash | `84972a90277b2df5a80f24c33ba575f2247fc5ed048bf4c69403d2e43c6de94a` |
 | Categories | 2 code-only, 2 experience-needed |
 | Relationship-heavy tasks | 1 |
 
@@ -72,7 +72,7 @@ runner는 ignored isolated snapshot과 per-run workspace만 썼고 원본 source
 
 | Command | Result |
 | --- | --- |
-| `node --test .claude/skills/kg-eval/tests/*.test.mjs` | pass, 75 tests |
+| `node --test .claude/skills/kg-eval/tests/*.test.mjs` | pass, 76 tests |
 | `pnpm --filter pipeline test` | pass, 218 tests |
 | `node .claude/skills/kg-eval/scripts/validate-memory-suite.mjs ...` | pass |
 | `node .claude/skills/kg-eval/scripts/memory/privacy.mjs ...` | pass, violations 0 |

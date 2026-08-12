@@ -29,6 +29,7 @@ Options:
   --conditions <names>         Comma-separated conditions
   --repeats <n>                Repetitions per task/condition (default: 1)
   --timeout-ms <n>             Agent timeout (default: ${DEFAULT_TIMEOUT_MS})
+  --require-expected-trigger   Require expected Memory trigger behavior in the agent prompt for experience-needed smokes
   --dry-run                    Validate and print planned aggregate only
   --help                       Show this help
 `;
@@ -56,6 +57,10 @@ function parseArgs(argv) {
     const arg = argv[index];
     if (arg === "--dry-run") {
       args.dryRun = true;
+      continue;
+    }
+    if (arg === "--require-expected-trigger") {
+      args.requireExpectedTrigger = true;
       continue;
     }
     if (!valueFlags.has(arg)) throw new Error(`unknown argument: ${arg}`);
@@ -92,6 +97,7 @@ function parseArgs(argv) {
     repeats,
     timeoutMs,
     maxOutputBytes,
+    requireExpectedTrigger: Boolean(args.requireExpectedTrigger),
     dryRun: Boolean(args.dryRun),
   };
 }
@@ -317,7 +323,7 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
       ? memorySearchCommand({ query: sourceTask.oracleQuery, dataDir: options.dataDir, devloopRoot: rootCwd })
       : null;
   const memoryTriggerInstruction =
-    condition === "agent-triggered" && options.publicTask?.category === "experience-needed"
+    condition === "agent-triggered" && options.requireExpectedTrigger && options.publicTask?.category === "experience-needed"
       ? "This task is classified as experience-needed; run this exact Experience Memory search command once before editing:"
       : "Use this exact command if Experience Memory search is warranted:";
   const startedAt = Date.now();
