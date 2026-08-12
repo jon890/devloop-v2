@@ -4,7 +4,7 @@
 
 PHASE_BLOCKED.
 
-phase-03의 코드 보완과 4개 target packet 기반 Memory 생성 경로는 검증했지만, 최종 acceptance 조건 중 subscription Agent smoke와 source-state stable window가 충족되지 않았다.
+phase-03의 코드 보완과 4개 target packet 기반 Memory 생성 경로, source-state stable window를 검증했지만, 최종 acceptance 조건 중 subscription Agent smoke가 충족되지 않았다.
 private source lock과 raw runs는 ignored `eval/runs/` 아래에만 보존한다.
 이 보고서는 hash, count, anonymous measurement만 기록한다.
 
@@ -62,17 +62,17 @@ no metered API 조건 때문에 fallback API로 우회하지 않았다.
 | Check | Count |
 | --- | ---: |
 | Controlled source repos compared | 4 |
-| Stable branch, HEAD, and status excluding runtime data | 3 |
+| Stable branch, HEAD, and status excluding runtime data | 4 |
 | Status excluding runtime data stable | 4 |
 
-최종 controlled window에서 하나의 원본 source repo branch/HEAD가 외부 상태 변화와 맞물려 안정 조건을 충족하지 못했다.
+최종 fresh controlled window에서 원본 source repo 4개의 branch, HEAD, `.omc/` 제외 status가 모두 같았다.
 runner는 ignored isolated snapshot과 per-run workspace만 썼고 원본 source repo에는 checkout, reset, clean, fetch, write를 수행하지 않았다.
 
 ## Validation
 
 | Command | Result |
 | --- | --- |
-| `node --test .claude/skills/kg-eval/tests/*.test.mjs` | pass, 72 tests |
+| `node --test .claude/skills/kg-eval/tests/*.test.mjs` | pass, 75 tests |
 | `pnpm --filter pipeline test` | pass, 218 tests |
 | `node .claude/skills/kg-eval/scripts/validate-memory-suite.mjs ...` | pass |
 | `node .claude/skills/kg-eval/scripts/memory/privacy.mjs ...` | pass, violations 0 |
@@ -80,4 +80,4 @@ runner는 ignored isolated snapshot과 per-run workspace만 썼고 원본 source
 
 ## Blocker
 
-현재 acceptance를 낮추지 않고 완료하려면 Claude subscription limit reset 이후 experience-needed smoke를 다시 실행하고, 같은 controlled window에서 source repo 4/4 stable 상태를 재확인해야 한다.
+현재 acceptance를 낮추지 않고 완료하려면 Claude subscription limit reset 이후 experience-needed smoke를 다시 실행해야 한다.

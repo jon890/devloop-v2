@@ -652,28 +652,32 @@ source, extraction, Wiki generation ID에는 실행 시각을 넣지 않는다.
 | `schemaVersion` | `memory-eval-suite/v1` | 형식 고정 |
 | `project` | string | Memory project |
 | `suiteId` | string | 안정 ID |
-| `tasks` | array | 두 분류를 각각 하나 이상 포함 |
+| `title` | string | 공개 가능한 suite 제목 |
+| `sourceSnapshot` | string | private source lock을 가리키는 공개 설명 |
+| `tasks` | array | `code-only`와 `experience-needed`를 각각 두 개 이상 포함 |
 
-task는 `id`, `classification`, `taskType`, `sourceLockKey`, `expectedTrigger`를 가진다.
-`classification`은 `code-only` 또는 `experience-needed`다.
-`taskType`은 `ordinary` 또는 `relationship-heavy`다.
+task는 `id`, `category`, `taskType`, `sourceLockKey`, `expectedTrigger`, `tags`를 가진다.
+`category`는 `code-only` 또는 `experience-needed`다.
+`taskType`은 공개 가능한 작업 유형 문자열이며 관계 중심 작업은 `tags`에 `relationship-heavy`를 넣는다.
 prompt, 실제 revision, 원문 URL, 허용 경로와 검증 명령은 private source lock이 소유한다.
 
 ### private source lock
 
 private source lock은 ignored `eval/runs/` 아래에 두며 다음 필드를 task별로 가진다.
+범용 schema는 절대 repository path를 검증하고, plan013 실행 lock은 사용자가 지정한 private source root인 `~/projects/OCR` 아래 실제 Git 저장소만 사용한다.
 
 | 필드 | 형식 | 제약 |
 | --- | --- | --- |
-| `repositoryPath` | absolute path | `/Users/nhn/projects/OCR` 아래 Git repo |
-| `repositoryUrl` | HTTP URL | 원문 repository |
+| `taskId` | string | 공개 suite task ID와 전단사 대응 |
+| `sourceLockKey` | string | 공개 suite source lock key와 일치 |
+| `repositoryPath` | absolute path | 원천 Git repo의 private 실행 경로 |
 | `baseRevision` | 40자 SHA | Agent가 수정할 snapshot |
 | `targetRevision` | 40자 SHA | task 분류와 oracle을 확인한 원문 commit |
 | `sourceUrl` | HTTP URL | target commit 원문 link |
 | `prompt` | string | 세 조건에서 같은 사용자 task |
 | `allowedPaths` | string[] | wrong edit 경계 |
-| `validationCommands` | string[] | workspace 내부 읽기·검증 명령 |
-| `oracle` | object | query, Memory ID 또는 SourceRef key |
+| `validationCommand` | string[] | workspace 내부에서 argv로 실행할 검증 명령 |
+| `oracleQuery` | string | oracle Memory를 조회할 private query |
 
 runner는 public suite hash와 private source lock hash를 함께 잠근다.
 source lock 값은 report에 복제하지 않고 hash와 task 수만 공개한다.
@@ -695,5 +699,6 @@ raw run은 `(taskId, condition, repetition)`을 유일 키로 가진다.
 | `workspaceDiffHash` | SHA-256 | 원문을 복제하지 않는 변경 증거 |
 
 문자 수로 token을 대신하지 않는다.
-조건 비교는 suite hash, source lock hash, base revision, validation command, Memory index hash가 모두 같을 때만 허용한다.
+조건 비교는 suite hash, source lock hash, `taskId`로 정렬한 전체 `taskInputs`, Memory index hash가 모두 같을 때만 허용한다.
+`taskInputs`는 task별 base revision과 validation command를 잠근다.
 Retrieval Tax와 Memory Benefit은 별도 표이며 단일 종합 점수를 저장하지 않는다.
