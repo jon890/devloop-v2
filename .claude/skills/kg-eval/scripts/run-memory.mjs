@@ -412,6 +412,8 @@ async function runMemoryEvaluation(options) {
       sourceLockHash: inputs.sourceLockHash,
       taskInputs: taskInputs(tasks),
       memoryIndexHash: indexHash,
+      agent: options.agent,
+      agentOptions: options.agentOptions,
     },
     async ({ run, upsert }) => {
       storedRun = run;

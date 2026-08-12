@@ -97,8 +97,21 @@ function newMemoryRun(conditions) {
     sourceLockHash: conditions.sourceLockHash,
     taskInputs: canonicalTaskInputs(conditions.taskInputs),
     memoryIndexHash: conditions.memoryIndexHash,
+    agent: conditions.agent,
+    agentOptions: canonicalAgentOptions(conditions.agentOptions),
     startedAt: new Date().toISOString(),
     attempts: [],
+  };
+}
+
+function canonicalAgentOptions(agentOptions) {
+  if (agentOptions === null || typeof agentOptions !== "object" || Array.isArray(agentOptions)) {
+    return null;
+  }
+  return {
+    model: agentOptions.model ?? null,
+    effort: agentOptions.effort ?? null,
+    permissionMode: agentOptions.permissionMode ?? null,
   };
 }
 
@@ -129,10 +142,17 @@ function comparableRunFields(run) {
     sourceLockHash: run.sourceLockHash,
     taskInputs: canonicalTaskInputs(run.taskInputs),
     memoryIndexHash: run.memoryIndexHash,
+    agent: run.agent,
+    agentOptions: canonicalAgentOptions(run.agentOptions),
   };
 }
 
 function assertConditionsMatch(existing, expected) {
+  for (const field of ["agent", "agentOptions"]) {
+    if (!Object.hasOwn(existing, field)) {
+      throw new Error(`conditions differ: ${field}`);
+    }
+  }
   const left = comparableRunFields(existing);
   const right = comparableRunFields(expected);
   for (const key of Object.keys(right)) {
@@ -192,6 +212,7 @@ export {
   releaseRunLock,
   upsertMemoryAttempt,
   canonicalTaskInputs,
+  canonicalAgentOptions,
   validateAttemptShape,
   validateAttempts,
   withMemoryRun,

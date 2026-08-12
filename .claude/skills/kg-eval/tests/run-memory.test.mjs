@@ -199,7 +199,53 @@ test("executes one fake agent attempt, records telemetry, and resumes without du
     assert.equal(stored.attempts[0].sourceReads, 1);
     assert.equal(stored.attempts[0].inputTokens, 10);
     assert.equal(stored.attempts[0].taskSuccess, true);
+    assert.equal(stored.agent, "codex");
+    assert.deepEqual(stored.agentOptions, { model: "gpt-5.6-luna", effort: "low", permissionMode: null });
     assert.match(stored.attempts[0].workspaceDiffHash, /^[0-9a-f]{64}$/);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("resumed memory run rejects changed agent options but accepts canonical nulls", async () => {
+  const fixture = await makeFixture();
+  try {
+    const outPath = path.join(fixture.root, "locked-run.json");
+    const baseOptions = {
+      suitePath: fixture.suitePath,
+      sourceLockPath: fixture.sourceLockPath,
+      dataDir: fixture.dataDir,
+      outPath,
+      agent: "codex",
+      agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+      taskIds: ["MEM-CODE-001"],
+      conditions: ["agent-triggered"],
+      repeats: 1,
+      timeoutMs: 1000,
+      runAgentFn: async ({ cwd }) => {
+        await writeFile(path.join(cwd, "service.txt"), "changed\n");
+        return { status: 0, signal: null, timedOut: false, outputOverflow: null, stdout: JSON.stringify({ type: "turn.completed" }), stderr: "" };
+      },
+    };
+
+    const first = await runMemoryEvaluation(baseOptions);
+    const sameCanonical = await runMemoryEvaluation({
+      ...baseOptions,
+      agentOptions: { model: "gpt-5.6-luna", effort: "low", permissionMode: null },
+      runAgentFn: async () => {
+        throw new Error("same canonical options should resume without executing");
+      },
+    });
+    assert.equal(first.completedAttempts, 1);
+    assert.equal(sameCanonical.completedAttempts, 0);
+
+    await assert.rejects(() => runMemoryEvaluation({ ...baseOptions, agent: "claude" }), /conditions differ: agent/);
+    await assert.rejects(() => runMemoryEvaluation({ ...baseOptions, agentOptions: { ...baseOptions.agentOptions, model: "gpt-5.6-terra" } }), /conditions differ: agentOptions/);
+    await assert.rejects(() => runMemoryEvaluation({ ...baseOptions, agentOptions: { ...baseOptions.agentOptions, effort: "medium" } }), /conditions differ: agentOptions/);
+    await assert.rejects(
+      () => runMemoryEvaluation({ ...baseOptions, agentOptions: { ...baseOptions.agentOptions, permissionMode: "workspace-write" } }),
+      /conditions differ: agentOptions/,
+    );
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }

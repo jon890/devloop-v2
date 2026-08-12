@@ -34,6 +34,8 @@ function runConditions({ suitePath, sourceLockPath, sourceRepo }) {
       { taskId: "MEM-CODE-001", baseRevision: sourceRepo.baseRevision, validationCommand: ["node", "--version"] },
     ],
     memoryIndexHash: "memory-index-hash",
+    agent: "codex",
+    agentOptions: { model: "gpt-5.6-luna", effort: "low" },
   };
 }
 
@@ -272,6 +274,8 @@ test("stores memory results atomically and resumes only with matching conditions
     const stored = JSON.parse(await readFile(outPath, "utf8"));
     assert.equal(stored.attempts.length, 1);
     assert.equal(stored.attempts[0].taskSuccess, true);
+    assert.equal(stored.agent, "codex");
+    assert.deepEqual(stored.agentOptions, { model: "gpt-5.6-luna", effort: "low", permissionMode: null });
 
     const resumed = await loadOrCreateMemoryRun(outPath, conditions);
     assert.equal(resumed.attempts.length, 1);
@@ -283,6 +287,26 @@ test("stores memory results atomically and resumes only with matching conditions
       ...conditions,
       taskInputs: [...conditions.taskInputs].reverse(),
     });
+    await loadOrCreateMemoryRun(outPath, {
+      ...conditions,
+      agentOptions: { model: "gpt-5.6-luna", effort: "low", permissionMode: null },
+    });
+    await assert.rejects(
+      () => loadOrCreateMemoryRun(outPath, { ...conditions, agent: "claude" }),
+      /conditions differ: agent/,
+    );
+    await assert.rejects(
+      () => loadOrCreateMemoryRun(outPath, { ...conditions, agentOptions: { ...conditions.agentOptions, model: "gpt-5.6-terra" } }),
+      /conditions differ: agentOptions/,
+    );
+    await assert.rejects(
+      () => loadOrCreateMemoryRun(outPath, { ...conditions, agentOptions: { ...conditions.agentOptions, effort: "medium" } }),
+      /conditions differ: agentOptions/,
+    );
+    await assert.rejects(
+      () => loadOrCreateMemoryRun(outPath, { ...conditions, agentOptions: { ...conditions.agentOptions, permissionMode: "workspace-write" } }),
+      /conditions differ: agentOptions/,
+    );
     await assert.rejects(
       () => loadOrCreateMemoryRun(outPath, { ...conditions, memoryIndexHash: "other-index" }),
       /conditions differ: memoryIndexHash/,
@@ -306,6 +330,11 @@ test("stores memory results atomically and resumes only with matching conditions
       /conditions differ: taskInputs/,
     );
 
+    const legacyPath = path.join(root, "legacy-run.json");
+    const { agent, agentOptions, ...legacyConditions } = stored;
+    await writeJson(legacyPath, legacyConditions);
+    await assert.rejects(() => loadOrCreateMemoryRun(legacyPath, conditions), /conditions differ: agent/);
+
     const lock = await acquireRunLock(outPath);
     try {
       await assert.rejects(() => acquireRunLock(outPath), /output is locked/);
@@ -327,6 +356,8 @@ test("rejects invalid existing attempts and duplicate attempt keys", async () =>
       sourceLockHash: conditions.sourceLockHash,
       taskInputs: conditions.taskInputs,
       memoryIndexHash: conditions.memoryIndexHash,
+      agent: conditions.agent,
+      agentOptions: { model: "gpt-5.6-luna", effort: "low", permissionMode: null },
       startedAt: new Date().toISOString(),
       attempts: [],
     };
