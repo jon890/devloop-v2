@@ -25,10 +25,11 @@ promotion: 승격 안 함
 ## 대응
 
 관측 key가 `${taskId}:${condition}:${repetition}` 형식이며 현재 attempt key와 정확히 같을 때만 통과하도록 fail-close했다.
+파일 경로에 쓰는 안전한 hyphen `runKey`와 provenance에 쓰는 colon `sourceRunKey`를 분리해 producer와 consumer 계약도 일치시켰다.
 
 ## 검증
 
-다른 task key를 주입하면 `sourceRunKey mismatch`로 실패하는 회귀 테스트를 추가했다.
+runner가 colon canonical key를 생성하는 통합 테스트와 다른 task key를 주입하면 `sourceRunKey mismatch`로 실패하는 회귀 테스트를 추가했다.
 
 ## 배운 점
 

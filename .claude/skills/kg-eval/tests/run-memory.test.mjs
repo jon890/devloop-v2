@@ -306,7 +306,7 @@ test("executes one fake agent attempt, records telemetry, and resumes without du
     assert.equal(stored.attempts[0].triggerOutcome, "expected_search");
     assert.deepEqual(stored.attempts[0].retrievalObservations, [
       {
-        sourceRunKey: "MEM-EXP-001-agent-triggered-1",
+        sourceRunKey: "MEM-EXP-001:agent-triggered:1",
         query: "q",
         topK: 10,
         requiredMemoryIds: [],
