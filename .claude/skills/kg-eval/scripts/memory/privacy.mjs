@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
+import { constants } from "node:fs";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { loadSourceLock } from "./source-lock.mjs";
@@ -20,16 +21,17 @@ function parseArgs(argv) {
   const args = {};
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg !== "--source-lock" && arg !== "--paths") throw new Error(`unknown argument: ${arg}`);
+    if (arg !== "--source-lock" && arg !== "--private-inputs" && arg !== "--paths") throw new Error(`unknown argument: ${arg}`);
     const value = argv[index + 1];
     if (!value || value.startsWith("--")) throw new Error(`${arg} requires a value`);
     args[arg.slice(2)] = value;
     index += 1;
   }
-  if (!args["source-lock"]) throw new Error("--source-lock is required");
+  if (!args["source-lock"] && !args["private-inputs"]) throw new Error("--source-lock or --private-inputs is required");
   if (!args.paths) throw new Error("--paths is required");
   return {
-    sourceLockPath: args["source-lock"],
+    sourceLockPath: args["source-lock"] ?? null,
+    privateInputPaths: splitCsv(args["private-inputs"]),
     paths: args.paths
       .split(",")
       .map((value) => value.trim())
@@ -39,6 +41,14 @@ function parseArgs(argv) {
 
 function hasText(value) {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function splitCsv(value) {
+  if (!value) return [];
+  return value
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 }
 
 function addNeedle(needles, label, value) {
@@ -94,6 +104,59 @@ function collectPrivacyNeedles(sourceLock) {
   return [...unique.values()];
 }
 
+function addUniqueNeedles(needles) {
+  const unique = new Map();
+  for (const needle of needles) {
+    const key = `${needle.label}\0${needle.value}`;
+    if (!unique.has(key)) unique.set(key, needle);
+  }
+  return [...unique.values()];
+}
+
+function collectPrivateInputNeedlesFromValue(value, needles, fieldPath = "$") {
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => collectPrivateInputNeedlesFromValue(item, needles, `${fieldPath}[${index}]`));
+    return;
+  }
+  if (!value || typeof value !== "object") return;
+  for (const [key, child] of Object.entries(value)) {
+    const childPath = `${fieldPath}.${key}`;
+    if (key === "query" && hasText(child)) addNeedle(needles, "privateQuery", child);
+    if (/memoryids?$/i.test(key) && Array.isArray(child)) {
+      for (const item of child) addNeedle(needles, "memoryId", item);
+    }
+    if (/memoryid$/i.test(key) && hasText(child)) addNeedle(needles, "memoryId", child);
+    collectPrivateInputNeedlesFromValue(child, needles, childPath);
+  }
+}
+
+async function collectPrivateInputNeedles(privateInputPaths) {
+  const needles = [];
+  let existingInputs = 0;
+  for (const inputPath of privateInputPaths) {
+    try {
+      await access(inputPath, constants.F_OK);
+    } catch {
+      continue;
+    }
+    existingInputs += 1;
+    const text = await readFile(inputPath, "utf8");
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      parsed = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+    }
+    collectPrivateInputNeedlesFromValue(parsed, needles);
+  }
+  if (privateInputPaths.length > 0 && existingInputs === 0) throw new Error("private inputs not found");
+  return addUniqueNeedles(needles);
+}
+
 function commonRepositoryRoots(tasks) {
   const paths = tasks.map((task) => task.repositoryPath).filter(hasText).map((value) => path.resolve(value));
   if (paths.length === 0) return [];
@@ -109,12 +172,16 @@ function commonRepositoryRoots(tasks) {
   return [commonRoot].filter((value) => value.length > 1);
 }
 
-async function scanPrivacy({ sourceLockPath, paths }) {
-  const loaded = await loadSourceLock(sourceLockPath);
-  if (loaded.errors.length > 0) {
-    throw new Error(`source lock validation failed with ${loaded.errors.length} error(s)`);
+async function scanPrivacy({ sourceLockPath = null, privateInputPaths = [], paths }) {
+  let needles = [];
+  if (sourceLockPath) {
+    const loaded = await loadSourceLock(sourceLockPath);
+    if (loaded.errors.length > 0) {
+      throw new Error(`source lock validation failed with ${loaded.errors.length} error(s)`);
+    }
+    needles = needles.concat(collectPrivacyNeedles(loaded.sourceLock));
   }
-  const needles = collectPrivacyNeedles(loaded.sourceLock);
+  needles = addUniqueNeedles(needles.concat(await collectPrivateInputNeedles(privateInputPaths)));
   const violations = [];
   for (const filePath of paths) {
     const text = await readFile(filePath, "utf8");
@@ -153,4 +220,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   await main();
 }
 
-export { collectPrivacyNeedles, commonRepositoryRoots, parseArgs, scanPrivacy };
+export { collectPrivateInputNeedles, collectPrivacyNeedles, commonRepositoryRoots, parseArgs, scanPrivacy };

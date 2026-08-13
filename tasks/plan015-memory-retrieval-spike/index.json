@@ -1,7 +1,7 @@
 {
   "name": "plan015-memory-retrieval-spike",
   "description": "실제 lexical miss에서만 Node lexical, SQLite FTS, embedding hybrid를 같은 corpus로 비교한다",
-  "status": "in_progress",
+  "status": "completed",
   "created_at": "2026-08-12",
   "total_phases": 3,
   "phases": [
@@ -24,7 +24,7 @@
       "file": "phase-03.md",
       "title": "recall과 운영 비용으로 채택 여부를 판정한다",
       "execution_profile": "deep",
-      "status": "pending"
+      "status": "completed"
     }
   ]
 }
