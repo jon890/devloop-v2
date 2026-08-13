@@ -1,7 +1,7 @@
 # Phase 03 — task 유형별 Graph 추가 가치와 비용을 판정한다
 
 **Execution profile**: deep
-**Status**: pending
+**Status**: completed
 
 ---
 

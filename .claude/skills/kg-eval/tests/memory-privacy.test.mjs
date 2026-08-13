@@ -172,6 +172,53 @@ test("private retrieval inputs add query and Memory ID needles without requiring
   }
 });
 
+test("private graph inputs add anchor, URL, original path, node id, and property needles", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "memory-privacy-graph-"));
+  try {
+    const graphLockPath = path.join(root, "graph-lock.json");
+    const reportPath = path.join(root, "report.md");
+    const graphLock = {
+      schemaVersion: "memory-graph-lock/v1",
+      apiBaseUrl: "http://127.0.0.1:3016",
+      tasks: [
+        {
+          taskId: "MEM-EXP-002",
+          key: "cab api",
+          resolvedElementId: "node-private-123",
+          sourceRef: { sourceUrl: "https://github.example.internal/team/private/commit/" + "a".repeat(40) },
+          sourceRepositoryResolution: {
+            originalRepositoryPath: path.join(root, "OCR.Admin"),
+          },
+          neighbors: {
+            nodes: [{ id: "neighbor-private-456", label: "Concept", key: "secret graph key", display: "secret graph key", properties: { secret: "graph-property-secret" } }],
+            relationships: [],
+          },
+        },
+      ],
+    };
+    await writeJson(graphLockPath, graphLock);
+    const needles = await collectPrivateInputNeedles([graphLockPath]);
+    const labels = new Set(needles.map((needle) => needle.label));
+    for (const label of ["apiBaseUrl", "sourceUrl", "originalRepositoryPath", "resolvedElementId", "graphAnchorKey", "graphProperty"]) {
+      assert.equal(labels.has(label), true, label);
+    }
+    await writeFile(reportPath, "Clean public aggregate only\n", "utf8");
+    assert.equal((await scanPrivacy({ privateInputPaths: [graphLockPath], paths: [reportPath] })).violations, 0);
+    await writeFile(reportPath, `Leak cab api node-private-123 graph-property-secret ${graphLock.tasks[0].sourceRef.sourceUrl}\n`, "utf8");
+    await assert.rejects(
+      () => scanPrivacy({ privateInputPaths: [graphLockPath], paths: [reportPath] }),
+      (error) => {
+        assert.match(error.message, /privacy scan failed/);
+        assert.equal(JSON.stringify(error.result).includes("cab api"), false);
+        assert.deepEqual(error.result.violationLabels, ["report.md:graphAnchorKey", "report.md:graphProperty", "report.md:internalDomain", "report.md:resolvedElementId", "report.md:sourceUrl"]);
+        return true;
+      },
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("private input scan fails when every configured input is missing", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "memory-privacy-"));
   try {

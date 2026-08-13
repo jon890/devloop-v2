@@ -1,0 +1,143 @@
+{
+  "comparison": {
+    "agent": "codex",
+    "agentOptions": {
+      "effort": "low",
+      "model": "gpt-5.6-luna",
+      "permissionMode": "workspace-write"
+    },
+    "baselineConditions": [
+      "no-memory",
+      "oracle-memory"
+    ],
+    "graphCondition": "memory-graph",
+    "repetitionsPerCondition": 3,
+    "taskCount": 2
+  },
+  "generatedFrom": {
+    "baselineRun": "plan014-utility",
+    "graphRun": "plan016-memory-graph"
+  },
+  "hashes": {
+    "graphLockHash": "sha256:b46c19c655026deaea63892b7abbbcd13e93698698bd9b58866baf69db949a2d",
+    "graphStatsHash": "sha256:6c234a51b56252bf5c9326e8a7b8df33d37af27160425381c34fb66cd4383962",
+    "memoryIndexHash": "sha256:8709e0a8f3443eb067f30c9a535ccd489ac4fdc0528278ce1c671e838bac00fd",
+    "sourceLockHash": "a6e5a935f43df18809803a6f461479e41367ddafc211db46ab44dd1c0dc01d44",
+    "suiteHash": "484a42b87cf0c79421ba1db14f74cb561701450bfef1e1bb09686d73d5a09bff"
+  },
+  "overall": {
+    "decision": "NO_ADDED_VALUE",
+    "reason": "No task showed a stable oracle-memory failure recovered by Graph context."
+  },
+  "schemaVersion": "memory-graph-report/v1",
+  "tasks": [
+    {
+      "conditions": {
+        "memoryGraph": {
+          "attempts": 3,
+          "graphCallsAverage": 3,
+          "graphLatencyMsAverage": 50,
+          "memoryCallsAverage": 1,
+          "sourceReadsAverage": 0,
+          "taskSuccess": 3,
+          "toolCallsAverage": 7,
+          "turnsAverage": 1,
+          "validationSuccess": 3,
+          "wallTimeMsAverage": 94344,
+          "wrongEditCount": 0
+        },
+        "noMemory": {
+          "attempts": 3,
+          "graphCallsAverage": 0,
+          "graphLatencyMsAverage": null,
+          "memoryCallsAverage": 0,
+          "sourceReadsAverage": 0,
+          "taskSuccess": 3,
+          "toolCallsAverage": 6,
+          "turnsAverage": 1,
+          "validationSuccess": 3,
+          "wallTimeMsAverage": 76252,
+          "wrongEditCount": 0
+        },
+        "oracleMemory": {
+          "attempts": 3,
+          "graphCallsAverage": 0,
+          "graphLatencyMsAverage": null,
+          "memoryCallsAverage": 1,
+          "sourceReadsAverage": 0,
+          "taskSuccess": 3,
+          "toolCallsAverage": 5,
+          "turnsAverage": 1,
+          "validationSuccess": 3,
+          "wallTimeMsAverage": 87026,
+          "wrongEditCount": 0
+        }
+      },
+      "decision": "NO_ADDED_VALUE",
+      "evidence": {
+        "agentGraphCalls": 0,
+        "falseCount": 0,
+        "graphLlmCalls": 0,
+        "nullCount": 2,
+        "trueCount": 1
+      },
+      "reason": "oracle-memory and memory-graph both succeeded across all repetitions; Graph did not recover a stable oracle-memory failure.",
+      "taskId": "MEM-EXP-001",
+      "taskType": "relationship-heavy"
+    },
+    {
+      "conditions": {
+        "memoryGraph": {
+          "attempts": 3,
+          "graphCallsAverage": 4,
+          "graphLatencyMsAverage": 40,
+          "memoryCallsAverage": 1,
+          "sourceReadsAverage": 0,
+          "taskSuccess": 3,
+          "toolCallsAverage": 3,
+          "turnsAverage": 1,
+          "validationSuccess": 3,
+          "wallTimeMsAverage": 37026,
+          "wrongEditCount": 0
+        },
+        "noMemory": {
+          "attempts": 3,
+          "graphCallsAverage": 0,
+          "graphLatencyMsAverage": null,
+          "memoryCallsAverage": 0,
+          "sourceReadsAverage": 0,
+          "taskSuccess": 3,
+          "toolCallsAverage": 4,
+          "turnsAverage": 1,
+          "validationSuccess": 3,
+          "wallTimeMsAverage": 43859,
+          "wrongEditCount": 0
+        },
+        "oracleMemory": {
+          "attempts": 3,
+          "graphCallsAverage": 0,
+          "graphLatencyMsAverage": null,
+          "memoryCallsAverage": 1,
+          "sourceReadsAverage": 0,
+          "taskSuccess": 3,
+          "toolCallsAverage": 3,
+          "turnsAverage": 1,
+          "validationSuccess": 3,
+          "wallTimeMsAverage": 37047,
+          "wrongEditCount": 0
+        }
+      },
+      "decision": "NO_ADDED_VALUE",
+      "evidence": {
+        "agentGraphCalls": 0,
+        "falseCount": 0,
+        "graphLlmCalls": 0,
+        "nullCount": 3,
+        "trueCount": 0
+      },
+      "reason": "oracle-memory and memory-graph both succeeded across all repetitions; Graph did not recover a stable oracle-memory failure.",
+      "taskId": "MEM-EXP-002",
+      "taskType": "general"
+    }
+  ]
+}

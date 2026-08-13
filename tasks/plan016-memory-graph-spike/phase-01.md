@@ -1,7 +1,7 @@
 # Phase 01 — 관계형·일반 task와 Graph anchor를 고정한다
 
 **Execution profile**: deep
-**Status**: pending
+**Status**: completed
 
 ---
 
