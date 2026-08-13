@@ -322,9 +322,18 @@ function validateCompleteRun(run, suite) {
       for (let repetition = 1; repetition <= repeats; repetition += 1) expected.add(`${task.id}:${condition}:${repetition}`);
     }
   }
-  const seen = new Set(run.attempts.map((attempt) => `${attempt.taskId}:${attempt.condition}:${attempt.repetition}`));
+  const seen = new Set();
+  for (const attempt of run.attempts) {
+    const key = `${attempt.taskId}:${attempt.condition}:${attempt.repetition}`;
+    if (!expected.has(key)) throw new Error(`PHASE_BLOCKED: utility 비교 입력 불완전: unexpected ${key}`);
+    if (seen.has(key)) throw new Error(`PHASE_BLOCKED: utility 비교 입력 불완전: duplicate ${key}`);
+    seen.add(key);
+  }
   const missing = [...expected].filter((key) => !seen.has(key));
   if (missing.length > 0) throw new Error(`PHASE_BLOCKED: utility 비교 입력 불완전: missing ${missing.slice(0, 5).join(", ")}`);
+  if (run.attempts.length !== expected.size) {
+    throw new Error(`PHASE_BLOCKED: utility 비교 입력 불완전: expected ${expected.size} attempts, received ${run.attempts.length}`);
+  }
   if (repeats !== 3) throw new Error("PHASE_BLOCKED: utility 비교 입력 불완전: repeats must be 3");
 }
 

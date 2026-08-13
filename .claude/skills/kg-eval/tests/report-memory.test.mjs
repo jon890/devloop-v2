@@ -155,6 +155,22 @@ test("failure boundary precedence keeps Memory and Agent ahead of lexical miss",
   assert.equal(derivedFailureBoundary({ ...missed, wrongEditCount: 1, validationStatus: 0 }), "RETRIEVAL");
 });
 
+test("rejects duplicate and unexpected attempts before report aggregation", async () => {
+  const run = await fixtureRun();
+  const reportSuite = suite();
+  const duplicate = { ...run.attempts[0] };
+  assert.throws(
+    () => buildMemoryReport({ run: { ...run, attempts: [...run.attempts, duplicate] }, suite: reportSuite }),
+    /PHASE_BLOCKED: utility 비교 입력 불완전: duplicate/,
+  );
+
+  const unexpected = { ...run.attempts[0], condition: "automatic-memory" };
+  assert.throws(
+    () => buildMemoryReport({ run: { ...run, attempts: [...run.attempts, unexpected] }, suite: reportSuite }),
+    /PHASE_BLOCKED: utility 비교 입력 불완전: unexpected/,
+  );
+});
+
 test("builds public-safe memory utility report and canonical private miss lock", async () => {
   const run = await fixtureRun();
   const reportSuite = suite();
