@@ -15,7 +15,7 @@ plan014의 같은 source-locked task 중 관계형 후보 하나와 일반 구�
 
 ---
 
-## 작업 항목 (4)
+## 작업 항목 (5)
 
 ### 1. task 두 개를 선택한다
 
@@ -34,9 +34,10 @@ OCR 원본 저장소에는 `git archive`, `git cat-file`, `git show`만 실행�
 ### 3. private Graph anchor를 고정한다
 
 ignored `eval/runs/plan016-graph-lock.json`에 taskId, taskType, sourceRef, label, key, resolvedElementId, depth, requiredRelationshipType, API base URL, graphStatsHash, sourceLockHash, plan014RunKeys를 기록한다.
-anchor는 Dooray 원문 또는 task의 Git commit message가 실제로 참조하는 업무에서만 만든다.
-`MEM-EXP-001`은 HTTPS·LB 장애 근거를 가진 Dooray task `tc-ocr/504`, `MEM-EXP-002`는 source lock의 `mentionedPacketIds`가 직접 가리키는 Dooray task `tc-ocr/464`를 사용한다.
-원문 link는 raw task ID로 만든 `https://nhnent.dooray.com/project/tasks/<task-id>` 형식만 private lock에 저장한다.
+anchor는 해당 source-locked Git commit의 subject·body·oracleQuery에 실제로 등장하는 개념을 사용하고, exact source commit URL을 원문 link로 둔다.
+`MEM-EXP-001`은 commit body와 oracleQuery에 공통으로 존재하는 Concept `LB`, `MEM-EXP-002`는 commit subject와 oracleQuery에 공통으로 존재하는 Concept `cab api`를 사용한다.
+둘 다 source lock의 `sourceUrl`과 target revision을 exact match하고, 개념 문자열이 commit text와 oracleQuery 양쪽에서 발견되지 않으면 fail-close한다.
+Dooray task 504·464는 Graph 연결의 보조 이웃일 뿐 anchor provenance로 주장하지 않는다.
 `label`과 `key`를 `/api/graph/samples` pagination으로 exact match해 `resolvedElementId`를 얻고, 그 ID를 `/api/graph/nodes/:id/neighbors`에 넘긴다.
 element ID만 lock에 직접 적거나 search 순위 첫 항목을 anchor로 쓰지 않는다.
 
