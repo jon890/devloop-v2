@@ -398,7 +398,7 @@ async function requiredMemoryIdsForAttempt({ options, sourceTask, topK, rootCwd 
   return memorySearchResults(oracle.memory)?.map((item) => item?.id).filter((id) => typeof id === "string" && id.length > 0) ?? [];
 }
 
-async function executeAttempt({ options, sourceTask, condition, repetition, runKey, rootCwd }) {
+async function executeAttempt({ options, sourceTask, condition, repetition, runKey, sourceRunKey, rootCwd }) {
   const runtimeRoot = options.runtimeRoot ?? path.dirname(options.outPath);
   const workspaceRoot = await prepareActiveWorkspaceRoot();
   try {
@@ -468,7 +468,7 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
       const preliminary = retrievalObservations({
         agent: options.agent,
         events,
-        sourceRunKey: runKey,
+        sourceRunKey,
         requiredMemoryIds: [],
         currentMemoryIndexHash: options.memoryIndexHash,
       });
@@ -481,7 +481,7 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
       observedRetrievals = retrievalObservations({
         agent: options.agent,
         events,
-        sourceRunKey: runKey,
+        sourceRunKey,
         requiredMemoryIds: requiredByTopK,
         currentMemoryIndexHash: options.memoryIndexHash,
       });
@@ -576,6 +576,7 @@ async function runMemoryEvaluation(options) {
           condition,
           repetition,
           runKey,
+          sourceRunKey: key,
           rootCwd,
         });
         if (result.availabilityFailure) {

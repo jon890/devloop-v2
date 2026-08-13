@@ -4,7 +4,7 @@ import { constants } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { collectPrivacyNeedles, commonRepositoryRoots, scanPrivacy } from "../scripts/memory/privacy.mjs";
+import { collectPrivateInputNeedles, collectPrivacyNeedles, commonRepositoryRoots, scanPrivacy } from "../scripts/memory/privacy.mjs";
 import { validateMemoryReportDigests } from "../scripts/memory/report.mjs";
 
 async function writeJson(filePath, value) {
@@ -122,6 +122,64 @@ test("rejects leaks without exposing the matched private values", async () => {
         ]);
         return true;
       },
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("private retrieval inputs add query and Memory ID needles without requiring source lock", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "memory-privacy-"));
+  try {
+    const privateInputsPath = path.join(root, "retrieval-misses.json");
+    const reportPath = path.join(root, "report.md");
+    const privateInput = {
+      schemaVersion: "memory-retrieval-miss-lock/v1",
+      missCount: 1,
+      misses: [
+        {
+          taskId: "MEM-EXP-001",
+          query: "private retrieval query exact words",
+          requiredMemoryIds: ["mem-private-required"],
+          retrievedMemoryIds: ["mem-private-other"],
+        },
+      ],
+    };
+    await writeJson(privateInputsPath, privateInput);
+    const needles = await collectPrivateInputNeedles([privateInputsPath]);
+    assert.deepEqual(
+      needles.map((needle) => needle.label).sort(),
+      ["memoryId", "memoryId", "privateQuery"],
+    );
+
+    await writeFile(reportPath, "Decision: NO_CHANGE\n", "utf8");
+    const clean = await scanPrivacy({ privateInputPaths: [privateInputsPath], paths: [reportPath] });
+    assert.equal(clean.violations, 0);
+
+    await writeFile(reportPath, "Leaked private retrieval query exact words and mem-private-required\n", "utf8");
+    await assert.rejects(
+      async () => scanPrivacy({ privateInputPaths: [privateInputsPath], paths: [reportPath] }),
+      (error) => {
+        assert.match(error.message, /privacy scan failed/);
+        assert.equal(JSON.stringify(error.result).includes(privateInput.misses[0].query), false);
+        assert.equal(JSON.stringify(error.result).includes(privateInput.misses[0].requiredMemoryIds[0]), false);
+        assert.deepEqual(error.result.violationLabels, ["report.md:memoryId", "report.md:privateQuery"]);
+        return true;
+      },
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("private input scan fails when every configured input is missing", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "memory-privacy-"));
+  try {
+    const reportPath = path.join(root, "report.md");
+    await writeFile(reportPath, "Decision: NO_CHANGE\n", "utf8");
+    await assert.rejects(
+      async () => scanPrivacy({ privateInputPaths: [path.join(root, "missing.json")], paths: [reportPath] }),
+      /private inputs not found/,
     );
   } finally {
     await rm(root, { recursive: true, force: true });

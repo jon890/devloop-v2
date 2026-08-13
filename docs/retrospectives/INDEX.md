@@ -19,3 +19,4 @@
 | RETRO-0015 | 2026-08-05 | plan010-persistent-llm-transport | 비교 스크립트가 형식 불일치로 죽는데 종료 코드가 0 이다 | 진행 중 | 검토 중 |
 | RETRO-0016 | 2026-08-05 | plan010-persistent-llm-transport | 변이가 적용되지 않았는데 테스트가 통과해 무력한 테스트로 보였다 | 해결 | 검토 중 |
 | RETRO-0017 | 2026-08-05 | plan010-persistent-llm-transport | 소켓이 끊기면 호출이 실패하지 않고 무한히 매달린다 | 해결 | 검토 중 |
+| RETRO-0018 | 2026-08-13 | plan015-memory-retrieval-spike | 검색 관측의 원천 key 불일치가 출력에서 덮어써졌다 | 해결 | 승격 안 함 |

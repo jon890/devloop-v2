@@ -1,0 +1,21 @@
+{
+  "adapters": [],
+  "adaptersEvaluated": 0,
+  "comparisonHash": null,
+  "decision": "NO_CHANGE",
+  "generatedAt": null,
+  "limits": [
+    "No lexical retrieval misses were present in the input, so adapter comparison was not run.",
+    "This report does not evaluate pretrained semantic retrieval quality.",
+    "No production backend, vector database, or adapter implementation was changed."
+  ],
+  "missCount": 0,
+  "retrievalObservationComplete": true,
+  "schemaVersion": "memory-retrieval-report/v1",
+  "source": {
+    "memoryIndexHash": "sha256:8709e0a8f3443eb067f30c9a535ccd489ac4fdc0528278ce1c671e838bac00fd",
+    "missLockHash": "a58f14e70dbbff1d9233a15f9a9bfff6dc417c0c1c1b61e48abb001daf38ec9a",
+    "sourceRunHash": "078f9d8efddc2e345b3ac727338729a15f4c7b563c3f95d5b0db86d7586b838a",
+    "suiteHash": "484a42b87cf0c79421ba1db14f74cb561701450bfef1e1bb09686d73d5a09bff"
+  }
+}
