@@ -1,0 +1,889 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>devloop-v2 아키텍처와 구현 현황</title>
+    <style>
+      :root {
+        --ink: #102a36;
+        --muted: #526b76;
+        --paper: #f4f8f7;
+        --panel: #ffffff;
+        --line: #bdd0d3;
+        --navy: #173f54;
+        --blue: #1b6787;
+        --cyan: #4fb6b2;
+        --mint: #dff2ec;
+        --amber: #d98516;
+        --amber-soft: #fff0d8;
+        --closed: #247558;
+        --shadow: 0 16px 42px rgb(23 63 84 / 10%);
+        --display: "Arial Narrow", "Aptos Display", "Noto Sans KR", sans-serif;
+        --body: "Aptos", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+        --mono: "SFMono-Regular", "Cascadia Code", "D2Coding", monospace;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background:
+          linear-gradient(90deg, transparent 49px, rgb(27 103 135 / 8%) 50px, transparent 51px),
+          var(--paper);
+        color: var(--ink);
+        font-family: var(--body);
+        line-height: 1.65;
+      }
+
+      a {
+        color: var(--blue);
+        text-decoration-color: rgb(27 103 135 / 35%);
+        text-underline-offset: 0.22em;
+      }
+
+      a:hover {
+        text-decoration-color: currentColor;
+      }
+
+      a:focus-visible,
+      summary:focus-visible {
+        outline: 3px solid var(--amber);
+        outline-offset: 4px;
+      }
+
+      .shell {
+        width: min(1240px, calc(100% - 40px));
+        margin: 0 auto;
+        padding: 28px 0 80px;
+      }
+
+      .masthead {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 24px;
+        padding-bottom: 18px;
+        border-bottom: 2px solid var(--navy);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-family: var(--mono);
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.13em;
+        text-transform: uppercase;
+      }
+
+      .brand-mark {
+        display: grid;
+        width: 30px;
+        height: 30px;
+        place-items: center;
+        border: 1px solid var(--navy);
+        background: var(--navy);
+        color: white;
+      }
+
+      .status-line {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+        font-family: var(--mono);
+        font-size: 0.74rem;
+      }
+
+      .status-chip {
+        padding: 5px 9px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .status-chip.live {
+        border-color: var(--amber);
+        background: var(--amber-soft);
+        color: #754000;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.4fr) minmax(260px, 0.6fr);
+        gap: clamp(32px, 6vw, 88px);
+        padding: clamp(56px, 9vw, 120px) 0 72px;
+      }
+
+      .eyebrow {
+        margin: 0 0 16px;
+        color: var(--blue);
+        font-family: var(--mono);
+        font-size: 0.76rem;
+        font-weight: 700;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin-top: 0;
+        font-family: var(--display);
+        font-stretch: condensed;
+        line-height: 1.08;
+      }
+
+      h1 {
+        max-width: 850px;
+        margin-bottom: 26px;
+        font-size: clamp(3rem, 7.2vw, 7.4rem);
+        font-weight: 800;
+        letter-spacing: -0.055em;
+      }
+
+      h1 .accent {
+        color: var(--blue);
+      }
+
+      .hero-copy {
+        max-width: 770px;
+        margin: 0;
+        color: var(--muted);
+        font-size: clamp(1.05rem, 1.7vw, 1.32rem);
+      }
+
+      .goal-card {
+        align-self: end;
+        padding: 24px;
+        border-top: 5px solid var(--cyan);
+        background: var(--navy);
+        box-shadow: var(--shadow);
+        color: white;
+      }
+
+      .goal-card h2 {
+        margin-bottom: 16px;
+        font-size: 1.45rem;
+      }
+
+      .goal-card p {
+        margin: 0;
+        color: #dbe9eb;
+      }
+
+      .goal-card code {
+        color: #a9eeea;
+        font-family: var(--mono);
+        font-size: 0.86em;
+      }
+
+      .section {
+        padding: 64px 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .section-head {
+        display: grid;
+        grid-template-columns: 170px minmax(0, 720px);
+        gap: 24px;
+        margin-bottom: 38px;
+      }
+
+      .section-kicker {
+        color: var(--blue);
+        font-family: var(--mono);
+        font-size: 0.74rem;
+        font-weight: 700;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .section-head h2 {
+        margin-bottom: 12px;
+        font-size: clamp(2.1rem, 4vw, 4rem);
+        letter-spacing: -0.04em;
+      }
+
+      .section-head p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .provenance-map {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(7, minmax(128px, 1fr));
+        gap: 10px;
+        overflow-x: auto;
+        padding: 32px 0 36px;
+      }
+
+      .provenance-map::before {
+        position: absolute;
+        top: 65px;
+        right: 6%;
+        left: 6%;
+        height: 3px;
+        background: linear-gradient(90deg, var(--cyan), var(--blue) 58%, var(--navy));
+        content: "";
+      }
+
+      .stage {
+        position: relative;
+        min-height: 220px;
+        padding: 64px 15px 18px;
+        border: 1px solid var(--line);
+        background: rgb(255 255 255 / 88%);
+      }
+
+      .stage::before {
+        position: absolute;
+        z-index: 1;
+        top: 25px;
+        left: 17px;
+        width: 17px;
+        height: 17px;
+        border: 4px solid var(--paper);
+        border-radius: 50%;
+        background: var(--blue);
+        box-shadow: 0 0 0 2px var(--blue);
+        content: "";
+      }
+
+      .stage strong {
+        display: block;
+        margin-bottom: 10px;
+        font-family: var(--display);
+        font-size: 1.08rem;
+        line-height: 1.18;
+      }
+
+      .stage p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .stage code {
+        font-family: var(--mono);
+        font-size: 0.78em;
+      }
+
+      .boundary {
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: stretch;
+        margin-top: 28px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .boundary-side {
+        padding: 26px;
+      }
+
+      .boundary-side h3 {
+        margin-bottom: 8px;
+        font-size: 1.35rem;
+      }
+
+      .boundary-side p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .boundary-rule {
+        display: grid;
+        min-width: 70px;
+        place-items: center;
+        border-right: 1px dashed var(--amber);
+        border-left: 1px dashed var(--amber);
+        background: var(--amber-soft);
+        color: #754000;
+        font-family: var(--mono);
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        writing-mode: vertical-rl;
+      }
+
+      .progress-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.55fr);
+        gap: 22px;
+      }
+
+      .issue-ledger,
+      .evidence-card {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .ledger-row {
+        display: grid;
+        grid-template-columns: 68px 108px minmax(0, 1fr) auto;
+        align-items: center;
+        gap: 16px;
+        padding: 17px 20px;
+        border-bottom: 1px solid #dce7e8;
+      }
+
+      .ledger-row:last-child {
+        border-bottom: 0;
+      }
+
+      .issue-number {
+        color: var(--navy);
+        font-family: var(--mono);
+        font-weight: 800;
+      }
+
+      .issue-state {
+        font-family: var(--mono);
+        font-size: 0.69rem;
+        font-weight: 800;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+      }
+
+      .issue-state.closed {
+        color: var(--closed);
+      }
+
+      .issue-state.active {
+        color: #9b5700;
+      }
+
+      .issue-state.queued {
+        color: var(--muted);
+      }
+
+      .issue-title {
+        font-size: 0.94rem;
+        font-weight: 650;
+      }
+
+      .issue-title small {
+        display: block;
+        margin-top: 2px;
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 400;
+      }
+
+      .issue-link {
+        font-family: var(--mono);
+        font-size: 0.72rem;
+      }
+
+      .evidence-card {
+        padding: 24px;
+      }
+
+      .evidence-card h3 {
+        margin-bottom: 20px;
+        font-size: 1.55rem;
+      }
+
+      .metric {
+        padding: 16px 0;
+        border-top: 1px solid #dce7e8;
+      }
+
+      .metric:first-of-type {
+        border-top: 0;
+      }
+
+      .metric-label {
+        display: block;
+        margin-bottom: 3px;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 0.7rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .metric-value {
+        font-family: var(--display);
+        font-size: 1.65rem;
+        font-weight: 800;
+      }
+
+      .metric-note {
+        display: block;
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+
+      .active-run {
+        margin-top: 22px;
+        padding: 20px;
+        border-left: 5px solid var(--amber);
+        background: var(--amber-soft);
+      }
+
+      .active-run strong {
+        display: block;
+        margin-bottom: 5px;
+        color: #754000;
+      }
+
+      .active-run p {
+        margin: 0;
+        color: #765526;
+      }
+
+      .principles {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 18px;
+      }
+
+      .principle {
+        padding: 24px;
+        border-top: 4px solid var(--blue);
+        background: var(--panel);
+      }
+
+      .principle h3 {
+        margin-bottom: 10px;
+        font-size: 1.3rem;
+      }
+
+      .principle p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .next-gates {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0;
+        border: 1px solid var(--line);
+        background: var(--panel);
+      }
+
+      .gate {
+        padding: 26px;
+        border-right: 1px solid var(--line);
+      }
+
+      .gate:last-child {
+        border-right: 0;
+      }
+
+      .gate .gate-id {
+        color: var(--blue);
+        font-family: var(--mono);
+        font-size: 0.74rem;
+        font-weight: 700;
+      }
+
+      .gate h3 {
+        margin: 10px 0;
+        font-size: 1.35rem;
+      }
+
+      .gate p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .references {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .references a {
+        display: block;
+        min-height: 100%;
+        padding: 18px 20px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        font-weight: 700;
+      }
+
+      .references small {
+        display: block;
+        margin-top: 4px;
+        color: var(--muted);
+        font-weight: 400;
+      }
+
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 24px;
+        padding-top: 28px;
+        border-top: 2px solid var(--navy);
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 0.72rem;
+      }
+
+      @media (max-width: 980px) {
+        .hero,
+        .progress-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .goal-card {
+          max-width: 620px;
+        }
+
+        .provenance-map {
+          grid-template-columns: repeat(7, 155px);
+        }
+
+        .principles,
+        .next-gates {
+          grid-template-columns: 1fr;
+        }
+
+        .gate {
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .gate:last-child {
+          border-bottom: 0;
+        }
+      }
+
+      @media (max-width: 680px) {
+        .shell {
+          width: min(100% - 24px, 1240px);
+          padding-top: 16px;
+        }
+
+        .masthead,
+        .section-head {
+          grid-template-columns: 1fr;
+        }
+
+        .status-line {
+          justify-content: flex-start;
+        }
+
+        .hero {
+          padding-top: 54px;
+        }
+
+        h1 {
+          font-size: clamp(3rem, 17vw, 5rem);
+        }
+
+        .boundary {
+          grid-template-columns: 1fr;
+        }
+
+        .boundary-rule {
+          min-height: 42px;
+          border: 0;
+          border-top: 1px dashed var(--amber);
+          border-bottom: 1px dashed var(--amber);
+          writing-mode: horizontal-tb;
+        }
+
+        .ledger-row {
+          grid-template-columns: 54px 1fr;
+          gap: 8px 12px;
+        }
+
+        .issue-title,
+        .issue-link {
+          grid-column: 2;
+        }
+
+        .references {
+          grid-template-columns: 1fr;
+        }
+
+        footer {
+          flex-direction: column;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+
+      @media print {
+        body {
+          background: white;
+        }
+
+        .shell {
+          width: 100%;
+        }
+
+        .section {
+          break-inside: avoid;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="masthead">
+        <div class="brand"><span class="brand-mark">D2</span> devloop-v2 evidence ledger</div>
+        <div class="status-line" aria-label="보고서 상태">
+          <span class="status-chip">기준 시각 2026-08-13 KST</span>
+          <span class="status-chip live">Plan014 미완료 · 수집 중</span>
+        </div>
+      </header>
+
+      <section class="hero" aria-labelledby="report-title">
+        <div>
+          <p class="eyebrow">Architecture &amp; delivery report</p>
+          <h1 id="report-title">코드가 말하지 않는 <span class="accent">이유</span>를 되찾는 시스템</h1>
+          <p class="hero-copy">
+            Dooray 업무·댓글·위키와 OCR Git 이력을 하나의 증거 흐름으로 묶고,
+            Coding Agent가 필요한 순간에만 과거 결정과 제약을 한 번의 검색으로 회수하도록 구현하고 있습니다.
+            Memory는 원문을 대체하지 않으며 모든 결과는 안정 식별자와 원문 링크로 되돌아갑니다.
+          </p>
+        </div>
+        <aside class="goal-card" aria-labelledby="goal-title">
+          <h2 id="goal-title">최종 목표</h2>
+          <p>
+            적은 비용으로 재현 가능하고 출처를 검증할 수 있는 Experience Memory를 제공하고,
+            실측 효용이 확인된 검색 방식만 채택합니다. 지식 추출과 LLM 검색은
+            <code>gpt-5.6-luna / low</code>로 고정하며 fallback하지 않습니다.
+          </p>
+        </aside>
+      </section>
+
+      <section class="section" aria-labelledby="architecture-title">
+        <div class="section-head">
+          <span class="section-kicker">Provenance spine</span>
+          <div>
+            <h2 id="architecture-title">현재 아키텍처</h2>
+            <p>
+              저장은 계층적이어도 검색 표면은 평평하게 유지합니다.
+              Agent는 그래프 구조를 순회하지 않고 결론·맥락·최소 증거를 함께 받습니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="provenance-map" aria-label="원천에서 평가까지의 지식 흐름">
+          <article class="stage">
+            <strong>Dooray + Git</strong>
+            <p>업무, 댓글, 위키와 9개 OCR 저장소를 읽기 전용으로 수집합니다.</p>
+          </article>
+          <article class="stage">
+            <strong>Evidence</strong>
+            <p>원천별 형식을 stable ID와 HTTP source ref를 가진 packet으로 정규화합니다.</p>
+          </article>
+          <article class="stage">
+            <strong>Luna extraction</strong>
+            <p>Decision, Constraint, Incident, Failed Attempt, Lesson을 추출합니다.</p>
+          </article>
+          <article class="stage">
+            <strong>Compact Wiki</strong>
+            <p>Markdown과 status-aware JSON index를 결정적으로 생성합니다.</p>
+          </article>
+          <article class="stage">
+            <strong>Lexical search</strong>
+            <p>LLM 없이 단일 CLI에서 얕고 측정 가능한 기준선을 제공합니다.</p>
+          </article>
+          <article class="stage">
+            <strong>Agent trigger</strong>
+            <p>Codex와 Claude 지침이 동일한 voluntary search 정책을 사용합니다.</p>
+          </article>
+          <article class="stage">
+            <strong>Utility gate</strong>
+            <p>no-memory, triggered, oracle 조건의 성공·비용·오류를 3회씩 비교합니다.</p>
+          </article>
+        </div>
+
+        <div class="boundary" aria-label="비공개 실행 데이터와 공개 보고서 경계">
+          <div class="boundary-side">
+            <h3>비공개 실행 영역</h3>
+            <p>source lock, 실제 경로와 revision, transcript, query, Memory ID, attempt workspace를 Git 비추적 영역에 격리합니다.</p>
+          </div>
+          <div class="boundary-rule">privacy gate</div>
+          <div class="boundary-side">
+            <h3>공개 가능한 보고 영역</h3>
+            <p>task ID, 집계, 판정, 해시만 내보냅니다. 원문 접근 링크는 실제 Memory 응답에 보존하고 공개 보고서에는 내부 주소를 노출하지 않습니다.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="progress-title">
+        <div class="section-head">
+          <span class="section-kicker">Issue ledger</span>
+          <div>
+            <h2 id="progress-title">구현 진행 상황</h2>
+            <p>
+              전체 10개 이슈 중 기반 구현 5개를 main에 병합했습니다.
+              현재 #3과 #9의 효용 판정을 수행하고 있으며, 결과를 다음 세 실험의 입력으로 사용합니다.
+            </p>
+          </div>
+        </div>
+
+        <div class="progress-grid">
+          <div class="issue-ledger" aria-label="GitHub 이슈 현황">
+            <div class="ledger-row">
+              <span class="issue-number">#4–#8</span>
+              <span class="issue-state closed">main merged</span>
+              <span class="issue-title">원천 정규화 → Luna 추출 → Wiki → lexical 검색 → Agent 연결<small>PR #14까지 병합, 5개 이슈 종료</small></span>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/4">ISSUES ↗</a>
+            </div>
+            <div class="ledger-row">
+              <span class="issue-number">#3</span>
+              <span class="issue-state active">measuring</span>
+              <span class="issue-title">Experience Memory 기준선과 보존 기준 확정<small>Plan014의 실측 결과로 완료 조건을 닫는 중</small></span>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/3">OPEN ↗</a>
+            </div>
+            <div class="ledger-row">
+              <span class="issue-number">#9</span>
+              <span class="issue-state active">collecting</span>
+              <span class="issue-title">세 Memory 조건의 전체 효용 비교<small>36개 attempt 수집과 공개 리포트 생성</small></span>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/9">OPEN ↗</a>
+            </div>
+            <div class="ledger-row">
+              <span class="issue-number">#10</span>
+              <span class="issue-state queued">next gate</span>
+              <span class="issue-title">lexical miss에서만 대체 retrieval 비교<small>#9가 입증한 miss corpus만 사용</small></span>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/10">OPEN ↗</a>
+            </div>
+            <div class="ledger-row">
+              <span class="issue-number">#11</span>
+              <span class="issue-state queued">next gate</span>
+              <span class="issue-title">Graph traversal의 추가 가치 측정<small>flat retrieval을 이길 때만 유지 후보</small></span>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/11">OPEN ↗</a>
+            </div>
+            <div class="ledger-row">
+              <span class="issue-number">#12</span>
+              <span class="issue-state queued">final gate</span>
+              <span class="issue-title">voluntary 기준선 뒤 automatic retrieval 판정<small>정확도 향상이 retrieval tax보다 클 때만 채택</small></span>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/12">OPEN ↗</a>
+            </div>
+          </div>
+
+          <aside class="evidence-card" aria-labelledby="evidence-title">
+            <h3 id="evidence-title">현재 근거</h3>
+            <div class="metric">
+              <span class="metric-label">Implemented</span>
+              <span class="metric-value">5 / 10 issues</span>
+              <span class="metric-note">#4–#8 종료</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Evaluation matrix</span>
+              <span class="metric-value">4 × 3 × 3</span>
+              <span class="metric-note">task × condition × repetition</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Model contract</span>
+              <span class="metric-value">Luna / low</span>
+              <span class="metric-note">exact match, no fallback</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Memory index</span>
+              <span class="metric-value">9 documents</span>
+              <span class="metric-note">현재 고정된 평가 snapshot</span>
+            </div>
+            <div class="active-run">
+              <strong>Plan014는 완료가 아닙니다</strong>
+              <p>append-only raw run을 수집하고 있습니다. 36회와 독립 검증이 끝난 뒤 이 보고서를 최종 수치로 갱신합니다.</p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="principles-title">
+        <div class="section-head">
+          <span class="section-kicker">Operating contract</span>
+          <div>
+            <h2 id="principles-title">구현 원칙</h2>
+            <p>확장성은 계층을 늘리는 대신 경계를 선명하게 만드는 방식으로 확보합니다.</p>
+          </div>
+        </div>
+        <div class="principles">
+          <article class="principle">
+            <h3>원천으로 되돌아감</h3>
+            <p>Memory 항목은 stable source ID와 HTTP 링크를 함께 가진 파생물입니다. 결론이 의심스러우면 언제든 원문을 확인할 수 있습니다.</p>
+          </article>
+          <article class="principle">
+            <h3>관심사별 단방향 흐름</h3>
+            <p>정규화, LLM 추출, Wiki 생성, 검색, 평가가 서로의 내부 저장 형식을 침범하지 않습니다.</p>
+          </article>
+          <article class="principle">
+            <h3>측정 후 채택</h3>
+            <p>vector, graph, automatic retrieval은 기능 목록이 아닙니다. lexical·voluntary 기준선보다 나은 경우에만 도입합니다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="gates-title">
+        <div class="section-head">
+          <span class="section-kicker">Decision gates</span>
+          <div>
+            <h2 id="gates-title">남은 구현의 판단 순서</h2>
+            <p>앞 단계가 만든 실제 실패 집합을 다음 단계가 입력으로 받으므로 #10 → #11 → #12 순서를 유지합니다.</p>
+          </div>
+        </div>
+        <div class="next-gates">
+          <article class="gate">
+            <span class="gate-id">GATE A · ISSUE #10</span>
+            <h3>lexical로 충분한가?</h3>
+            <p>확정된 lexical miss에서만 대체 retrieval의 정확도와 비용을 비교합니다.</p>
+          </article>
+          <article class="gate">
+            <span class="gate-id">GATE B · ISSUE #11</span>
+            <h3>관계 순회가 더 낫나?</h3>
+            <p>flat 결과가 놓친 다단계 맥락에서 Graph traversal의 순수 추가 가치만 측정합니다.</p>
+          </article>
+          <article class="gate">
+            <span class="gate-id">GATE C · ISSUE #12</span>
+            <h3>자동 호출할 가치가 있나?</h3>
+            <p>voluntary trigger의 누락을 줄이는 이득이 추가 latency·token·tool call보다 클 때만 자동화를 선택합니다.</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="section" aria-labelledby="references-title">
+        <div class="section-head">
+          <span class="section-kicker">Managed sources</span>
+          <div>
+            <h2 id="references-title">관리 원문</h2>
+            <p>별도 관리 문서를 늘리지 않고 기존 설계 문서와 계획·평가 리포트를 연결합니다.</p>
+          </div>
+        </div>
+        <ul class="references">
+          <li><a href="../../docs/IMPROVEMENT.md">IMPROVEMENT.md<small>문제 정의, 가설, 목표 아키텍처</small></a></li>
+          <li><a href="../../docs/code-architecture.md">code-architecture.md<small>모듈 책임과 의존 방향</small></a></li>
+          <li><a href="../../docs/data-schema.md">data-schema.md<small>Evidence와 Memory의 데이터 계약</small></a></li>
+          <li><a href="../../tasks/plan014-memory-utility-eval/phase-03.md">Plan014 Phase 03<small>효용·비용·trigger 판정 계약</small></a></li>
+          <li><a href="2026-08-12-plan013-memory-foundation.md">Plan013 report<small>평가 기반 구현 완료 근거</small></a></li>
+          <li><a href="https://github.com/jon890/devloop-v2/issues">GitHub Issues<small>실행 가능한 전체 작업 목록</small></a></li>
+        </ul>
+      </section>
+
+      <footer>
+        <span>devloop-v2 · architecture &amp; progress report</span>
+        <span>공개 보고서에는 내부 URL·실제 revision·prompt·transcript를 포함하지 않습니다.</span>
+      </footer>
+    </main>
+  </body>
+</html>
