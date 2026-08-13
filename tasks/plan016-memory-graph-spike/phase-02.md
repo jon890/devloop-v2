@@ -52,6 +52,7 @@ provided key·relationship의 event/text match는 `graphEvidenceUsed: true|false
 node .claude/skills/kg-eval/scripts/run-memory.mjs \
   --suite eval/suites/tc-ocr-memory.json \
   --source-lock eval/runs/plan014-memory-source-lock.json \
+  --source-repository-root /Users/nhn/projects/OCR \
   --out eval/runs/plan016-memory-graph.json \
   --data-dir apps/pipeline/data \
   --agent codex \
@@ -107,3 +108,4 @@ jq '[.attempts[] | has("graphEvidenceUsed")] | all' eval/runs/plan016-memory-gra
 
 - plan014와 model·revision·Memory index hash가 다르면 `PHASE_BLOCKED: Graph 비교 조건 불일치`로 종료한다.
 - API graph stats hash나 label/key→elementId가 lock과 다르면 `PHASE_BLOCKED: Graph snapshot 변경`으로 종료한다.
+- `--source-repository-root`의 real path·basename·base/target commit 검증이 하나라도 실패하면 `PHASE_BLOCKED: source snapshot 재현 불가`로 종료한다.

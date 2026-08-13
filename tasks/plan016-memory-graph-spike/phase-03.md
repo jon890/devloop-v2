@@ -31,7 +31,7 @@ Graph 관계가 성공 run에서 실제 사용됐고 oracle-memory 실패를 안
 
 ### 4. 공개 report를 생성한다
 
-`eval/reports/2026-08-12-plan016-memory-graph.json`과 `.md`에는 내부 anchor·URL·Agent 전문 없이 task ID, type, hash, 집계, 판정만 남긴다.
+`eval/reports/2026-08-12-plan016-memory-graph.json`과 `.md`에는 내부 anchor·URL·Agent 전문·Graph node property 없이 task ID, type, hash, 집계, 판정만 남긴다.
 
 ### 5. 독립 검증과 완료 마킹을 수행한다
 
@@ -46,7 +46,7 @@ verifier 두 lane이 raw 6회와 재사용한 plan014 12회를 report 표에 대
 | --- | --- |
 | `.claude/skills/kg-eval/scripts/report-memory-graph.mjs` | 신규 |
 | `.claude/skills/kg-eval/tests/report-memory-graph.test.mjs` | 신규 |
-| `.claude/skills/kg-eval/scripts/memory/privacy.mjs` | private Graph anchor needle 입력 재사용 |
+| `.claude/skills/kg-eval/scripts/memory/privacy.mjs` | `originalRepositoryPath`와 private Graph lock 전체 민감 필드 needle 수집 보강 |
 | `.claude/skills/kg-eval/tests/memory-privacy.test.mjs` | Graph anchor·URL 누출 회귀 보강 |
 | `eval/reports/2026-08-12-plan016-memory-graph.json` | 신규 |
 | `eval/reports/2026-08-12-plan016-memory-graph.md` | 신규 |
@@ -62,7 +62,7 @@ node --test .claude/skills/kg-eval/tests/*.test.mjs
 node .claude/skills/kg-eval/scripts/report-memory-graph.mjs --baseline eval/runs/plan014-utility.json --graph-run eval/runs/plan016-memory-graph.json --graph-lock eval/runs/plan016-graph-lock.json --json-out /tmp/plan016-report.json --markdown-out /tmp/plan016-report.md
 cmp /tmp/plan016-report.json eval/reports/2026-08-12-plan016-memory-graph.json
 cmp /tmp/plan016-report.md eval/reports/2026-08-12-plan016-memory-graph.md
-node .claude/skills/kg-eval/scripts/memory/privacy.mjs --private-inputs eval/runs/plan016-graph-lock.json,eval/runs/plan016-memory-graph.json --paths eval/reports/2026-08-12-plan016-memory-graph.json,eval/reports/2026-08-12-plan016-memory-graph.md
+node .claude/skills/kg-eval/scripts/memory/privacy.mjs --source-lock eval/runs/plan014-memory-source-lock.json --private-inputs eval/runs/plan014-utility.json,eval/runs/plan016-graph-lock.json,eval/runs/plan016-memory-graph.json --paths eval/reports/2026-08-12-plan016-memory-graph.json,eval/reports/2026-08-12-plan016-memory-graph.md
 pnpm -r build
 pnpm format:check
 git diff --check
