@@ -649,7 +649,7 @@
         <div class="brand"><span class="brand-mark">D2</span> devloop-v2 evidence ledger</div>
         <div class="status-line" aria-label="보고서 상태">
           <span class="status-chip">기준 시각 2026-08-13 KST</span>
-          <span class="status-chip live">Plan014 미완료 · 수집 중</span>
+          <span class="status-chip live">Plan014 검증 완료 · PR 준비</span>
         </div>
       </header>
 
@@ -757,8 +757,8 @@
             </div>
             <div class="ledger-row">
               <span class="issue-number">#9</span>
-              <span class="issue-state active">collecting</span>
-              <span class="issue-title">세 Memory 조건의 전체 효용 비교<small>36개 attempt 수집과 공개 리포트 생성</small></span>
+              <span class="issue-state active">pr ready</span>
+              <span class="issue-title">세 Memory 조건의 전체 효용 비교<small>36개 attempt, 공개 리포트, 독립 검증 완료</small></span>
               <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/9">OPEN ↗</a>
             </div>
             <div class="ledger-row">
@@ -790,8 +790,8 @@
             </div>
             <div class="metric">
               <span class="metric-label">Evaluation matrix</span>
-              <span class="metric-value">4 × 3 × 3</span>
-              <span class="metric-note">task × condition × repetition</span>
+              <span class="metric-value">36 / 36</span>
+              <span class="metric-note">4 task × 3 condition × 3 repetition</span>
             </div>
             <div class="metric">
               <span class="metric-label">Model contract</span>
@@ -803,9 +803,14 @@
               <span class="metric-value">9 documents</span>
               <span class="metric-note">현재 고정된 평가 snapshot</span>
             </div>
+            <div class="metric">
+              <span class="metric-label">Measured outcome</span>
+              <span class="metric-value">FN 6 · wrong 1</span>
+              <span class="metric-note">lexical miss 0, privacy violation 0</span>
+            </div>
             <div class="active-run">
-              <strong>Plan014는 완료가 아닙니다</strong>
-              <p>append-only raw run을 수집하고 있습니다. 36회와 독립 검증이 끝난 뒤 이 보고서를 최종 수치로 갱신합니다.</p>
+              <strong>로컬 구현과 검증은 완료됐습니다</strong>
+              <p>36회 수집, 공개 리포트, 독립 검증, 문서 완료 마킹을 마쳤습니다. PR 병합과 이슈 종료가 남아 있습니다.</p>
             </div>
           </aside>
         </div>

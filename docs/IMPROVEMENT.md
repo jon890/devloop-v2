@@ -1188,7 +1188,8 @@ Coding Agent Memory를 위해 변경할 부분.
 # 21. 전체 Issue 구현 실행 단위
 
 2026-08-13 기준 #4~#8의 production 기준선과 voluntary Agent 통합은 구현되어 main에 병합됐다.
-#3과 #9의 end-to-end utility 평가는 Plan014에서 진행 중이며, #10~#12는 그 결과가 만든 실제 miss와 비용을 입력으로 사용한다.
+#3과 #9의 end-to-end utility 평가는 Plan014에서 36회 수집과 독립 검증을 마쳤으며, main 병합을 앞두고 있다.
+#10~#12는 그 결과가 만든 실제 miss와 비용을 입력으로 사용한다.
 모든 Issue를 닫기 위해 다음 순서를 고정한다.
 
 1. source-locked Coding Agent benchmark와 voluntary trigger 계측을 구현한다.

@@ -23,3 +23,4 @@
 | 2026-08-11 | build-with-teams | plan012-experience-memory | standard | 4 | 0 | 5 | 7 | 없음 | 0 | 최신 Dooray raw와 OCR Git 9개 repo 수직 검증 완료. schema v2로 Structured Outputs 400을 해소했고 최종 bounded 재실행 calls 0/cacheHits 12, Wiki 37문서, 검색 smoke 1/6/0건을 기록했다 |
 | 2026-08-12 | planning | plan013~017-memory-evaluation | — | 5 | — | — | — | 없음 | 0 | #3~#12 전체 완료를 평가 기반, utility, retrieval, Graph, automatic의 다섯 PR로 분리하고 source-locked 계약을 확정했다 |
 | 2026-08-12 | build-with-teams | plan013-memory-eval-foundation | A | 4 | 3 | 2 | 3 | 있음 | 0 | source-locked suite와 두 Agent voluntary 계측을 구현했다. Claude 첫 task timeout을 보존하고 두 번째 task에서 검색 2회, validation 성공, wrong edit 0건을 확인했다. 독립 code·docs 검토를 통과했다 |
+| 2026-08-13 | build-with-teams | plan014-memory-utility-eval | standard | 3 | 0 | 3 | 3 | 없음 | 0 | Luna low로 36회 수집했다. 9개 stable success, 2개 unstable, 1개 regression이며 voluntary trigger는 TP 0/FN 6, lexical miss 0이었다. privacy 0, 결정적 report와 독립 검증을 완료했다 |

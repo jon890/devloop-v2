@@ -1,7 +1,7 @@
 # Phase 03 — Memory Benefit과 Retrieval Tax를 분리해 판정한다
 
 **Execution profile**: deep
-**Status**: pending
+**Status**: completed
 
 ---
 
@@ -128,3 +128,11 @@ fixture는 3/3 clean success, 3/3 clean failure, mixed unstable, unobserved retr
 ## Blocked 조건
 
 - 36개 run이 없거나 조건 hash가 다르면 `PHASE_BLOCKED: utility 비교 입력 불완전`으로 종료하고 report를 확정하지 않는다.
+
+## 완료 근거
+
+- 공개 JSON과 Markdown report를 같은 raw에서 byte-identical하게 재생성했다.
+- 12개 task-condition group은 `STABLE_SUCCESS` 9개, `UNSTABLE` 2개, `REGRESSION` 1개로 판정됐다.
+- experience-needed voluntary trigger는 TP 0, FN 6으로 recall 0이며 code-only는 FP 0, TN 6이다.
+- lexical miss는 0건이고 retrieval observation은 36회 모두 완전하다.
+- 공개 report와 HTML의 private source 누출 검사는 0건이며 독립 verifier가 raw 집계를 대조했다.

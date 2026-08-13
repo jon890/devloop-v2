@@ -1,7 +1,7 @@
 # Phase 01 — source lock과 조건 동일성을 사전 검증한다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 
@@ -81,3 +81,10 @@ private lock은 `git status`에 나타나지 않아야 한다.
 ## Blocked 조건
 
 - plan013 산출물이 `main`에 없으면 `PHASE_BLOCKED: plan013 미병합`으로 종료한다.
+
+## 완료 근거
+
+- public suite 4개 task와 private source lock의 bijection을 검증했다.
+- base에서 실패하고 target에서 통과하는 판정 명령 4개를 Agent 호출 없이 확인했다.
+- suite, source lock, Memory index hash를 raw run header에 고정했다.
+- dry-run에서 4 task, 3 condition, 3 repetition의 36개 attempt를 확인했다.

@@ -1,7 +1,7 @@
 # Phase 02 — 세 조건을 task별 3회 직렬 실행한다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 
@@ -162,3 +162,10 @@ git status --short
 ## Blocked 조건
 
 - `availabilityFailures`가 생기거나 36개 attempt가 채워지지 않으면 완료 회차를 보존하고 `PHASE_BLOCKED: Agent 사용량 제한`으로 종료한다.
+
+## 완료 근거
+
+- `gpt-5.6-luna`, low, workspace-write 조건으로 36개 attempt를 직렬 수집했다.
+- 36개 task·condition·repetition key가 모두 유일하고 availability failure와 workspace contamination은 0건이다.
+- started timeout 2건과 wrong edit 1건을 재시도하거나 덮어쓰지 않고 보존했다.
+- active workspace는 OS 임시 디렉터리에 격리했고 실행 종료 후 잔여 workspace가 없음을 확인했다.
