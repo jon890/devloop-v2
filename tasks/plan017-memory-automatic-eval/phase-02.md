@@ -51,7 +51,7 @@ node .claude/skills/kg-eval/scripts/run-memory.mjs \
 
 code-only task의 automatic memory call은 불필요한 조회 후보로 기록한다.
 voluntary miss를 automatic이 회수한 experience-needed task는 별도 플래그로 남긴다.
-voluntary miss는 plan014의 `triggerOutcome=miss` 또는 `retrievalObservations[].outcome=miss`인 attempt로만 판정한다.
+voluntary miss는 plan014의 `triggerOutcome=missed_search` 또는 `retrievalObservations[].outcome=miss`인 attempt로만 판정한다.
 automatic 회수는 같은 task에서 validation·taskSuccess가 true이고 wrongEditCount=0인 attempt로만 센다.
 
 ### 4. raw run 무결성을 검사한다

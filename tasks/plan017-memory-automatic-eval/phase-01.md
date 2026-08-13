@@ -22,9 +22,9 @@ plan014의 voluntary 기준선과 같은 `memory-search`를 task 시작 전에 �
 
 ### 1. automatic condition을 분리한다
 
-`.claude/skills/kg-eval/scripts/memory/automatic-condition.mjs`는 task prompt와 scope로 `memory-search`를 정확히 한 번 호출한다.
+`.claude/skills/kg-eval/scripts/memory/automatic-condition.mjs`는 plan014 voluntary와 같은 source lock `oracleQuery`로 `memory-search`를 정확히 한 번 호출한다.
 product search 결과를 재정렬하거나 별도 backend를 호출하지 않는다.
-query는 source lock의 task prompt 원문, scope는 task repository와 allowed path의 공통 경계, top-k는 plan014와 같은 10으로 결정적으로 만든다.
+query는 source lock의 `oracleQuery`, scope는 task repository와 allowed path의 공통 경계, top-k는 plan014와 같은 10으로 결정적으로 만든다.
 `run-memory.mjs`는 `automatic`을 experimental condition으로만 허용하고 기존 세 기준선 조건 목록·동일성 검사를 바꾸지 않는다.
 
 ### 2. 안전한 주입 규칙을 고정한다
@@ -58,7 +58,7 @@ Git SourceRef revision과 task source lock이 충돌하면 본문 대신 source 
 
 ### 5. hostile fixture로 fail-safe를 검증한다
 
-stale Memory가 current source와 반대 결론을 갖는 fixture, uncertain high score, low confidence active, revision conflict를 테스트한다.
+stale Memory가 current source와 반대 결론을 갖는 fixture, uncertain high score, low confidence active, revision conflict, voluntary와 automatic query 동일성을 테스트한다.
 가드를 하나씩 제거하면 테스트가 실패하는 변이 검증을 수행하고 즉시 원복한다.
 
 ---

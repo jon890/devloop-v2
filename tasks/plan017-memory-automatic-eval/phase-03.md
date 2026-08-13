@@ -23,7 +23,7 @@ plan014 `attempts`의 agent-triggered 12회와 plan017 `attempts`의 automatic 1
 
 voluntary에서 실패하거나 검색하지 못한 experience-needed task를 automatic이 안정적으로 회복한 경우와,
 code-only·무관 result 조회·주입으로 비용 또는 wrong edit를 만든 경우를 별도 표로 만든다.
-`recoveredTask`는 voluntary 3회 중 `triggerOutcome=miss` 또는 `retrievalObservations[].outcome=miss` 증거가 최소 1개 있고 성공이 3회 미만이며, automatic 3회가 모두 성공·wrong edit 0인 experience-needed task다.
+`recoveredTask`는 voluntary 3회 중 `triggerOutcome=missed_search` 또는 `retrievalObservations[].outcome=miss` 증거가 최소 1개 있고 성공이 3회 미만이며, automatic 3회가 모두 성공·wrong edit 0인 experience-needed task다.
 miss 증거가 없는 Agent·implementation·validation 실패는 recovery로 세지 않는다.
 `unnecessaryCodeOnlyAttemptCount`와 `emptyRetrievalAttemptCount`를 각각 기록한다.
 판정에 쓰는 `unnecessaryRetrievalAttemptCount`는 두 집합의 attempt key 합집합 크기라 같은 attempt를 두 번 세지 않는다.
