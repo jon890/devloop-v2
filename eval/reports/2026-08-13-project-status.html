@@ -257,8 +257,6 @@
         background: var(--blue);
         box-shadow: 0 0 0 2px var(--blue);
         content: "";
-      }
-
       .stage strong {
         display: block;
         margin-bottom: 10px;
@@ -649,7 +647,7 @@
         <div class="brand"><span class="brand-mark">D2</span> devloop-v2 evidence ledger</div>
         <div class="status-line" aria-label="보고서 상태">
           <span class="status-chip">기준 시각 2026-08-13 KST</span>
-          <span class="status-chip live">Plan014 검증 완료 · PR 준비</span>
+          <span class="status-chip live">Plan015 검증 완료 · PR 미리보기 준비</span>
         </div>
       </header>
 
@@ -735,8 +733,8 @@
           <div>
             <h2 id="progress-title">구현 진행 상황</h2>
             <p>
-              전체 10개 이슈 중 기반 구현 5개를 main에 병합했습니다.
-              현재 #3과 #9의 효용 판정을 수행하고 있으며, 결과를 다음 세 실험의 입력으로 사용합니다.
+              전체 10개 이슈 중 #3–#9까지 7개를 main에 병합했습니다.
+              #10은 실제 lexical miss 0건을 재검증해 대체 retrieval을 도입하지 않는 결론으로 구현과 독립 검토를 마쳤습니다.
             </p>
           </div>
         </div>
@@ -751,20 +749,20 @@
             </div>
             <div class="ledger-row">
               <span class="issue-number">#3</span>
-              <span class="issue-state active">measuring</span>
-              <span class="issue-title">Experience Memory 기준선과 보존 기준 확정<small>Plan014의 실측 결과로 완료 조건을 닫는 중</small></span>
-              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/3">OPEN ↗</a>
+              <span class="issue-state closed">main merged</span>
+              <span class="issue-title">Experience Memory 기준선과 보존 기준 확정<small>Plan014 실측과 privacy 검증 완료</small></span>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/3">CLOSED ↗</a>
             </div>
             <div class="ledger-row">
               <span class="issue-number">#9</span>
-              <span class="issue-state active">pr ready</span>
+              <span class="issue-state closed">main merged</span>
               <span class="issue-title">세 Memory 조건의 전체 효용 비교<small>36개 attempt, 공개 리포트, 독립 검증 완료</small></span>
-              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/9">OPEN ↗</a>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/9">CLOSED ↗</a>
             </div>
             <div class="ledger-row">
               <span class="issue-number">#10</span>
-              <span class="issue-state queued">next gate</span>
-              <span class="issue-title">lexical miss에서만 대체 retrieval 비교<small>#9가 입증한 miss corpus만 사용</small></span>
+              <span class="issue-state active">verified</span>
+              <span class="issue-title">lexical miss에서만 대체 retrieval 비교<small>실제 miss 0 · NO_CHANGE · adapter 0 · production 변경 0</small></span>
               <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/10">OPEN ↗</a>
             </div>
             <div class="ledger-row">
@@ -785,8 +783,8 @@
             <h3 id="evidence-title">현재 근거</h3>
             <div class="metric">
               <span class="metric-label">Implemented</span>
-              <span class="metric-value">5 / 10 issues</span>
-              <span class="metric-note">#4–#8 종료</span>
+              <span class="metric-value">7 merged · 8 verified</span>
+              <span class="metric-note">#3–#9 main, #10 독립 검토 완료</span>
             </div>
             <div class="metric">
               <span class="metric-label">Evaluation matrix</span>
@@ -808,9 +806,14 @@
               <span class="metric-value">FN 6 · wrong 1</span>
               <span class="metric-note">lexical miss 0, privacy violation 0</span>
             </div>
+            <div class="metric">
+              <span class="metric-label">Retrieval decision</span>
+              <span class="metric-value">NO_CHANGE</span>
+              <span class="metric-note">miss 0 · adapters 0 · production 변경 0</span>
+            </div>
             <div class="active-run">
-              <strong>로컬 구현과 검증은 완료됐습니다</strong>
-              <p>36회 수집, 공개 리포트, 독립 검증, 문서 완료 마킹을 마쳤습니다. PR 병합과 이슈 종료가 남아 있습니다.</p>
+              <strong>Plan015 구현과 독립 검토를 완료했습니다</strong>
+              <p>raw·report·private lock 계보와 privacy를 다시 검증했습니다. PR 등록과 main 병합 뒤 #11 Graph 평가로 이동합니다.</p>
             </div>
           </aside>
         </div>
@@ -845,14 +848,14 @@
           <span class="section-kicker">Decision gates</span>
           <div>
             <h2 id="gates-title">남은 구현의 판단 순서</h2>
-            <p>앞 단계가 만든 실제 실패 집합을 다음 단계가 입력으로 받으므로 #10 → #11 → #12 순서를 유지합니다.</p>
+            <p>#10은 실제 miss가 없어 변경하지 않는 것으로 닫았습니다. 이제 #11 Graph 추가 가치와 #12 automatic retrieval을 순서대로 판정합니다.</p>
           </div>
         </div>
         <div class="next-gates">
           <article class="gate">
-            <span class="gate-id">GATE A · ISSUE #10</span>
+            <span class="gate-id">GATE A · ISSUE #10 · COMPLETE</span>
             <h3>lexical로 충분한가?</h3>
-            <p>확정된 lexical miss에서만 대체 retrieval의 정확도와 비용을 비교합니다.</p>
+            <p>실제 miss 0건이므로 SQLite, embedding hybrid, vector DB를 만들지 않았습니다.</p>
           </article>
           <article class="gate">
             <span class="gate-id">GATE B · ISSUE #11</span>
@@ -880,6 +883,8 @@
           <li><a href="../../docs/code-architecture.md">code-architecture.md<small>모듈 책임과 의존 방향</small></a></li>
           <li><a href="../../docs/data-schema.md">data-schema.md<small>Evidence와 Memory의 데이터 계약</small></a></li>
           <li><a href="../../tasks/plan014-memory-utility-eval/phase-03.md">Plan014 Phase 03<small>효용·비용·trigger 판정 계약</small></a></li>
+          <li><a href="../../tasks/plan015-memory-retrieval-spike/phase-03.md">Plan015 Phase 03<small>lexical miss 0과 NO_CHANGE 판정 계약</small></a></li>
+          <li><a href="2026-08-12-plan015-memory-retrieval.md">Plan015 report<small>adapter 미도입과 privacy 검증 근거</small></a></li>
           <li><a href="2026-08-12-plan013-memory-foundation.md">Plan013 report<small>평가 기반 구현 완료 근거</small></a></li>
           <li><a href="https://github.com/jon890/devloop-v2/issues">GitHub Issues<small>실행 가능한 전체 작업 목록</small></a></li>
         </ul>
