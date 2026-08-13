@@ -156,6 +156,7 @@ async function releaseRunLock(lock) {
 
 function newMemoryRun(conditions) {
   const sourceRepositoryResolution = canonicalSourceRepositoryResolution(conditions);
+  const graphRunConditions = canonicalGraphRunConditions(conditions);
   return {
     schemaVersion: MEMORY_RUN_SCHEMA_VERSION,
     suitePath: conditions.suitePath,
@@ -165,6 +166,7 @@ function newMemoryRun(conditions) {
     taskInputs: canonicalTaskInputs(conditions.taskInputs),
     memoryIndexHash: conditions.memoryIndexHash,
     ...(sourceRepositoryResolution ? sourceRepositoryResolution : {}),
+    ...(graphRunConditions ? graphRunConditions : {}),
     executionPlan: canonicalExecutionPlan(conditions.executionPlan),
     agent: conditions.agent,
     agentOptions: canonicalAgentOptions(conditions.agentOptions),
@@ -264,6 +266,7 @@ function canonicalSourceRepositoryResolution(run) {
 
 function comparableRunFields(run) {
   const sourceRepositoryResolution = canonicalSourceRepositoryResolution(run);
+  const graphRunConditions = canonicalGraphRunConditions(run);
   return {
     schemaVersion: run.schemaVersion,
     suiteHash: run.suiteHash,
@@ -272,9 +275,24 @@ function comparableRunFields(run) {
     memoryIndexHash: run.memoryIndexHash,
     sourceRepositoryRoot: sourceRepositoryResolution?.sourceRepositoryRoot ?? null,
     resolvedRepositories: sourceRepositoryResolution?.resolvedRepositories ?? null,
+    graphLockPath: graphRunConditions?.graphLockPath ?? null,
+    graphLockHash: graphRunConditions?.graphLockHash ?? null,
+    graphBaseUrl: graphRunConditions?.graphBaseUrl ?? null,
     executionPlan: canonicalExecutionPlan(run.executionPlan),
     agent: run.agent,
     agentOptions: canonicalAgentOptions(run.agentOptions),
+  };
+}
+
+function canonicalGraphRunConditions(run) {
+  if (run.graphLockPath === undefined && run.graphLockHash === undefined && run.graphBaseUrl === undefined) return null;
+  for (const field of ["graphLockPath", "graphLockHash", "graphBaseUrl"]) {
+    if (!hasText(run[field])) throw new Error(`${field}: required non-empty string when Graph run conditions are present`);
+  }
+  return {
+    graphLockPath: run.graphLockPath,
+    graphLockHash: run.graphLockHash,
+    graphBaseUrl: run.graphBaseUrl,
   };
 }
 

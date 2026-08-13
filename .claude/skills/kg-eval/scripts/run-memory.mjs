@@ -4,13 +4,15 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { loadMemoryEvaluationInputs } from "./validate-memory-suite.mjs";
-import { buildMemoryConditionInputs, MEMORY_CONDITIONS } from "./memory/condition.mjs";
+import { buildExperimentalMemoryConditionInput, buildMemoryConditionInputs, EXPERIMENTAL_MEMORY_CONDITIONS, MEMORY_CONDITIONS } from "./memory/condition.mjs";
 import { runAgent, runArgvProcess, spawnAvailabilityFailure, structuredPreToolAvailabilityFailure } from "./memory/agent-runner.mjs";
 import { normalizeAgentTelemetryJsonl, parseJsonl } from "./memory/telemetry.mjs";
 import { judgeMemoryAttempt } from "./memory/judge.mjs";
 import { canonicalExecutionPlan, withMemoryRun } from "./memory/result.mjs";
 import { retrievalObservations } from "./memory/retrieval-observation.mjs";
 import { resolveSourceRepositoryRoot } from "./memory/source-repository-root.mjs";
+import { buildGraphContext } from "./memory/graph-context.mjs";
+import { graphEvidenceUsed } from "./memory/graph-evidence.mjs";
 import { cleanupActiveWorkspaceRoot, cleanupLegacyWorkspaceRoot, diffHash, materializeMemoryWorkspace, prepareActiveWorkspaceRoot, writeDiff } from "./memory/workspace.mjs";
 
 const DEFAULT_DATA_DIR = "apps/pipeline/data";
@@ -31,6 +33,8 @@ Options:
   --permission-mode <mode>     Agent permission/sandbox option
   --tasks <ids>                Comma-separated task ids
   --conditions <names>         Comma-separated conditions
+  --graph-lock <path>          Required with --graph-base-url for experimental memory-graph condition
+  --graph-base-url <url>       Required with --graph-lock for experimental memory-graph condition
   --repeats <n>                Repetitions per task/condition (default: 1)
   --schedule <name>            Attempt order: default or interleaved (default: default)
   --timeout-ms <n>             Agent timeout (default: ${DEFAULT_TIMEOUT_MS})
@@ -54,6 +58,8 @@ function parseArgs(argv) {
     "--permission-mode",
     "--tasks",
     "--conditions",
+    "--graph-lock",
+    "--graph-base-url",
     "--repeats",
     "--timeout-ms",
     "--max-output-bytes",
@@ -88,8 +94,15 @@ function parseArgs(argv) {
   const schedule = args.schedule ?? "default";
   if (!["default", "interleaved"].includes(schedule)) throw new Error("--schedule must be default or interleaved");
   const conditions = csv(args.conditions) ?? ["agent-triggered"];
-  const unknownConditions = conditions.filter((condition) => !MEMORY_CONDITIONS.includes(condition));
+  const supportedConditions = new Set([...MEMORY_CONDITIONS, ...EXPERIMENTAL_MEMORY_CONDITIONS]);
+  const unknownConditions = conditions.filter((condition) => !supportedConditions.has(condition));
   if (unknownConditions.length > 0) throw new Error(`unsupported condition(s): ${unknownConditions.join(", ")}`);
+  if (conditions.includes("memory-graph") && (!args["graph-lock"] || !args["graph-base-url"])) {
+    throw new Error("--graph-lock and --graph-base-url are required for condition memory-graph");
+  }
+  if (!conditions.includes("memory-graph") && (args["graph-lock"] || args["graph-base-url"])) {
+    throw new Error("--graph-lock and --graph-base-url are only supported with condition memory-graph");
+  }
   return {
     suitePath: args.suite,
     sourceLockPath: args["source-lock"],
@@ -104,6 +117,8 @@ function parseArgs(argv) {
     },
     taskIds: csv(args.tasks),
     conditions,
+    graphLockPath: args["graph-lock"],
+    graphBaseUrl: args["graph-base-url"],
     repeats,
     timeoutMs,
     maxOutputBytes,
@@ -160,6 +175,9 @@ async function runValidation(command, cwd) {
 
 function buildAgentPrompt(input) {
   const memoryBlock = input.memoryInformation.memory ? `\n\nMemory context:\n${JSON.stringify(input.memoryInformation.memory, null, 2)}` : "";
+  const graphBlock = input.memoryInformation.graphContext
+    ? `\n\nGraph context:\n${JSON.stringify(input.memoryInformation.graphContext, null, 2)}\nTreat this as source-backed relationship evidence only; current repository files and validation remain authoritative. Do not call Graph APIs.`
+    : "";
   const searchCommandBlock = input.voluntaryMemorySearchCommand
     ? `\n\n${input.memoryTriggerInstruction}\n${input.voluntaryMemorySearchCommand}`
     : "";
@@ -174,6 +192,7 @@ function buildAgentPrompt(input) {
     `Validation command: ${input.validationCommand.join(" ")}`,
     searchCommandBlock,
     memoryBlock,
+    graphBlock,
   ].join("\n");
 }
 
@@ -348,6 +367,48 @@ function availabilityFailureRecord({ sourceTask, condition, repetition, normaliz
   };
 }
 
+function graphBoundaryAttempt({ sourceTask, condition, repetition, error, metrics = null }) {
+  return {
+    taskId: sourceTask.taskId,
+    condition,
+    repetition,
+    agent: null,
+    agentOptions: null,
+    status: null,
+    signal: null,
+    timedOut: false,
+    outputOverflow: null,
+    stdoutTranscriptPath: null,
+    stderrTranscriptPath: null,
+    wallTimeMs: 0,
+    validationStatus: null,
+    failureBoundary: "GRAPH",
+    workspaceDiffHash: null,
+    turns: 0,
+    toolCalls: 0,
+    sourceReads: 0,
+    memoryCalls: 0,
+    graphContextCalls: metrics?.graphContextCalls ?? 0,
+    agentGraphCalls: 0,
+    graphCalls: metrics?.graphContextCalls ?? 0,
+    graphLlmCalls: 0,
+    graphLatencyMs: metrics?.graphLatencyMs ?? 0,
+    inputTokens: null,
+    outputTokens: null,
+    reworkCount: 0,
+    agentMemoryCalls: 0,
+    oracleMemoryProvided: 0,
+    workspaceContamination: false,
+    workspaceContaminationCount: 0,
+    triggerOutcome: "graph_unavailable",
+    taskSuccess: false,
+    wrongEditCount: 0,
+    wrongEditPaths: [],
+    graphEvidenceUsed: null,
+    graphFailureReason: error instanceof Error ? error.message : String(error),
+  };
+}
+
 function executionPlanFromOptions(options) {
   return canonicalExecutionPlan({
     conditions: options.conditions,
@@ -413,7 +474,7 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
       runsRoot: workspaceRoot,
     });
     const oracle =
-      condition === "oracle-memory"
+      condition === "oracle-memory" || condition === "memory-graph"
         ? await (options.runMemorySearchFn ?? runMemorySearch)({ query: sourceTask.oracleQuery, dataDir: options.dataDir, cwd: rootCwd })
         : { ok: true, result: null, memory: null };
     if (!oracle.ok) {
@@ -421,7 +482,22 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
       error.failures = oracleFailureCounts(oracle);
       throw error;
     }
-    const input = buildMemoryConditionInputs({ task: sourceTask, oracleMemory: oracle.memory }).find((item) => item.condition === condition);
+    let graphContextResult = null;
+    if (condition === "memory-graph") {
+      try {
+        graphContextResult = await (options.buildGraphContextFn ?? buildGraphContext)({
+          graphLockPath: options.graphLockPath,
+          graphBaseUrl: options.graphBaseUrl,
+          taskId: sourceTask.taskId,
+        });
+      } catch (error) {
+        return graphBoundaryAttempt({ sourceTask, condition, repetition, error, metrics: error?.metrics });
+      }
+    }
+    const input =
+      condition === "memory-graph"
+        ? buildExperimentalMemoryConditionInput({ task: sourceTask, condition, oracleMemory: oracle.memory, graphContext: graphContextResult.context })
+        : buildMemoryConditionInputs({ task: sourceTask, oracleMemory: oracle.memory }).find((item) => item.condition === condition);
     const voluntaryMemorySearchCommand =
       condition === "agent-triggered"
         ? memorySearchCommand({ query: sourceTask.oracleQuery, dataDir: options.dataDir, devloopRoot: rootCwd })
@@ -466,8 +542,13 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
     }
     const telemetry = normalizeAgentTelemetryJsonl(agentResult.stdout);
     const agentMemoryCalls = telemetry.memoryCalls;
+    const agentGraphCalls = telemetry.agentGraphCalls ?? telemetry.graphCalls ?? 0;
+    const graphContextCalls = graphContextResult?.metrics.graphContextCalls ?? 0;
+    const graphLatencyMs = graphContextResult?.metrics.graphLatencyMs ?? 0;
     const oracleMemoryProvided = oracle.result ? 1 : 0;
     telemetry.memoryCalls += oracleMemoryProvided;
+    telemetry.graphCalls = graphContextCalls + agentGraphCalls;
+    telemetry.agentGraphCalls = agentGraphCalls;
     let observedRetrievals = [];
     if (condition === "agent-triggered") {
       const preliminary = retrievalObservations({
@@ -520,11 +601,20 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
       failureBoundary: contamination.workspaceContamination ? "MEMORY" : judgment.taskSuccess ? "NONE" : validationResult.status === 0 ? "IMPLEMENTATION" : "VALIDATION",
       workspaceDiffHash,
       ...telemetry,
+      graphContextCalls,
+      graphLlmCalls: 0,
+      graphLatencyMs,
       agentMemoryCalls,
       oracleMemoryProvided,
       ...contamination,
       triggerOutcome: triggerOutcome(options.publicTask, { condition, memoryCalls: telemetry.memoryCalls, agentMemoryCalls, oracleMemoryProvided }),
       ...(condition === "agent-triggered" ? { retrievalObservations: observedRetrievals } : {}),
+      ...(condition === "memory-graph"
+        ? {
+            graphContext: graphContextResult.evidence,
+            graphEvidenceUsed: graphEvidenceUsed({ events, graphContext: graphContextResult.context }),
+          }
+        : {}),
       ...judgment,
     };
   } finally {
@@ -534,8 +624,12 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
 
 async function runMemoryEvaluation(options) {
   if (!options.agent && !options.dryRun) throw new Error("--agent is required unless --dry-run is used");
+  if (options.conditions.includes("memory-graph") && (!options.graphLockPath || !options.graphBaseUrl)) {
+    throw new Error("graphLockPath and graphBaseUrl are required for condition memory-graph");
+  }
   const inputs = await loadMemoryEvaluationInputs({ suitePath: options.suitePath, sourceLockPath: options.sourceLockPath });
   const indexHash = await memoryIndexHash(options.dataDir, inputs.suite.project);
+  const graphLockHash = options.graphLockPath ? `sha256:${await fileSha256(options.graphLockPath)}` : null;
   const tasks = selectedTasks(inputs.suite, inputs.sourceLock, options.taskIds);
   const sourceResolution = await resolveSourceRepositoryRoot({
     sourceRepositoryRoot: options.sourceRepositoryRoot,
@@ -549,6 +643,7 @@ async function runMemoryEvaluation(options) {
     suiteHash: inputs.suiteHash,
     sourceLockHash: inputs.sourceLockHash,
     memoryIndexHash: indexHash,
+    ...(graphLockHash ? { graphLockHash } : {}),
     taskCount: resolvedTasks.length,
     plannedAttempts,
   };
@@ -568,6 +663,13 @@ async function runMemoryEvaluation(options) {
       sourceLockHash: inputs.sourceLockHash,
       taskInputs: taskInputs(resolvedTasks),
       memoryIndexHash: indexHash,
+      ...(graphLockHash
+        ? {
+            graphLockPath: options.graphLockPath,
+            graphLockHash,
+            graphBaseUrl: options.graphBaseUrl,
+          }
+        : {}),
       ...(sourceResolution.sourceRepositoryRoot
         ? {
             sourceRepositoryRoot: sourceResolution.sourceRepositoryRoot,

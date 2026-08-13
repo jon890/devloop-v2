@@ -1,4 +1,5 @@
 const MEMORY_CONDITIONS = ["no-memory", "agent-triggered", "oracle-memory"];
+const EXPERIMENTAL_MEMORY_CONDITIONS = ["memory-graph"];
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -44,6 +45,15 @@ function memoryInformationFor(condition, { oracleMemory = null } = {}) {
   };
 }
 
+function graphMemoryInformation({ oracleMemory, graphContext }) {
+  return {
+    mode: "provided-oracle-graph",
+    instruction: "Use only the provided Memory context and Graph context for this condition; do not run additional Memory or Graph searches.",
+    memory: oracleMemory,
+    graphContext,
+  };
+}
+
 function buildMemoryConditionInputs({ task, oracleMemory = null }) {
   const shared = baseInput(task);
   return MEMORY_CONDITIONS.map((condition) => ({
@@ -51,6 +61,17 @@ function buildMemoryConditionInputs({ task, oracleMemory = null }) {
     condition,
     memoryInformation: memoryInformationFor(condition, { oracleMemory }),
   }));
+}
+
+function buildExperimentalMemoryConditionInput({ task, condition, oracleMemory = null, graphContext = null }) {
+  if (!EXPERIMENTAL_MEMORY_CONDITIONS.includes(condition)) {
+    throw new Error(`unsupported experimental memory condition: ${condition}`);
+  }
+  return {
+    ...clone(baseInput(task)),
+    condition,
+    memoryInformation: graphMemoryInformation({ oracleMemory, graphContext }),
+  };
 }
 
 function assertOnlyMemoryInformationDiffers(inputs) {
@@ -67,4 +88,4 @@ function assertOnlyMemoryInformationDiffers(inputs) {
   return true;
 }
 
-export { MEMORY_CONDITIONS, assertOnlyMemoryInformationDiffers, buildMemoryConditionInputs, memoryInformationFor };
+export { EXPERIMENTAL_MEMORY_CONDITIONS, MEMORY_CONDITIONS, assertOnlyMemoryInformationDiffers, buildExperimentalMemoryConditionInput, buildMemoryConditionInputs, memoryInformationFor };
