@@ -1,7 +1,7 @@
 # Phase 02 — 세 retrieval adapter를 격리 구현한다
 
 **Execution profile**: deep
-**Status**: pending
+**Status**: not-triggered
 
 ---
 
@@ -78,3 +78,9 @@ git diff --check
 ## Blocked 조건
 
 - Phase 01의 실제 miss가 0건이면 adapter 파일을 만들지 않고 `PHASE_NOT_TRIGGERED: lexical miss 0`으로 보고한다.
+
+## 실행 결과
+
+`PHASE_NOT_TRIGGERED: lexical miss 0`
+
+Phase 01의 source-locked 실측이 miss 0건을 확정했으므로 adapter, 비교 runner, 신규 dependency를 만들지 않았다.

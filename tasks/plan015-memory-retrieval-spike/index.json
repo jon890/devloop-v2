@@ -1,7 +1,7 @@
 {
   "name": "plan015-memory-retrieval-spike",
   "description": "실제 lexical miss에서만 Node lexical, SQLite FTS, embedding hybrid를 같은 corpus로 비교한다",
-  "status": "pending",
+  "status": "in_progress",
   "created_at": "2026-08-12",
   "total_phases": 3,
   "phases": [
@@ -10,14 +10,14 @@
       "file": "phase-01.md",
       "title": "utility 평가의 실제 lexical miss를 고정한다",
       "execution_profile": "standard",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "number": 2,
       "file": "phase-02.md",
       "title": "세 retrieval adapter를 격리 구현한다",
       "execution_profile": "deep",
-      "status": "pending"
+      "status": "not-triggered"
     },
     {
       "number": 3,

@@ -1,7 +1,7 @@
 # Phase 01 — utility 평가의 실제 lexical miss를 고정한다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 
@@ -76,3 +76,12 @@ miss가 0건이면 마지막 unique count는 0이 정상이며 private query loc
 
 - plan014 raw run과 공개 report의 miss count·observation complete·lock hash가 다르면 `PHASE_BLOCKED: lexical miss 근거 불일치`로 종료한다.
 - plan014 Memory index의 current pointer·wiki generation·index hash가 private observation과 다르면 `PHASE_BLOCKED: retrieval corpus 변경`으로 종료한다.
+
+## 실행 결과
+
+- Plan014 raw 36개와 공개 report, private miss lock의 hash를 교차 검증했다.
+- `missCount=0`, `retrievalObservationComplete=true`, private lock hash 일치를 확인했다.
+- 검색이 실행된 attempt가 없어 query·corpus 세부를 추정하지 않고 빈 miss lock을 결정적으로 생성했다.
+- 실행 형태는 `BOUNDED`, 실제 구현은 team-lead 직접 수행했으며 승격은 없었다.
+- targeted test 3개와 실제 ignored handoff 생성, 세 `jq` 검증을 통과했다.
+- 신규 회고, pre-existing 문제, 신규 deprecation, 미검증, 범위 외 발견은 없다.
