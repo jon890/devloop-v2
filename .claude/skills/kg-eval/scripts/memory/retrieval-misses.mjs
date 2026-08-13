@@ -42,13 +42,13 @@ function memoryCallCount(attempt) {
   return attempt.agentMemoryCalls ?? attempt.memoryCalls ?? 0;
 }
 
-function validateObservation(observation, runMemoryIndexHash) {
+function validateObservation(observation, runMemoryIndexHash, expectedSourceRunKey) {
   if (!isPlainObject(observation)) throw new Error("PHASE_BLOCKED: lexical miss 근거 불일치: invalid observation");
   for (const field of ["sourceRunKey", "query", "topK", "requiredMemoryIds", "retrievedMemoryIds", "memoryIndexHash", "outcome"]) {
     if (!(field in observation)) throw new Error(`PHASE_BLOCKED: lexical miss 근거 불일치: observation.${field} missing`);
   }
-  if (typeof observation.sourceRunKey !== "string" || observation.sourceRunKey.length === 0) {
-    throw new Error("PHASE_BLOCKED: lexical miss 근거 불일치: sourceRunKey invalid");
+  if (observation.sourceRunKey !== expectedSourceRunKey || !/^[^:]+:[^:]+:[1-9]\d*$/.test(observation.sourceRunKey)) {
+    throw new Error("PHASE_BLOCKED: lexical miss 근거 불일치: sourceRunKey mismatch");
   }
   if (typeof observation.query !== "string" || observation.query.trim().length === 0) {
     throw new Error("PHASE_BLOCKED: lexical miss 근거 불일치: query invalid");
@@ -114,7 +114,7 @@ function buildRetrievalMissLock({ run, utilityReport, privateMissLock, privateMi
       throw new Error(`PHASE_BLOCKED: lexical miss 근거 불일치: unobserved ${attemptKey(attempt)}`);
     }
     for (const observation of observations) {
-      validateObservation(observation, run.memoryIndexHash);
+      validateObservation(observation, run.memoryIndexHash, attemptKey(attempt));
       if (observation.outcome === "unobserved") {
         throw new Error(`PHASE_BLOCKED: lexical miss 근거 불일치: unobserved ${attemptKey(attempt)}`);
       }

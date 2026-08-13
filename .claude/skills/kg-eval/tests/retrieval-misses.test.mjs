@@ -7,7 +7,7 @@ const HASH = `sha256:${"a".repeat(64)}`;
 
 function fixture({ searched = false, outcome = "hit" } = {}) {
   const observation = {
-    sourceRunKey: "fixture",
+    sourceRunKey: "MEM-EXP-001:agent-triggered:1",
     query: "private query",
     topK: 10,
     requiredMemoryIds: ["mem-required"],
@@ -70,4 +70,8 @@ test("fails closed for missing observations, public count drift, and private loc
   const hash = fixture();
   hash.utilityReport.privateMissLockHash = "0".repeat(64);
   assert.throws(() => buildRetrievalMissLock(hash), /private lock hash mismatch/);
+
+  const sourceKey = fixture({ searched: true, outcome: "miss" });
+  sourceKey.run.attempts[0].retrievalObservations[0].sourceRunKey = "MEM-EXP-002:agent-triggered:1";
+  assert.throws(() => buildRetrievalMissLock(sourceKey), /sourceRunKey mismatch/);
 });
