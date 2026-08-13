@@ -155,6 +155,7 @@ async function releaseRunLock(lock) {
 }
 
 function newMemoryRun(conditions) {
+  const sourceRepositoryResolution = canonicalSourceRepositoryResolution(conditions);
   return {
     schemaVersion: MEMORY_RUN_SCHEMA_VERSION,
     suitePath: conditions.suitePath,
@@ -163,6 +164,7 @@ function newMemoryRun(conditions) {
     sourceLockHash: conditions.sourceLockHash,
     taskInputs: canonicalTaskInputs(conditions.taskInputs),
     memoryIndexHash: conditions.memoryIndexHash,
+    ...(sourceRepositoryResolution ? sourceRepositoryResolution : {}),
     executionPlan: canonicalExecutionPlan(conditions.executionPlan),
     agent: conditions.agent,
     agentOptions: canonicalAgentOptions(conditions.agentOptions),
@@ -203,13 +205,73 @@ function canonicalTaskInputs(taskInputs) {
     .sort((left, right) => left.taskId.localeCompare(right.taskId));
 }
 
+function canonicalSourceRepositoryResolution(run) {
+  if (run.sourceRepositoryRoot === undefined && run.resolvedRepositories === undefined) return null;
+  if (!hasText(run.sourceRepositoryRoot)) {
+    throw new Error("sourceRepositoryRoot: required non-empty string when source repository resolution is present");
+  }
+  if (!path.isAbsolute(run.sourceRepositoryRoot)) {
+    throw new Error("sourceRepositoryRoot: must be an absolute path");
+  }
+  if (!Array.isArray(run.resolvedRepositories) || run.resolvedRepositories.length === 0) {
+    throw new Error("resolvedRepositories: required non-empty array when sourceRepositoryRoot is present");
+  }
+  const taskIds = new Set();
+  const resolvedRepositories = run.resolvedRepositories
+    .map((resolution, index) => {
+      if (resolution === null || typeof resolution !== "object" || Array.isArray(resolution)) {
+        throw new Error(`resolvedRepositories[${index}]: required object`);
+      }
+      for (const field of ["taskId", "originalRepositoryPath", "originalRepositoryBasename", "sourceRepositoryRoot", "resolvedRepositoryPath", "baseRevision", "targetRevision"]) {
+        if (!hasText(resolution[field])) {
+          throw new Error(`resolvedRepositories[${index}].${field}: required non-empty string`);
+        }
+      }
+      if (taskIds.has(resolution.taskId)) {
+        throw new Error(`resolvedRepositories[${index}].taskId: must be unique`);
+      }
+      taskIds.add(resolution.taskId);
+      for (const field of ["originalRepositoryPath", "sourceRepositoryRoot", "resolvedRepositoryPath"]) {
+        if (!path.isAbsolute(resolution[field])) {
+          throw new Error(`resolvedRepositories[${index}].${field}: must be an absolute path`);
+        }
+      }
+      if (resolution.sourceRepositoryRoot !== run.sourceRepositoryRoot) {
+        throw new Error(`resolvedRepositories[${index}].sourceRepositoryRoot: must match sourceRepositoryRoot`);
+      }
+      if (path.basename(resolution.originalRepositoryPath) !== resolution.originalRepositoryBasename) {
+        throw new Error(`resolvedRepositories[${index}].originalRepositoryBasename: must match originalRepositoryPath basename`);
+      }
+      if (path.basename(resolution.resolvedRepositoryPath) !== resolution.originalRepositoryBasename) {
+        throw new Error(`resolvedRepositories[${index}].resolvedRepositoryPath: basename must match originalRepositoryBasename`);
+      }
+      return {
+        taskId: resolution.taskId,
+        originalRepositoryPath: resolution.originalRepositoryPath,
+        originalRepositoryBasename: resolution.originalRepositoryBasename,
+        sourceRepositoryRoot: resolution.sourceRepositoryRoot,
+        resolvedRepositoryPath: resolution.resolvedRepositoryPath,
+        baseRevision: resolution.baseRevision,
+        targetRevision: resolution.targetRevision,
+      };
+    })
+    .sort((left, right) => left.taskId.localeCompare(right.taskId));
+  return {
+    sourceRepositoryRoot: run.sourceRepositoryRoot,
+    resolvedRepositories,
+  };
+}
+
 function comparableRunFields(run) {
+  const sourceRepositoryResolution = canonicalSourceRepositoryResolution(run);
   return {
     schemaVersion: run.schemaVersion,
     suiteHash: run.suiteHash,
     sourceLockHash: run.sourceLockHash,
     taskInputs: canonicalTaskInputs(run.taskInputs),
     memoryIndexHash: run.memoryIndexHash,
+    sourceRepositoryRoot: sourceRepositoryResolution?.sourceRepositoryRoot ?? null,
+    resolvedRepositories: sourceRepositoryResolution?.resolvedRepositories ?? null,
     executionPlan: canonicalExecutionPlan(run.executionPlan),
     agent: run.agent,
     agentOptions: canonicalAgentOptions(run.agentOptions),

@@ -10,6 +10,7 @@ import { normalizeAgentTelemetryJsonl, parseJsonl } from "./memory/telemetry.mjs
 import { judgeMemoryAttempt } from "./memory/judge.mjs";
 import { canonicalExecutionPlan, withMemoryRun } from "./memory/result.mjs";
 import { retrievalObservations } from "./memory/retrieval-observation.mjs";
+import { resolveSourceRepositoryRoot } from "./memory/source-repository-root.mjs";
 import { cleanupActiveWorkspaceRoot, cleanupLegacyWorkspaceRoot, diffHash, materializeMemoryWorkspace, prepareActiveWorkspaceRoot, writeDiff } from "./memory/workspace.mjs";
 
 const DEFAULT_DATA_DIR = "apps/pipeline/data";
@@ -22,6 +23,8 @@ function usage() {
 Options:
   --out <path>                 Raw run JSON path (default: ${DEFAULT_OUT})
   --data-dir <path>            Memory data dir (default: ${DEFAULT_DATA_DIR})
+  --source-repository-root <path>
+                               Opt-in root for resolving originalRepositoryPath basenames before Agent execution
   --agent <codex|claude>       Agent to execute
   --model <name>               Agent subscription model
   --effort <effort>            Agent effort option
@@ -44,6 +47,7 @@ function parseArgs(argv) {
     "--source-lock",
     "--out",
     "--data-dir",
+    "--source-repository-root",
     "--agent",
     "--model",
     "--effort",
@@ -91,6 +95,7 @@ function parseArgs(argv) {
     sourceLockPath: args["source-lock"],
     outPath: args.out ?? DEFAULT_OUT,
     dataDir: args["data-dir"] ?? DEFAULT_DATA_DIR,
+    sourceRepositoryRoot: args["source-repository-root"],
     agent: args.agent,
     agentOptions: {
       model: args.model,
@@ -532,13 +537,19 @@ async function runMemoryEvaluation(options) {
   const inputs = await loadMemoryEvaluationInputs({ suitePath: options.suitePath, sourceLockPath: options.sourceLockPath });
   const indexHash = await memoryIndexHash(options.dataDir, inputs.suite.project);
   const tasks = selectedTasks(inputs.suite, inputs.sourceLock, options.taskIds);
-  const plannedAttempts = tasks.length * options.conditions.length * options.repeats;
+  const sourceResolution = await resolveSourceRepositoryRoot({
+    sourceRepositoryRoot: options.sourceRepositoryRoot,
+    tasks: tasks.map(({ sourceTask }) => sourceTask),
+  });
+  const resolvedSourceTasks = new Map(sourceResolution.tasks.map((sourceTask) => [sourceTask.taskId, sourceTask]));
+  const resolvedTasks = tasks.map(({ publicTask, sourceTask }) => ({ publicTask, sourceTask: resolvedSourceTasks.get(sourceTask.taskId) ?? sourceTask }));
+  const plannedAttempts = resolvedTasks.length * options.conditions.length * options.repeats;
   const summary = {
     schemaVersion: "memory-eval-runner/v1",
     suiteHash: inputs.suiteHash,
     sourceLockHash: inputs.sourceLockHash,
     memoryIndexHash: indexHash,
-    taskCount: tasks.length,
+    taskCount: resolvedTasks.length,
     plannedAttempts,
   };
   if (options.dryRun) return { ...summary, dryRun: true };
@@ -555,8 +566,14 @@ async function runMemoryEvaluation(options) {
       sourceLockPath: options.sourceLockPath,
       suiteHash: inputs.suiteHash,
       sourceLockHash: inputs.sourceLockHash,
-      taskInputs: taskInputs(tasks),
+      taskInputs: taskInputs(resolvedTasks),
       memoryIndexHash: indexHash,
+      ...(sourceResolution.sourceRepositoryRoot
+        ? {
+            sourceRepositoryRoot: sourceResolution.sourceRepositoryRoot,
+            resolvedRepositories: sourceResolution.resolvedRepositories,
+          }
+        : {}),
       executionPlan: executionPlanFromOptions(options),
       agent: options.agent,
       agentOptions: options.agentOptions,
@@ -564,7 +581,7 @@ async function runMemoryEvaluation(options) {
     async ({ run, appendAttempt, appendAvailabilityFailure }) => {
       storedRun = run;
       const existingKeys = new Set(run.attempts.map((attempt) => `${attempt.taskId}:${attempt.condition}:${attempt.repetition}`));
-      const schedule = buildAttemptSchedule({ tasks, conditions: options.conditions, repeats: options.repeats, schedule: options.schedule });
+      const schedule = buildAttemptSchedule({ tasks: resolvedTasks, conditions: options.conditions, repeats: options.repeats, schedule: options.schedule });
       for (const { task, condition, repetition } of schedule) {
         const { publicTask, sourceTask } = task;
         const key = `${sourceTask.taskId}:${condition}:${repetition}`;
@@ -590,7 +607,7 @@ async function runMemoryEvaluation(options) {
     },
   );
   if (storedRun && (storedRun.availabilityFailures?.length ?? 0) === 0) {
-    assertAcceptedAttempts({ attempts: storedRun.attempts, selected: tasks, conditions: options.conditions, repeats: options.repeats, requireExpectedTrigger: options.requireExpectedTrigger });
+    assertAcceptedAttempts({ attempts: storedRun.attempts, selected: resolvedTasks, conditions: options.conditions, repeats: options.repeats, requireExpectedTrigger: options.requireExpectedTrigger });
   }
   return { ...summary, completedAttempts: completed, availabilityFailures: storedRun?.availabilityFailures?.length ?? 0, outPath: options.outPath };
 }

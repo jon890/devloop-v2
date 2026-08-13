@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { access, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { access, cp, mkdir, mkdtemp, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -90,6 +90,7 @@ async function makeFixture() {
     taskId: task.id,
     sourceLockKey: task.sourceLockKey,
     repositoryPath: sourceRepo.repoPath,
+    originalRepositoryPath: path.join(root, "original", path.basename(sourceRepo.repoPath)),
     sourceUrl: `https://github.example.internal/team/repo/commit/${sourceRepo.targetRevision}`,
     baseRevision: sourceRepo.baseRevision,
     targetRevision: sourceRepo.targetRevision,
@@ -114,6 +115,8 @@ test("parses help, dry-run, and bounded execution options", () => {
     "codex",
     "--tasks",
     "A,B",
+    "--source-repository-root",
+    "/source/root",
     "--conditions",
     "agent-triggered",
     "--repeats",
@@ -124,6 +127,7 @@ test("parses help, dry-run, and bounded execution options", () => {
   ]);
   assert.equal(parsed.agent, "codex");
   assert.deepEqual(parsed.taskIds, ["A", "B"]);
+  assert.equal(parsed.sourceRepositoryRoot, "/source/root");
   assert.deepEqual(parsed.conditions, ["agent-triggered"]);
   assert.equal(parsed.repeats, 2);
   assert.equal(parsed.schedule, "interleaved");
@@ -620,6 +624,61 @@ test("resumed memory run rejects changed agent options but accepts canonical nul
     await assert.rejects(
       () => runMemoryEvaluation({ ...baseOptions, agentOptions: { ...baseOptions.agentOptions, permissionMode: "workspace-write" } }),
       /conditions differ: agentOptions/,
+    );
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("source repository root resolution is recorded and locked across resume", async () => {
+  const fixture = await makeFixture();
+  try {
+    const outPath = path.join(fixture.root, "source-root-run.json");
+    const baseOptions = {
+      suitePath: fixture.suitePath,
+      sourceLockPath: fixture.sourceLockPath,
+      dataDir: fixture.dataDir,
+      outPath,
+      sourceRepositoryRoot: fixture.root,
+      agent: "codex",
+      agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+      taskIds: ["MEM-CODE-001"],
+      conditions: ["agent-triggered"],
+      repeats: 1,
+      timeoutMs: 1000,
+      runAgentFn: async ({ cwd }) => {
+        await writeFile(path.join(cwd, "service.txt"), "changed\n");
+        return { status: 0, signal: null, timedOut: false, outputOverflow: null, stdout: JSON.stringify({ type: "turn.completed" }), stderr: "" };
+      },
+    };
+
+    await runMemoryEvaluation(baseOptions);
+    const stored = JSON.parse(await readFile(outPath, "utf8"));
+    assert.equal(stored.sourceRepositoryRoot, await realpath(fixture.root));
+    assert.equal(stored.resolvedRepositories.length, 1);
+    assert.equal(stored.resolvedRepositories[0].resolvedRepositoryPath, await realpath(fixture.sourceRepo.repoPath));
+
+    const resumed = await runMemoryEvaluation({
+      ...baseOptions,
+      runAgentFn: async () => {
+        throw new Error("same sourceRepositoryRoot should resume without executing");
+      },
+    });
+    assert.equal(resumed.completedAttempts, 0);
+
+    const alternateRoot = path.join(fixture.root, "alternate-root");
+    await mkdir(alternateRoot, { recursive: true });
+    await cp(fixture.sourceRepo.repoPath, path.join(alternateRoot, path.basename(fixture.sourceRepo.repoPath)), { recursive: true });
+    await assert.rejects(
+      () =>
+        runMemoryEvaluation({
+          ...baseOptions,
+          sourceRepositoryRoot: alternateRoot,
+          runAgentFn: async () => {
+            throw new Error("changed sourceRepositoryRoot must stop before Agent execution");
+          },
+        }),
+      /conditions differ: sourceRepositoryRoot/,
     );
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
