@@ -85,7 +85,9 @@ function apiUrl(baseUrl, pathname, params = {}) {
 async function fetchJson(fetchFn, url) {
   const response = await fetchFn(url);
   if (!response.ok) {
-    throw new Error(`${url.href}: HTTP ${response.status} ${await response.text()}`);
+    const error = new Error(`Graph HTTP ${response.status}`);
+    error.safeCode = `GRAPH_HTTP_${response.status}`;
+    throw error;
   }
   return response.json();
 }
@@ -145,18 +147,24 @@ async function buildGraphContext({ graphLockPath, graphBaseUrl, taskId, fetchFn 
     const stats = validateStats(await timedFetchJson(fetchFn, apiUrl(graphBaseUrl, "/api/graph/stats"), metrics));
     const graphStatsHash = `sha256:${canonicalHash(stats)}`;
     if (graphStatsHash !== graphLock.graphStatsHash) {
-      throw new Error(`Graph stats hash changed: ${graphStatsHash} !== ${graphLock.graphStatsHash}`);
+      const error = new Error(`Graph stats hash changed: ${graphStatsHash} !== ${graphLock.graphStatsHash}`);
+      error.safeCode = "GRAPH_STATS_HASH_CHANGED";
+      throw error;
     }
     const { matched, page } = await resolveExactSample({ fetchFn, graphBaseUrl, label: task.label, key: task.key, metrics });
     if (matched.id !== task.resolvedElementId) {
-      throw new Error(`Graph anchor elementId changed for ${taskId}: ${matched.id} !== ${task.resolvedElementId}`);
+      const error = new Error(`Graph anchor elementId changed for ${taskId}: ${matched.id} !== ${task.resolvedElementId}`);
+      error.safeCode = "GRAPH_ANCHOR_CHANGED";
+      throw error;
     }
     const neighbors = validateEvidence(
       await timedFetchJson(fetchFn, apiUrl(graphBaseUrl, `/api/graph/nodes/${encodeURIComponent(matched.id)}/neighbors`, { depth: task.depth }), metrics),
       "neighbors",
     );
     if (!neighbors.relationships.some((relationship) => relationship.type === task.requiredRelationshipType)) {
-      throw new Error(`Graph anchor is missing required relationship ${task.requiredRelationshipType}`);
+      const error = new Error(`Graph anchor is missing required relationship ${task.requiredRelationshipType}`);
+      error.safeCode = "GRAPH_RELATIONSHIP_MISSING";
+      throw error;
     }
     return {
       context: graphPromptContext({ lockTask: task, neighbors }),

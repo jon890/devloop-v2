@@ -6,7 +6,7 @@ import path from "node:path";
 import test from "node:test";
 import { canonicalHash } from "../scripts/memory/suite.mjs";
 import { buildGraphContext } from "../scripts/memory/graph-context.mjs";
-import { graphEvidenceUsed } from "../scripts/memory/graph-evidence.mjs";
+import { graphEvidenceUsed, hasExactToken } from "../scripts/memory/graph-evidence.mjs";
 import { buildMemoryConditionInputs, EXPERIMENTAL_MEMORY_CONDITIONS, MEMORY_CONDITIONS } from "../scripts/memory/condition.mjs";
 import { parseArgs, runMemoryEvaluation } from "../scripts/run-memory.mjs";
 
@@ -160,7 +160,10 @@ test("baseline MEMORY_CONDITIONS stay unchanged and memory-graph is experimental
 test("parseArgs requires graph lock and base URL for memory-graph only", () => {
   assert.throws(() => parseArgs(["--suite", "s", "--source-lock", "l", "--conditions", "memory-graph"]), /--graph-lock and --graph-base-url/);
   assert.throws(() => parseArgs(["--suite", "s", "--source-lock", "l", "--graph-lock", "g", "--graph-base-url", "u"]), /only supported/);
-  const parsed = parseArgs(["--suite", "s", "--source-lock", "l", "--conditions", "memory-graph", "--graph-lock", "g", "--graph-base-url", "http://graph"]);
+  assert.throws(() => parseArgs(["--suite", "s", "--source-lock", "l", "--conditions", "memory-graph", "--graph-lock", "g", "--graph-base-url", "http://graph", "--agent", "claude", "--model", "gpt-5.6-luna", "--effort", "low"]), /agent=codex/);
+  assert.throws(() => parseArgs(["--suite", "s", "--source-lock", "l", "--conditions", "memory-graph", "--graph-lock", "g", "--graph-base-url", "http://graph", "--agent", "codex", "--model", "gpt-5.6-terra", "--effort", "low"]), /model=gpt-5.6-luna/);
+  assert.throws(() => parseArgs(["--suite", "s", "--source-lock", "l", "--conditions", "memory-graph", "--graph-lock", "g", "--graph-base-url", "http://graph", "--agent", "codex", "--model", "gpt-5.6-luna", "--effort", "medium"]), /effort=low/);
+  const parsed = parseArgs(["--suite", "s", "--source-lock", "l", "--conditions", "memory-graph", "--graph-lock", "g", "--graph-base-url", "http://graph", "--agent", "codex", "--model", "gpt-5.6-luna", "--effort", "low"]);
   assert.equal(parsed.graphLockPath, "g");
   assert.equal(parsed.graphBaseUrl, "http://graph");
 });
@@ -179,6 +182,44 @@ test("graph context resolves exact anchor without raw properties and fails on st
     await assert.rejects(() => buildGraphContext({ graphLockPath: lockPath, graphBaseUrl: "http://graph.test", taskId: "MEM-EXP-001", fetchFn: fetchFixture({ staleAnchor: true }) }), /elementId changed/);
   } finally {
     await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("graph context HTTP failures expose only bounded safe code to raw attempts", async () => {
+  const fixture = await makeRunFixture();
+  try {
+    await writeJson(fixture.graphLockPath, graphLock());
+    const outPath = path.join(fixture.root, "http-failure.json");
+    await runMemoryEvaluation({
+      suitePath: fixture.suitePath,
+      sourceLockPath: fixture.sourceLockPath,
+      dataDir: fixture.dataDir,
+      outPath,
+      agent: "codex",
+      agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+      taskIds: ["MEM-EXP-001"],
+      conditions: ["memory-graph"],
+      repeats: 1,
+      timeoutMs: 1000,
+      graphLockPath: fixture.graphLockPath,
+      graphBaseUrl: "http://user:pass@graph.test/private?token=secret",
+      runMemorySearchFn: async () => ({ ok: true, result: { status: 0 }, memory: { results: [{ id: "m1", sourceRefs: [{ url: "https://source.example.invalid/m1" }] }] } }),
+      buildGraphContextFn: async (args) =>
+        buildGraphContext({
+          ...args,
+          fetchFn: async () => response({ properties: { secret: "body-secret" } }, false, 503),
+        }),
+    });
+    const stored = JSON.parse(await readFile(outPath, "utf8"));
+    const attempt = stored.attempts[0];
+    assert.equal(attempt.failureBoundary, "GRAPH");
+    assert.equal(attempt.graphFailureReason, "GRAPH_HTTP_503");
+    assert.equal(JSON.stringify(attempt).includes("user:pass"), false);
+    assert.equal(JSON.stringify(attempt).includes("token=secret"), false);
+    assert.equal(JSON.stringify(attempt).includes("body-secret"), false);
+    assert.equal(JSON.stringify(attempt).includes("properties"), false);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
   }
 });
 
@@ -226,12 +267,93 @@ test("memory-graph run injects oracle Memory and Graph context with flat telemet
     assert.equal(attempt.graphLatencyMs, 7);
     assert.equal(attempt.oracleMemoryProvided, 1);
     assert.equal(attempt.graphEvidenceUsed, true);
+    assert.equal(attempt.triggerOutcome, "memory_graph_provided");
   } finally {
     await rm(fixture.root, { recursive: true, force: true });
   }
 });
 
-test("graph evidence usage is null without observable event text", () => {
+test("memory-graph trigger outcome distinguishes missing and contaminated graph use", async () => {
+  const fixture = await makeRunFixture();
+  try {
+    const base = {
+      suitePath: fixture.suitePath,
+      sourceLockPath: fixture.sourceLockPath,
+      dataDir: fixture.dataDir,
+      agent: "codex",
+      agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+      taskIds: ["MEM-EXP-001"],
+      conditions: ["memory-graph"],
+      repeats: 1,
+      timeoutMs: 1000,
+      graphLockPath: fixture.graphLockPath,
+      graphBaseUrl: "http://graph.test",
+      runMemorySearchFn: async () => ({ ok: true, result: { status: 0 }, memory: { results: [{ id: "m1", sourceRefs: [{ url: "https://source.example.invalid/m1" }] }] } }),
+    };
+    await runMemoryEvaluation({
+      ...base,
+      outPath: path.join(fixture.root, "missing.json"),
+      buildGraphContextFn: async () => ({
+        context: { source: { key: "LB", label: "Concept", sourceUrl: "https://source.example.invalid/commit/1" }, requiredRelationshipType: "MENTIONS" },
+        evidence: { resolvedElementId: "node-lb" },
+        metrics: { graphContextCalls: 0, graphLatencyMs: 0 },
+      }),
+      runAgentFn: async ({ cwd }) => {
+        await writeFile(path.join(cwd, "service.txt"), "changed\n");
+        return { status: 0, signal: null, timedOut: false, outputOverflow: null, stdout: JSON.stringify({ type: "turn.completed" }), stderr: "" };
+      },
+    });
+    await runMemoryEvaluation({
+      ...base,
+      outPath: path.join(fixture.root, "contaminated.json"),
+      buildGraphContextFn: async () => ({
+        context: { source: { key: "LB", label: "Concept", sourceUrl: "https://source.example.invalid/commit/1" }, requiredRelationshipType: "MENTIONS" },
+        evidence: { resolvedElementId: "node-lb" },
+        metrics: { graphContextCalls: 3, graphLatencyMs: 1 },
+      }),
+      runAgentFn: async ({ cwd }) => {
+        await writeFile(path.join(cwd, "service.txt"), "changed\n");
+        return { status: 0, signal: null, timedOut: false, outputOverflow: null, stdout: JSON.stringify({ type: "item.completed", item: { type: "command_execution", command: "curl http://127.0.0.1:3016/api/graph/stats" } }), stderr: "" };
+      },
+    });
+    const missing = JSON.parse(await readFile(path.join(fixture.root, "missing.json"), "utf8")).attempts[0];
+    const contaminated = JSON.parse(await readFile(path.join(fixture.root, "contaminated.json"), "utf8")).attempts[0];
+    assert.equal(missing.triggerOutcome, "memory_graph_missing");
+    assert.equal(contaminated.triggerOutcome, "memory_graph_contaminated_search");
+    assert.equal(contaminated.agentGraphCalls, 1);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("memory-graph programmatic execution requires codex luna low", async () => {
+  const fixture = await makeRunFixture();
+  try {
+    const base = {
+      suitePath: fixture.suitePath,
+      sourceLockPath: fixture.sourceLockPath,
+      dataDir: fixture.dataDir,
+      outPath: path.join(fixture.root, "guard.json"),
+      taskIds: ["MEM-EXP-001"],
+      conditions: ["memory-graph"],
+      repeats: 1,
+      graphLockPath: fixture.graphLockPath,
+      graphBaseUrl: "http://graph.test",
+      dryRun: true,
+    };
+    await assert.rejects(() => runMemoryEvaluation({ ...base, agent: "claude", agentOptions: { model: "gpt-5.6-luna", effort: "low" } }), /agent=codex/);
+    await assert.rejects(() => runMemoryEvaluation({ ...base, agent: "codex", agentOptions: { model: "gpt-5.6-terra", effort: "low" } }), /model=gpt-5.6-luna/);
+    await assert.rejects(() => runMemoryEvaluation({ ...base, agent: "codex", agentOptions: { model: "gpt-5.6-luna", effort: "medium" } }), /effort=low/);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test("graph evidence usage requires exact token evidence and ignores negated/incidental mentions", () => {
+  assert.equal(hasExactToken("used LB relation", "LB"), true);
+  assert.equal(hasExactToken("used LBLB relation", "LB"), false);
   assert.equal(graphEvidenceUsed({ events: [], graphContext: { source: { key: "LB" }, requiredRelationshipType: "MENTIONS" } }), null);
   assert.equal(graphEvidenceUsed({ events: [{ text: "used mentions relation" }], graphContext: { source: { key: "LB" }, requiredRelationshipType: "MENTIONS" } }), true);
+  assert.equal(graphEvidenceUsed({ events: [{ text: "saw LBLB config only" }], graphContext: { source: { key: "LB" }, requiredRelationshipType: "MENTIONS" } }), null);
+  assert.equal(graphEvidenceUsed({ events: [{ text: "did not use LB or MENTIONS evidence" }], graphContext: { source: { key: "LB" }, requiredRelationshipType: "MENTIONS" } }), null);
 });

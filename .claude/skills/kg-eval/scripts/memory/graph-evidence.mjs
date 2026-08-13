@@ -27,8 +27,30 @@ function eventTexts(events) {
   return texts;
 }
 
-function includesText(haystack, needle) {
-  return String(haystack ?? "").toLocaleLowerCase().includes(String(needle ?? "").toLocaleLowerCase());
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function exactTokenPattern(needle) {
+  const normalized = String(needle ?? "").trim();
+  if (!normalized) return null;
+  return new RegExp(`(^|[^\\p{L}\\p{N}_])${escapeRegExp(normalized)}([^\\p{L}\\p{N}_]|$)`, "iu");
+}
+
+function hasExactToken(text, needle) {
+  const pattern = exactTokenPattern(needle);
+  return pattern ? pattern.test(String(text ?? "")) : false;
+}
+
+function negatesEvidence(text, needles) {
+  const lower = String(text ?? "").toLocaleLowerCase();
+  const negationWords = ["not", "no", "without", "did not", "didn't", "never", "unused", "ignored", "not used", "사용하지", "언급하지"];
+  return needles.some((needle) => {
+    if (!hasExactToken(lower, needle)) return false;
+    const index = lower.search(exactTokenPattern(needle));
+    const prefix = lower.slice(Math.max(0, index - 48), index);
+    return negationWords.some((word) => prefix.includes(word));
+  });
 }
 
 function graphEvidenceUsed({ events, graphContext }) {
@@ -38,7 +60,13 @@ function graphEvidenceUsed({ events, graphContext }) {
   if (!key || !relationship) return null;
   const texts = eventTexts(events);
   if (texts.length === 0) return null;
-  return texts.some((text) => includesText(text, key) || includesText(text, relationship));
+  const needles = [key, relationship];
+  let positive = false;
+  for (const text of texts) {
+    if (negatesEvidence(text, needles)) continue;
+    if (hasExactToken(text, key) || hasExactToken(text, relationship)) positive = true;
+  }
+  return positive ? true : null;
 }
 
-export { eventTexts, graphEvidenceUsed };
+export { eventTexts, graphEvidenceUsed, hasExactToken };

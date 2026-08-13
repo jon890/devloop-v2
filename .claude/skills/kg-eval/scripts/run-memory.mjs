@@ -103,6 +103,12 @@ function parseArgs(argv) {
   if (!conditions.includes("memory-graph") && (args["graph-lock"] || args["graph-base-url"])) {
     throw new Error("--graph-lock and --graph-base-url are only supported with condition memory-graph");
   }
+  if (conditions.includes("memory-graph")) {
+    assertMemoryGraphAgentOptions({
+      agent: args.agent,
+      agentOptions: { model: args.model, effort: args.effort, permissionMode: args["permission-mode"] },
+    });
+  }
   return {
     suitePath: args.suite,
     sourceLockPath: args["source-lock"],
@@ -126,6 +132,12 @@ function parseArgs(argv) {
     requireExpectedTrigger: Boolean(args.requireExpectedTrigger),
     dryRun: Boolean(args.dryRun),
   };
+}
+
+function assertMemoryGraphAgentOptions({ agent, agentOptions = {} }) {
+  if (agent !== "codex") throw new Error("memory-graph requires agent=codex");
+  if (agentOptions.model !== "gpt-5.6-luna") throw new Error("memory-graph requires model=gpt-5.6-luna");
+  if (agentOptions.effort !== "low") throw new Error("memory-graph requires effort=low");
 }
 
 function csv(value) {
@@ -302,6 +314,12 @@ function triggerMismatch(publicTask, attempt) {
 
 function triggerOutcome(publicTask, attempt) {
   const agentMemoryCalls = attempt.agentMemoryCalls ?? attempt.memoryCalls;
+  if (attempt.condition === "memory-graph") {
+    if ((attempt.oracleMemoryProvided ?? 0) !== 1) return "memory_graph_oracle_missing";
+    if ((attempt.graphContextCalls ?? 0) < 1) return "memory_graph_missing";
+    if ((attempt.agentMemoryCalls ?? 0) !== 0 || (attempt.agentGraphCalls ?? 0) !== 0) return "memory_graph_contaminated_search";
+    return "memory_graph_provided";
+  }
   if (attempt.condition === "no-memory") return agentMemoryCalls === 0 ? "expected_skip" : "contaminated_search";
   if (attempt.condition === "oracle-memory") {
     if ((attempt.oracleMemoryProvided ?? 0) !== 1) return "oracle_missing";
@@ -405,7 +423,7 @@ function graphBoundaryAttempt({ sourceTask, condition, repetition, error, metric
     wrongEditCount: 0,
     wrongEditPaths: [],
     graphEvidenceUsed: null,
-    graphFailureReason: error instanceof Error ? error.message : String(error),
+    graphFailureReason: error?.safeCode ?? "GRAPH_CONTEXT_UNAVAILABLE",
   };
 }
 
@@ -607,7 +625,7 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
       agentMemoryCalls,
       oracleMemoryProvided,
       ...contamination,
-      triggerOutcome: triggerOutcome(options.publicTask, { condition, memoryCalls: telemetry.memoryCalls, agentMemoryCalls, oracleMemoryProvided }),
+      triggerOutcome: triggerOutcome(options.publicTask, { condition, memoryCalls: telemetry.memoryCalls, agentMemoryCalls, oracleMemoryProvided, graphContextCalls, agentGraphCalls }),
       ...(condition === "agent-triggered" ? { retrievalObservations: observedRetrievals } : {}),
       ...(condition === "memory-graph"
         ? {
@@ -626,6 +644,9 @@ async function runMemoryEvaluation(options) {
   if (!options.agent && !options.dryRun) throw new Error("--agent is required unless --dry-run is used");
   if (options.conditions.includes("memory-graph") && (!options.graphLockPath || !options.graphBaseUrl)) {
     throw new Error("graphLockPath and graphBaseUrl are required for condition memory-graph");
+  }
+  if (options.conditions.includes("memory-graph")) {
+    assertMemoryGraphAgentOptions({ agent: options.agent, agentOptions: options.agentOptions });
   }
   const inputs = await loadMemoryEvaluationInputs({ suitePath: options.suitePath, sourceLockPath: options.sourceLockPath });
   const indexHash = await memoryIndexHash(options.dataDir, inputs.suite.project);
@@ -743,6 +764,7 @@ export {
   memorySearchCommand,
   parseArgs,
   runMemoryEvaluation,
+  assertMemoryGraphAgentOptions,
   usableMemorySearchResult,
   usage,
 };
