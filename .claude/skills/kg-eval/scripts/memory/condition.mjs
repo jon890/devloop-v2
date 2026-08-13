@@ -11,10 +11,13 @@ function requireTaskField(task, field) {
 }
 
 function baseInput(task) {
+  const baseRevision = requireTaskField(task, "baseRevision");
   return {
     taskId: requireTaskField(task, "taskId"),
     prompt: requireTaskField(task, "prompt"),
-    revision: requireTaskField(task, "baseRevision"),
+    baseRevision,
+    revision: baseRevision,
+    allowedPaths: requireTaskField(task, "allowedPaths"),
     validationCommand: requireTaskField(task, "validationCommand"),
   };
 }
@@ -58,7 +61,7 @@ function assertOnlyMemoryInformationDiffers(inputs) {
   for (const input of inputs) {
     const comparable = JSON.stringify({ ...input, condition: undefined, memoryInformation: undefined });
     if (comparable !== baseline) {
-      throw new Error("memory conditions must share task prompt, revision, and validation command");
+      throw new Error("memory conditions must share task prompt, base revision, allowed paths, and validation command");
     }
   }
   return true;

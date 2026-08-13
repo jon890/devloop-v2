@@ -34,6 +34,14 @@ function runConditions({ suitePath, sourceLockPath, sourceRepo }) {
       { taskId: "MEM-CODE-001", baseRevision: sourceRepo.baseRevision, validationCommand: ["node", "--version"] },
     ],
     memoryIndexHash: "memory-index-hash",
+    executionPlan: {
+      conditions: ["agent-triggered"],
+      repeats: 1,
+      schedule: "default",
+      requireExpectedTrigger: false,
+      timeoutMs: 600000,
+      maxOutputBytes: null,
+    },
     agent: "codex",
     agentOptions: { model: "gpt-5.6-luna", effort: "low" },
   };
@@ -249,12 +257,12 @@ test("rejects unsafe run keys before workspace deletion", async () => {
   });
 });
 
-test("stores memory results atomically and resumes only with matching conditions", async () => {
+test("stores memory results append-only and resumes only with matching conditions", async () => {
   await withFixture(async ({ root, sourceRepo, suitePath, sourceLockPath }) => {
     const outPath = path.join(root, "run.json");
     const conditions = runConditions({ suitePath, sourceLockPath, sourceRepo });
-    await withMemoryRun(outPath, conditions, async ({ upsert }) => {
-      await upsert({
+    await withMemoryRun(outPath, conditions, async ({ appendAttempt }) => {
+      await appendAttempt({
         taskId: "MEM-CODE-001",
         condition: "without-memory",
         repetition: 1,
@@ -262,18 +270,22 @@ test("stores memory results atomically and resumes only with matching conditions
         wrongEditCount: 1,
         reworkCount: 0,
       });
-      await upsert({
-        taskId: "MEM-CODE-001",
-        condition: "without-memory",
-        repetition: 1,
-        taskSuccess: true,
-        wrongEditCount: 0,
-        reworkCount: 1,
-      });
+      await assert.rejects(
+        () =>
+          appendAttempt({
+            taskId: "MEM-CODE-001",
+            condition: "without-memory",
+            repetition: 1,
+            taskSuccess: true,
+            wrongEditCount: 0,
+            reworkCount: 1,
+          }),
+        /duplicate attempt key MEM-CODE-001:without-memory:1/,
+      );
     });
     const stored = JSON.parse(await readFile(outPath, "utf8"));
     assert.equal(stored.attempts.length, 1);
-    assert.equal(stored.attempts[0].taskSuccess, true);
+    assert.equal(stored.attempts[0].taskSuccess, false);
     assert.equal(stored.agent, "codex");
     assert.deepEqual(stored.agentOptions, { model: "gpt-5.6-luna", effort: "low", permissionMode: null });
 
@@ -356,6 +368,7 @@ test("rejects invalid existing attempts and duplicate attempt keys", async () =>
       sourceLockHash: conditions.sourceLockHash,
       taskInputs: conditions.taskInputs,
       memoryIndexHash: conditions.memoryIndexHash,
+      executionPlan: conditions.executionPlan,
       agent: conditions.agent,
       agentOptions: { model: "gpt-5.6-luna", effort: "low", permissionMode: null },
       startedAt: new Date().toISOString(),
@@ -376,5 +389,62 @@ test("rejects invalid existing attempts and duplicate attempt keys", async () =>
       ],
     });
     await assert.rejects(() => loadOrCreateMemoryRun(outPath, conditions), /duplicate attempt key MEM-CODE-001:without-memory:1/);
+  });
+});
+
+test("rejects legacy raw runs without executionPlan before resume", async () => {
+  await withFixture(async ({ root, sourceRepo, suitePath, sourceLockPath }) => {
+    const outPath = path.join(root, "legacy-no-plan.json");
+    const conditions = runConditions({ suitePath, sourceLockPath, sourceRepo });
+    await writeJson(outPath, {
+      schemaVersion: "memory-eval-run/v1",
+      suitePath,
+      sourceLockPath,
+      suiteHash: conditions.suiteHash,
+      sourceLockHash: conditions.sourceLockHash,
+      taskInputs: conditions.taskInputs,
+      memoryIndexHash: conditions.memoryIndexHash,
+      agent: conditions.agent,
+      agentOptions: { model: "gpt-5.6-luna", effort: "low", permissionMode: null },
+      startedAt: new Date().toISOString(),
+      attempts: [],
+    });
+    await assert.rejects(() => loadOrCreateMemoryRun(outPath, conditions), /executionPlan must be an object/);
+  });
+});
+
+test("stores availability failures with the exact non-consuming contract", async () => {
+  await withFixture(async ({ root, sourceRepo, suitePath, sourceLockPath }) => {
+    const outPath = path.join(root, "availability-run.json");
+    const conditions = runConditions({ suitePath, sourceLockPath, sourceRepo });
+    await withMemoryRun(outPath, conditions, async ({ appendAvailabilityFailure }) => {
+      await appendAvailabilityFailure({
+        taskId: "MEM-CODE-001",
+        condition: "agent-triggered",
+        repetition: 1,
+        normalizedCode: "agent_spawn_failed",
+      });
+      await assert.rejects(
+        () =>
+          appendAvailabilityFailure({
+            taskId: "MEM-CODE-001",
+            condition: "agent-triggered",
+            repetition: 1,
+            normalizedCode: "usage_limit_exceeded",
+            message: "not allowed",
+          }),
+        /must contain exactly taskId, condition, repetition, normalizedCode/,
+      );
+    });
+    const stored = JSON.parse(await readFile(outPath, "utf8"));
+    assert.deepEqual(stored.availabilityFailures, [
+      {
+        taskId: "MEM-CODE-001",
+        condition: "agent-triggered",
+        repetition: 1,
+        normalizedCode: "agent_spawn_failed",
+      },
+    ]);
+    assert.deepEqual(stored.attempts, []);
   });
 });

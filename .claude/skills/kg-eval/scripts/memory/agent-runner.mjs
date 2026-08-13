@@ -6,6 +6,7 @@ const DEFAULT_KILL_GRACE_MS = 1_000;
 const DEFAULT_MAX_OUTPUT_BYTES = 1024 * 1024;
 const COMPARABLE_OPTION_KEYS = ["model", "effort", "permissionMode"];
 const IS_WINDOWS = process.platform === "win32";
+const PRE_TOOL_AVAILABILITY_CODES = new Set(["subscription_limit_exceeded", "usage_limit_exceeded", "rate_limit_exceeded"]);
 
 function hasText(value) {
   return typeof value === "string" && value.trim().length > 0;
@@ -177,12 +178,47 @@ async function runAgent({ agent, prompt, cwd, agentOptions = {}, ...processOptio
   return runArgvProcess({ ...invocation, cwd, ...processOptions });
 }
 
+function eventNormalizedCode(event) {
+  const code =
+    event?.normalizedCode ??
+    event?.normalized_code ??
+    event?.error?.normalizedCode ??
+    event?.error?.normalized_code ??
+    event?.error?.code ??
+    event?.code;
+  return typeof code === "string" ? code : null;
+}
+
+function isToolOrCommandEvent(event) {
+  if (event?.item?.type === "command_execution") return true;
+  const content = event?.message?.content ?? event?.content;
+  return Array.isArray(content) && content.some((item) => item?.type === "tool_use");
+}
+
+function structuredPreToolAvailabilityFailure(events) {
+  for (const event of events ?? []) {
+    if (isToolOrCommandEvent(event)) return null;
+    const normalizedCode = eventNormalizedCode(event);
+    if (PRE_TOOL_AVAILABILITY_CODES.has(normalizedCode)) return { normalizedCode };
+  }
+  return null;
+}
+
+function spawnAvailabilityFailure(error) {
+  if (!error || typeof error !== "object") return null;
+  if (["ENOENT", "EACCES", "EPERM"].includes(error.code)) return { normalizedCode: "agent_spawn_failed" };
+  return null;
+}
+
 export {
   AGENTS,
   COMPARABLE_OPTION_KEYS,
+  PRE_TOOL_AVAILABILITY_CODES,
   buildAgentInvocation,
   assertEquivalentAgentOptions,
   comparableAgentOptions,
   runAgent,
   runArgvProcess,
+  spawnAvailabilityFailure,
+  structuredPreToolAvailabilityFailure,
 };

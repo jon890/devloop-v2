@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 function isSafeRunKey(runKey) {
@@ -93,6 +94,49 @@ async function materializeMemoryWorkspace({ source, runKey, runsRoot = "eval/run
   return { workspacePath, baselineCommit };
 }
 
+async function prepareActiveWorkspaceRoot({ tempDirectory = tmpdir(), activeWorkspacePrefix = "devloop-memory-eval-" } = {}) {
+  const canonicalTempDirectory = path.resolve(tempDirectory);
+  const activeWorkspaceRoot = await mkdtemp(path.join(canonicalTempDirectory, activeWorkspacePrefix));
+  const canonicalActiveWorkspaceRoot = path.resolve(activeWorkspaceRoot);
+  const relative = path.relative(canonicalTempDirectory, canonicalActiveWorkspaceRoot);
+  if (
+    relative === "" ||
+    relative.startsWith("..") ||
+    path.isAbsolute(relative) ||
+    path.dirname(canonicalActiveWorkspaceRoot) !== canonicalTempDirectory ||
+    !path.basename(canonicalActiveWorkspaceRoot).startsWith(activeWorkspacePrefix)
+  ) {
+    throw new Error("active workspace root must be an explicit mkdtemp directory inside OS temp");
+  }
+  return canonicalActiveWorkspaceRoot;
+}
+
+async function cleanupActiveWorkspaceRoot({ activeWorkspaceRoot, tempDirectory = tmpdir(), activeWorkspacePrefix = "devloop-memory-eval-" }) {
+  const canonicalTempDirectory = path.resolve(tempDirectory);
+  const canonicalActiveWorkspaceRoot = path.resolve(activeWorkspaceRoot);
+  const relative = path.relative(canonicalTempDirectory, canonicalActiveWorkspaceRoot);
+  if (
+    relative === "" ||
+    relative.startsWith("..") ||
+    path.isAbsolute(relative) ||
+    path.dirname(canonicalActiveWorkspaceRoot) !== canonicalTempDirectory ||
+    !path.basename(canonicalActiveWorkspaceRoot).startsWith(activeWorkspacePrefix)
+  ) {
+    throw new Error("refusing to delete unexpected active workspace root");
+  }
+  await rm(canonicalActiveWorkspaceRoot, { recursive: true, force: true });
+}
+
+async function cleanupLegacyWorkspaceRoot({ runtimeRoot, legacyWorkspaceDirectoryName = "workspaces" }) {
+  const canonicalRuntimeRoot = path.resolve(runtimeRoot);
+  const legacyWorkspaceRoot = path.resolve(canonicalRuntimeRoot, legacyWorkspaceDirectoryName);
+  const relative = path.relative(canonicalRuntimeRoot, legacyWorkspaceRoot);
+  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative) || path.basename(legacyWorkspaceRoot) !== legacyWorkspaceDirectoryName) {
+    throw new Error("legacy workspace root must be an explicit directory inside runtimeRoot");
+  }
+  await rm(legacyWorkspaceRoot, { recursive: true, force: true });
+}
+
 async function diffHash(workspacePath) {
   const diff = (await run("git", ["diff", "--binary", "HEAD"], { cwd: workspacePath })).stdout;
   return createHash("sha256").update(diff).digest("hex");
@@ -104,4 +148,4 @@ async function writeDiff(workspacePath, outPath) {
   await writeFile(outPath, diff);
 }
 
-export { diffHash, isSafeRunKey, materializeMemoryWorkspace, writeDiff };
+export { cleanupActiveWorkspaceRoot, cleanupLegacyWorkspaceRoot, diffHash, isSafeRunKey, materializeMemoryWorkspace, prepareActiveWorkspaceRoot, writeDiff };

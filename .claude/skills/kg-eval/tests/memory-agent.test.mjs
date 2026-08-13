@@ -5,7 +5,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { buildAgentInvocation, assertEquivalentAgentOptions, runArgvProcess } from "../scripts/memory/agent-runner.mjs";
+import {
+  buildAgentInvocation,
+  assertEquivalentAgentOptions,
+  runArgvProcess,
+  spawnAvailabilityFailure,
+  structuredPreToolAvailabilityFailure,
+} from "../scripts/memory/agent-runner.mjs";
 import { assertOnlyMemoryInformationDiffers, buildMemoryConditionInputs } from "../scripts/memory/condition.mjs";
 import { normalizeAgentTelemetryJsonl } from "../scripts/memory/telemetry.mjs";
 import { memorySearchCommand } from "../scripts/run-memory.mjs";
@@ -44,6 +50,33 @@ test("builds Codex and Claude invocations with argv arrays", () => {
     command: "claude",
     args: ["-p", "--output-format", "stream-json", "--verbose", "--model", "claude-x", "--effort", "low", "--permission-mode", "dontAsk", "fix it"],
   });
+});
+
+test("classifies only spawn errors and structured pre-tool allowlist codes as availability failures", () => {
+  assert.deepEqual(spawnAvailabilityFailure(Object.assign(new Error("spawn codex ENOENT"), { code: "ENOENT" })), {
+    normalizedCode: "agent_spawn_failed",
+  });
+  assert.equal(spawnAvailabilityFailure(Object.assign(new Error("exit 1"), { code: 1 })), null);
+
+  assert.deepEqual(structuredPreToolAvailabilityFailure([{ type: "error", normalizedCode: "usage_limit_exceeded" }]), {
+    normalizedCode: "usage_limit_exceeded",
+  });
+  assert.equal(structuredPreToolAvailabilityFailure([{ type: "error", message: "usage limit exceeded" }]), null);
+  assert.equal(structuredPreToolAvailabilityFailure([{ type: "error", normalizedCode: "permission_denied" }]), null);
+  assert.equal(
+    structuredPreToolAvailabilityFailure([
+      { type: "item.started", item: { type: "command_execution", command: "rg service" } },
+      { type: "error", normalizedCode: "usage_limit_exceeded" },
+    ]),
+    null,
+  );
+  assert.equal(
+    structuredPreToolAvailabilityFailure([
+      { type: "thread.item.in_progress", item: { type: "command_execution", command: "rg service" } },
+      { type: "error", normalizedCode: "subscription_limit_exceeded" },
+    ]),
+    null,
+  );
 });
 
 test("renders only option names present in local CLI help", () => {
@@ -142,6 +175,7 @@ test("builds three memory condition inputs with only Memory information differen
       taskId: "MEM-EXP-001",
       prompt: "Fix the migration regression.",
       baseRevision: "a".repeat(40),
+      allowedPaths: ["src/migration.ts"],
       validationCommand: ["pnpm", "test"],
     },
     oracleMemory: [{ id: "mem-1", confidence: "high" }],

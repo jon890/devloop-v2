@@ -1,0 +1,811 @@
+{
+  "attemptDiagnostics": [
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-001",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "AGENT",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-001",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-001",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-001",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "AGENT",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-001",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-001",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-001",
+      "triggerOutcome": "oracle_provided"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-001",
+      "triggerOutcome": "oracle_provided"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-001",
+      "triggerOutcome": "oracle_provided"
+    },
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-002",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-002",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-002",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-002",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-002",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-002",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-002",
+      "triggerOutcome": "oracle_provided"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-002",
+      "triggerOutcome": "oracle_provided"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-CODE-002",
+      "triggerOutcome": "oracle_provided"
+    },
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "IMPLEMENTATION",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-001",
+      "triggerOutcome": "missed_search"
+    },
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-001",
+      "triggerOutcome": "missed_search"
+    },
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-001",
+      "triggerOutcome": "missed_search"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-001",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-001",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-001",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-001",
+      "triggerOutcome": "oracle_provided"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-001",
+      "triggerOutcome": "oracle_provided"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-001",
+      "triggerOutcome": "oracle_provided"
+    },
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-002",
+      "triggerOutcome": "missed_search"
+    },
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-002",
+      "triggerOutcome": "missed_search"
+    },
+    {
+      "condition": "agent-triggered",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-002",
+      "triggerOutcome": "missed_search"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-002",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-002",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "no-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-002",
+      "triggerOutcome": "expected_skip"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 1,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-002",
+      "triggerOutcome": "oracle_provided"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 2,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-002",
+      "triggerOutcome": "oracle_provided"
+    },
+    {
+      "condition": "oracle-memory",
+      "failureBoundary": "NONE",
+      "lexicalMiss": false,
+      "repetition": 3,
+      "retrievalObservationComplete": true,
+      "taskId": "MEM-EXP-002",
+      "triggerOutcome": "oracle_provided"
+    }
+  ],
+  "generatedAt": null,
+  "lexicalMissCount": 0,
+  "memoryBenefit": {
+    "rawWrongEditCount": 1,
+    "stableConditionAggregate": [
+      {
+        "attemptCount": 9,
+        "condition": "no-memory",
+        "groupCount": 3,
+        "inputTokensMedian": 154481,
+        "memoryCallsMedian": 0,
+        "outputTokensMedian": 1760,
+        "reworkCount": 0,
+        "sourceReadsMedian": 0,
+        "toolCallsMedian": 4,
+        "turnsMedian": 1,
+        "unstableCount": 3,
+        "wallTimeMsMedian": 47748,
+        "wrongEditCount": 0
+      },
+      {
+        "attemptCount": 6,
+        "condition": "agent-triggered",
+        "groupCount": 2,
+        "inputTokensMedian": 182867.5,
+        "memoryCallsMedian": 0,
+        "outputTokensMedian": 1921,
+        "reworkCount": 0,
+        "sourceReadsMedian": 0,
+        "toolCallsMedian": 4.5,
+        "turnsMedian": 1,
+        "unstableCount": 6,
+        "wallTimeMsMedian": 54572,
+        "wrongEditCount": 0
+      },
+      {
+        "attemptCount": 12,
+        "condition": "oracle-memory",
+        "groupCount": 4,
+        "inputTokensMedian": 127912,
+        "memoryCallsMedian": 1,
+        "outputTokensMedian": 1435.5,
+        "reworkCount": 0,
+        "sourceReadsMedian": 0,
+        "toolCallsMedian": 2.5,
+        "turnsMedian": 1,
+        "unstableCount": 0,
+        "wallTimeMsMedian": 39702.5,
+        "wrongEditCount": 0
+      }
+    ],
+    "taskLevelDeltas": [
+      {
+        "candidateStableUnavailable": true,
+        "condition": "agent-triggered",
+        "inputTokensDelta": null,
+        "memoryCallsDelta": null,
+        "noMemoryStableUnavailable": true,
+        "outputTokensDelta": null,
+        "reworkCountDelta": null,
+        "sourceReadsDelta": null,
+        "taskId": "MEM-CODE-001",
+        "taskSuccessDelta": null,
+        "toolCallsDelta": null,
+        "turnsDelta": null,
+        "wallTimeMsDelta": null,
+        "wrongEditCountDelta": null
+      },
+      {
+        "candidateStableUnavailable": false,
+        "condition": "oracle-memory",
+        "inputTokensDelta": null,
+        "memoryCallsDelta": null,
+        "noMemoryStableUnavailable": true,
+        "outputTokensDelta": null,
+        "reworkCountDelta": null,
+        "sourceReadsDelta": null,
+        "taskId": "MEM-CODE-001",
+        "taskSuccessDelta": null,
+        "toolCallsDelta": null,
+        "turnsDelta": null,
+        "wallTimeMsDelta": null,
+        "wrongEditCountDelta": null
+      },
+      {
+        "candidateStableUnavailable": false,
+        "condition": "agent-triggered",
+        "inputTokensDelta": 34591,
+        "memoryCallsDelta": 0,
+        "noMemoryStableUnavailable": false,
+        "outputTokensDelta": 681,
+        "reworkCountDelta": 0,
+        "sourceReadsDelta": 0,
+        "taskId": "MEM-CODE-002",
+        "taskSuccessDelta": 0,
+        "toolCallsDelta": 2,
+        "turnsDelta": 0,
+        "wallTimeMsDelta": 12272,
+        "wrongEditCountDelta": 0
+      },
+      {
+        "candidateStableUnavailable": false,
+        "condition": "oracle-memory",
+        "inputTokensDelta": -27020,
+        "memoryCallsDelta": 1,
+        "noMemoryStableUnavailable": false,
+        "outputTokensDelta": 68,
+        "reworkCountDelta": 0,
+        "sourceReadsDelta": 0,
+        "taskId": "MEM-CODE-002",
+        "taskSuccessDelta": 0,
+        "toolCallsDelta": 0,
+        "turnsDelta": 0,
+        "wallTimeMsDelta": 1068,
+        "wrongEditCountDelta": 0
+      },
+      {
+        "candidateStableUnavailable": true,
+        "condition": "agent-triggered",
+        "inputTokensDelta": null,
+        "memoryCallsDelta": null,
+        "noMemoryStableUnavailable": false,
+        "outputTokensDelta": null,
+        "reworkCountDelta": null,
+        "sourceReadsDelta": null,
+        "taskId": "MEM-EXP-001",
+        "taskSuccessDelta": null,
+        "toolCallsDelta": null,
+        "turnsDelta": null,
+        "wallTimeMsDelta": null,
+        "wrongEditCountDelta": null
+      },
+      {
+        "candidateStableUnavailable": false,
+        "condition": "oracle-memory",
+        "inputTokensDelta": -2790,
+        "memoryCallsDelta": 1,
+        "noMemoryStableUnavailable": false,
+        "outputTokensDelta": 382,
+        "reworkCountDelta": 0,
+        "sourceReadsDelta": 0,
+        "taskId": "MEM-EXP-001",
+        "taskSuccessDelta": 0,
+        "toolCallsDelta": 0,
+        "turnsDelta": 0,
+        "wallTimeMsDelta": 12158,
+        "wrongEditCountDelta": 0
+      },
+      {
+        "candidateStableUnavailable": false,
+        "condition": "agent-triggered",
+        "inputTokensDelta": 40739,
+        "memoryCallsDelta": 0,
+        "noMemoryStableUnavailable": false,
+        "outputTokensDelta": 378,
+        "reworkCountDelta": 0,
+        "sourceReadsDelta": 0,
+        "taskId": "MEM-EXP-002",
+        "taskSuccessDelta": 0,
+        "toolCallsDelta": 1,
+        "turnsDelta": 0,
+        "wallTimeMsDelta": 12165,
+        "wrongEditCountDelta": 0
+      },
+      {
+        "candidateStableUnavailable": false,
+        "condition": "oracle-memory",
+        "inputTokensDelta": -13504,
+        "memoryCallsDelta": 1,
+        "noMemoryStableUnavailable": false,
+        "outputTokensDelta": -207,
+        "reworkCountDelta": 0,
+        "sourceReadsDelta": 0,
+        "taskId": "MEM-EXP-002",
+        "taskSuccessDelta": 0,
+        "toolCallsDelta": -1,
+        "turnsDelta": 0,
+        "wallTimeMsDelta": -9939,
+        "wrongEditCountDelta": 0
+      }
+    ],
+    "unstableConditionAggregate": [
+      {
+        "attemptCount": 3,
+        "condition": "no-memory",
+        "groupCount": 1,
+        "inputTokensMedian": 97623,
+        "memoryCallsMedian": 0,
+        "outputTokensMedian": 533,
+        "reworkCount": 0,
+        "sourceReadsMedian": 0,
+        "toolCallsMedian": 2,
+        "turnsMedian": 1,
+        "unstableCount": 3,
+        "wallTimeMsMedian": 26387,
+        "wrongEditCount": 0
+      },
+      {
+        "attemptCount": 6,
+        "condition": "agent-triggered",
+        "groupCount": 2,
+        "inputTokensMedian": 271452,
+        "memoryCallsMedian": 0,
+        "outputTokensMedian": 2993,
+        "reworkCount": 0,
+        "sourceReadsMedian": 0,
+        "toolCallsMedian": 5,
+        "turnsMedian": 1,
+        "unstableCount": 6,
+        "wallTimeMsMedian": 73418,
+        "wrongEditCount": 1
+      },
+      {
+        "attemptCount": 0,
+        "condition": "oracle-memory",
+        "groupCount": 0,
+        "inputTokensMedian": null,
+        "memoryCallsMedian": null,
+        "outputTokensMedian": null,
+        "reworkCount": 0,
+        "sourceReadsMedian": null,
+        "toolCallsMedian": null,
+        "turnsMedian": null,
+        "unstableCount": 0,
+        "wallTimeMsMedian": null,
+        "wrongEditCount": 0
+      }
+    ]
+  },
+  "privateMissLockHash": "21ef48365857b532d13b22cde7b523cbfc646ee7a9822bdaf1f3814af8bc8821",
+  "retrievalObservationComplete": true,
+  "retrievalTax": {
+    "stable": [
+      {
+        "attemptCount": 9,
+        "condition": "no-memory",
+        "groupCount": 3,
+        "inputTokensMedian": 154481,
+        "memoryCallsMedian": 0,
+        "outputTokensMedian": 1760,
+        "reworkCount": 0,
+        "sourceReadsMedian": 0,
+        "toolCallsMedian": 4,
+        "turnsMedian": 1,
+        "unstableCount": 3,
+        "wallTimeMsMedian": 47748,
+        "wrongEditCount": 0
+      },
+      {
+        "attemptCount": 6,
+        "condition": "agent-triggered",
+        "groupCount": 2,
+        "inputTokensMedian": 182867.5,
+        "memoryCallsMedian": 0,
+        "outputTokensMedian": 1921,
+        "reworkCount": 0,
+        "sourceReadsMedian": 0,
+        "toolCallsMedian": 4.5,
+        "turnsMedian": 1,
+        "unstableCount": 6,
+        "wallTimeMsMedian": 54572,
+        "wrongEditCount": 0
+      },
+      {
+        "attemptCount": 12,
+        "condition": "oracle-memory",
+        "groupCount": 4,
+        "inputTokensMedian": 127912,
+        "memoryCallsMedian": 1,
+        "outputTokensMedian": 1435.5,
+        "reworkCount": 0,
+        "sourceReadsMedian": 0,
+        "toolCallsMedian": 2.5,
+        "turnsMedian": 1,
+        "unstableCount": 0,
+        "wallTimeMsMedian": 39702.5,
+        "wrongEditCount": 0
+      }
+    ],
+    "unstable": [
+      {
+        "attemptCount": 3,
+        "condition": "no-memory",
+        "groupCount": 1,
+        "inputTokensMedian": 97623,
+        "memoryCallsMedian": 0,
+        "outputTokensMedian": 533,
+        "reworkCount": 0,
+        "sourceReadsMedian": 0,
+        "toolCallsMedian": 2,
+        "turnsMedian": 1,
+        "unstableCount": 3,
+        "wallTimeMsMedian": 26387,
+        "wrongEditCount": 0
+      },
+      {
+        "attemptCount": 6,
+        "condition": "agent-triggered",
+        "groupCount": 2,
+        "inputTokensMedian": 271452,
+        "memoryCallsMedian": 0,
+        "outputTokensMedian": 2993,
+        "reworkCount": 0,
+        "sourceReadsMedian": 0,
+        "toolCallsMedian": 5,
+        "turnsMedian": 1,
+        "unstableCount": 6,
+        "wallTimeMsMedian": 73418,
+        "wrongEditCount": 1
+      },
+      {
+        "attemptCount": 0,
+        "condition": "oracle-memory",
+        "groupCount": 0,
+        "inputTokensMedian": null,
+        "memoryCallsMedian": null,
+        "outputTokensMedian": null,
+        "reworkCount": 0,
+        "sourceReadsMedian": null,
+        "toolCallsMedian": null,
+        "turnsMedian": null,
+        "unstableCount": 0,
+        "wallTimeMsMedian": null,
+        "wrongEditCount": 0
+      }
+    ]
+  },
+  "run": {
+    "agent": "codex",
+    "agentOptions": {
+      "effort": "low",
+      "model": "gpt-5.6-luna",
+      "permissionMode": "workspace-write"
+    },
+    "attemptCount": 36,
+    "conditions": [
+      "no-memory",
+      "agent-triggered",
+      "oracle-memory"
+    ],
+    "repeats": 3,
+    "taskCount": 4
+  },
+  "schemaVersion": "memory-utility-report/v1",
+  "stability": [
+    {
+      "cleanFailureCount": 1,
+      "cleanSuccessCount": 2,
+      "condition": "no-memory",
+      "failureBoundary": null,
+      "status": "UNSTABLE",
+      "taskId": "MEM-CODE-001",
+      "unobservedCount": 0,
+      "wrongEditCount": 0
+    },
+    {
+      "cleanFailureCount": 1,
+      "cleanSuccessCount": 2,
+      "condition": "agent-triggered",
+      "failureBoundary": null,
+      "status": "UNSTABLE",
+      "taskId": "MEM-CODE-001",
+      "unobservedCount": 0,
+      "wrongEditCount": 0
+    },
+    {
+      "cleanFailureCount": 0,
+      "cleanSuccessCount": 3,
+      "condition": "oracle-memory",
+      "failureBoundary": null,
+      "status": "STABLE_SUCCESS",
+      "taskId": "MEM-CODE-001",
+      "unobservedCount": 0,
+      "wrongEditCount": 0
+    },
+    {
+      "cleanFailureCount": 0,
+      "cleanSuccessCount": 3,
+      "condition": "no-memory",
+      "failureBoundary": null,
+      "status": "STABLE_SUCCESS",
+      "taskId": "MEM-CODE-002",
+      "unobservedCount": 0,
+      "wrongEditCount": 0
+    },
+    {
+      "cleanFailureCount": 0,
+      "cleanSuccessCount": 3,
+      "condition": "agent-triggered",
+      "failureBoundary": null,
+      "status": "STABLE_SUCCESS",
+      "taskId": "MEM-CODE-002",
+      "unobservedCount": 0,
+      "wrongEditCount": 0
+    },
+    {
+      "cleanFailureCount": 0,
+      "cleanSuccessCount": 3,
+      "condition": "oracle-memory",
+      "failureBoundary": null,
+      "status": "STABLE_SUCCESS",
+      "taskId": "MEM-CODE-002",
+      "unobservedCount": 0,
+      "wrongEditCount": 0
+    },
+    {
+      "cleanFailureCount": 0,
+      "cleanSuccessCount": 3,
+      "condition": "no-memory",
+      "failureBoundary": null,
+      "status": "STABLE_SUCCESS",
+      "taskId": "MEM-EXP-001",
+      "unobservedCount": 0,
+      "wrongEditCount": 0
+    },
+    {
+      "cleanFailureCount": 0,
+      "cleanSuccessCount": 2,
+      "condition": "agent-triggered",
+      "failureBoundary": null,
+      "status": "REGRESSION",
+      "taskId": "MEM-EXP-001",
+      "unobservedCount": 0,
+      "wrongEditCount": 1
+    },
+    {
+      "cleanFailureCount": 0,
+      "cleanSuccessCount": 3,
+      "condition": "oracle-memory",
+      "failureBoundary": null,
+      "status": "STABLE_SUCCESS",
+      "taskId": "MEM-EXP-001",
+      "unobservedCount": 0,
+      "wrongEditCount": 0
+    },
+    {
+      "cleanFailureCount": 0,
+      "cleanSuccessCount": 3,
+      "condition": "no-memory",
+      "failureBoundary": null,
+      "status": "STABLE_SUCCESS",
+      "taskId": "MEM-EXP-002",
+      "unobservedCount": 0,
+      "wrongEditCount": 0
+    },
+    {
+      "cleanFailureCount": 0,
+      "cleanSuccessCount": 3,
+      "condition": "agent-triggered",
+      "failureBoundary": null,
+      "status": "STABLE_SUCCESS",
+      "taskId": "MEM-EXP-002",
+      "unobservedCount": 0,
+      "wrongEditCount": 0
+    },
+    {
+      "cleanFailureCount": 0,
+      "cleanSuccessCount": 3,
+      "condition": "oracle-memory",
+      "failureBoundary": null,
+      "status": "STABLE_SUCCESS",
+      "taskId": "MEM-EXP-002",
+      "unobservedCount": 0,
+      "wrongEditCount": 0
+    }
+  ],
+  "suite": {
+    "hash": "484a42b87cf0c79421ba1db14f74cb561701450bfef1e1bb09686d73d5a09bff",
+    "memoryIndexHash": "sha256:8709e0a8f3443eb067f30c9a535ccd489ac4fdc0528278ce1c671e838bac00fd",
+    "project": "tc-ocr",
+    "sourceLockHash": "a6e5a935f43df18809803a6f461479e41367ddafc211db46ab44dd1c0dc01d44",
+    "suiteId": "tc-ocr-memory-foundation",
+    "title": "tc-ocr Coding Agent Memory foundation evaluation suite"
+  },
+  "triggerMatrix": {
+    "FN": 6,
+    "FP": 0,
+    "TN": 6,
+    "TP": 0,
+    "precision": null,
+    "recall": 0,
+    "unobservedCount": 0
+  }
+}

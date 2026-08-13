@@ -1187,7 +1187,9 @@ Coding Agent Memory를 위해 변경할 부분.
 
 # 21. 전체 Issue 구현 실행 단위
 
-2026-08-12 기준 #4~#7의 production 기준선은 구현됐지만, #3과 #8~#12의 Agent 통합·효용 평가는 남아 있다.
+2026-08-13 기준 #4~#8의 production 기준선과 voluntary Agent 통합은 구현되어 main에 병합됐다.
+#3과 #9의 end-to-end utility 평가는 Plan014에서 36회 수집과 독립 검증을 마쳤으며, main 병합을 앞두고 있다.
+#10~#12는 그 결과가 만든 실제 miss와 비용을 입력으로 사용한다.
 모든 Issue를 닫기 위해 다음 순서를 고정한다.
 
 1. source-locked Coding Agent benchmark와 voluntary trigger 계측을 구현한다.
@@ -1200,3 +1202,7 @@ Coding Agent Memory를 위해 변경할 부분.
 평가 task 원문, 실제 checkout path, 내부 URL, Agent 전문은 ignored private run에 둔다.
 공개 suite와 report는 안정 task ID, 분류, hash, 집계, 검증 공백만 남긴다.
 task success와 wrong edit가 최우선이며 token은 Agent가 실제 usage를 제공할 때만 기록한다.
+
+현재 아키텍처, 구현 현황, 최종 목표의 사람이 읽는 요약은
+[`eval/reports/2026-08-13-project-status.html`](../eval/reports/2026-08-13-project-status.html)에서 관리한다.
+별도 prompts, research, memory 관리 문서를 만들지 않고 이 원문과 기존 설계 문서·평가 리포트를 갱신한다.

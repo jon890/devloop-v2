@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { constants } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -9,6 +10,15 @@ import { validateMemoryReportDigests } from "../scripts/memory/report.mjs";
 async function writeJson(filePath, value) {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+async function exists(filePath) {
+  try {
+    await access(filePath, constants.F_OK);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function sourceLock(root) {
@@ -118,10 +128,12 @@ test("rejects leaks without exposing the matched private values", async () => {
   }
 });
 
-test("public Memory report digests match validate-memory-suite output", async () => {
+const PLAN013_SOURCE_LOCK = path.resolve("eval/runs/plan013-memory-source-lock.json");
+
+test("public Memory report digests match validate-memory-suite output", { skip: !(await exists(PLAN013_SOURCE_LOCK)) }, async () => {
   const reportPath = path.resolve("eval/reports/2026-08-12-plan013-memory-foundation.md");
   const suitePath = path.resolve("eval/suites/tc-ocr-memory.json");
-  const sourceLockPath = path.resolve("eval/runs/plan013-memory-source-lock.json");
+  const sourceLockPath = PLAN013_SOURCE_LOCK;
   const result = await validateMemoryReportDigests({ reportPath, suitePath, sourceLockPath });
   assert.equal(result.reportSuiteHash, result.suiteHash);
   assert.equal(result.reportSourceLockHash, result.sourceLockHash);

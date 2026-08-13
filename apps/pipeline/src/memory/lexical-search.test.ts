@@ -113,6 +113,15 @@ describe("Memory lexical search", () => {
     assert.equal(empty.returned, 0);
   });
 
+  it("명시된 metadata가 있을 때만 additive memoryIndexHash를 응답에 포함한다", () => {
+    const fixture = index([memory("a", "검색 대상")]);
+    assert.equal(searchWikiIndex(fixture, { query: "검색" }).memoryIndexHash, undefined);
+    assert.equal(
+      searchWikiIndex(fixture, { query: "검색" }, { memoryIndexHash: `sha256:${"a".repeat(64)}` }).memoryIndexHash,
+      `sha256:${"a".repeat(64)}`,
+    );
+  });
+
   it("status 감점과 경고, confidence와 ID tie-break를 적용한다", () => {
     const result = searchWikiIndex(
       index([
