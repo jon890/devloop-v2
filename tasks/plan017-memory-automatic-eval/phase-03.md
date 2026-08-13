@@ -62,7 +62,7 @@ token null은 분모에서 제외하고 문자 수로 추정하지 않는다.
 | --- | --- |
 | `.claude/skills/kg-eval/scripts/report-memory-automatic.mjs` | 신규 |
 | `.claude/skills/kg-eval/tests/report-memory-automatic.test.mjs` | 신규 |
-| `.claude/skills/kg-eval/scripts/memory/privacy.mjs` | automatic private input needle 지원 보강 |
+| `.claude/skills/kg-eval/scripts/memory/privacy.mjs` | automatic private input과 `originalRepositoryPath` 민감 field needle 지원 보강 |
 | `.claude/skills/kg-eval/tests/memory-privacy.test.mjs` | prompt·revision·URL·context 누출 회귀 보강 |
 | `eval/reports/2026-08-12-plan017-memory-automatic.json` | 신규 |
 | `eval/reports/2026-08-12-plan017-memory-automatic.md` | 신규 |
@@ -78,7 +78,7 @@ node --test .claude/skills/kg-eval/tests/*.test.mjs
 node .claude/skills/kg-eval/scripts/report-memory-automatic.mjs --voluntary eval/runs/plan014-utility.json --automatic eval/runs/plan017-memory-automatic.json --json-out /tmp/plan017-report.json --markdown-out /tmp/plan017-report.md
 cmp /tmp/plan017-report.json eval/reports/2026-08-12-plan017-memory-automatic.json
 cmp /tmp/plan017-report.md eval/reports/2026-08-12-plan017-memory-automatic.md
-node .claude/skills/kg-eval/scripts/memory/privacy.mjs --private-inputs eval/runs/plan014-utility.json,eval/runs/plan017-memory-automatic.json --paths eval/reports/2026-08-12-plan017-memory-automatic.json,eval/reports/2026-08-12-plan017-memory-automatic.md
+node .claude/skills/kg-eval/scripts/memory/privacy.mjs --source-lock eval/runs/plan014-memory-source-lock.json --private-inputs eval/runs/plan014-utility.json,eval/runs/plan017-memory-automatic.json --paths eval/reports/2026-08-12-plan017-memory-automatic.json,eval/reports/2026-08-12-plan017-memory-automatic.md
 pnpm -r build
 pnpm format:check
 git diff --check

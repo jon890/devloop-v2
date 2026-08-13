@@ -9,7 +9,7 @@
 
 plan014의 voluntary 기준선과 같은 `memory-search`를 task 시작 전에 한 번 호출하되 stale·uncertain·low-confidence Memory가 current source를 덮어쓰지 못하는 평가 조건을 구현한다.
 
-**전제**: plan014가 완료 상태로 `main`에 병합되고 이 worktree가 최신 `origin/main` 이후여야 한다. 같은 public suite, private source lock, Memory index, ignored `eval/runs/plan014-utility.json`을 복사할 수 있어야 한다.
+**전제**: plan014가 완료 상태로 `main`에 병합되고 이 worktree가 최신 `origin/main` 이후여야 한다. 같은 public suite, private source lock, Memory index, ignored `eval/runs/plan014-utility.json`을 복사할 수 있어야 한다. 삭제된 Plan014 Wiki index 원문은 이전 실행 기록에서 복구한 뒤 exact byte hash `sha256:8709e0a8f3443eb067f30c9a535ccd489ac4fdc0528278ce1c671e838bac00fd`를 확인해 ignored `apps/pipeline/data/memory/tc-ocr/`에 배치한다. hash가 다르면 재추출하거나 새 corpus로 대체하지 않으며, 이 복구에는 LLM을 호출하지 않는다.
 
 착수 전에 `git fetch origin`, `git merge-base --is-ancestor origin/main HEAD`, plan014 `index.json`의 `completed`, 공개 report 존재를 확인한다.
 하나라도 실패하면 구현하지 않고 `PHASE_BLOCKED: plan014 미병합 또는 branch base 불일치`로 종료한다.
@@ -81,7 +81,8 @@ stale Memory가 current source와 반대 결론을 갖는 fixture, uncertain hig
 # cwd: 저장소 루트
 node --test .claude/skills/kg-eval/tests/memory-automatic.test.mjs
 node --test .claude/skills/kg-eval/tests/run-memory.test.mjs
-rg -n "vector|embedding|api/query" .claude/skills/kg-eval/scripts/memory/automatic-condition.mjs
+test "$(rg -c 'vector|embedding|api/query' .claude/skills/kg-eval/scripts/memory/automatic-condition.mjs || true)" = "0"
+test "$(shasum -a 256 apps/pipeline/data/memory/tc-ocr/wiki-generations/wiki-9df083959e2b83b7324eabb67197cbcaacd1797f32e77b148cfc47c9969909eb/index.json | awk '{print $1}')" = "8709e0a8f3443eb067f30c9a535ccd489ac4fdc0528278ce1c671e838bac00fd"
 git diff --check
 ```
 

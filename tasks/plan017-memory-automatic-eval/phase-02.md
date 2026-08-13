@@ -9,6 +9,8 @@
 
 plan014의 네 task, revision, index, validation, Codex model을 그대로 사용해 automatic 조건 12회를 직렬 실행한다.
 
+**전제**: phase 01의 automatic 회귀 테스트와 `run-memory.mjs --conditions automatic --dry-run`이 통과하고, plan016에서 구현·병합한 `--source-repository-root` opt-in 재연결이 이 branch에 있어야 한다. 하나라도 없으면 오래된 runner로 우회하지 않는다.
+
 **범위 외**: voluntary 재실행, task·query 변경, 실패 run 삭제, 동시 실행.
 
 ---
@@ -31,6 +33,7 @@ Plan014와 같은 Codex `gpt-5.6-luna`, effort `low`, workspace-write를 쓰고 
 node .claude/skills/kg-eval/scripts/run-memory.mjs \
   --suite eval/suites/tc-ocr-memory.json \
   --source-lock eval/runs/plan014-memory-source-lock.json \
+  --source-repository-root /Users/nhn/projects/OCR \
   --out eval/runs/plan017-memory-automatic.json \
   --data-dir apps/pipeline/data \
   --agent codex \
@@ -70,6 +73,7 @@ staleInjectionCount는 항상 0이어야 한다.
 
 ```bash
 # cwd: 저장소 루트
+node .claude/skills/kg-eval/scripts/run-memory.mjs --suite eval/suites/tc-ocr-memory.json --source-lock eval/runs/plan014-memory-source-lock.json --source-repository-root /Users/nhn/projects/OCR --out /tmp/plan017-dry.json --data-dir apps/pipeline/data --agent codex --model gpt-5.6-luna --effort low --permission-mode workspace-write --conditions automatic --repeats 3 --schedule interleaved --dry-run
 jq '.attempts | length' eval/runs/plan017-memory-automatic.json
 jq '[.attempts[] | select(.condition != "automatic" or .memoryCalls != 1)] | length' eval/runs/plan017-memory-automatic.json
 jq '[.attempts[] | select(.retrievedCount != (.injectedCount + .warnedCount + .skippedStaleCount))] | length' eval/runs/plan017-memory-automatic.json
@@ -87,3 +91,4 @@ git status --short
 ## Blocked 조건
 
 - Luna 사용량 제한으로 12회가 끝나지 않으면 완료 회차를 보존하고 `PHASE_BLOCKED: Agent 사용량 제한`으로 종료한다.
+- source root real path·basename·base/target commit 검증이 실패하면 `PHASE_BLOCKED: source snapshot 재현 불가`로 종료한다.
