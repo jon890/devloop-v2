@@ -145,9 +145,9 @@ function fetchFixture({ staleStats = false, staleAnchor = false } = {}) {
   };
 }
 
-test("baseline MEMORY_CONDITIONS stay unchanged and memory-graph is experimental", () => {
+test("baseline MEMORY_CONDITIONS stay unchanged and experimental conditions are separate", () => {
   assert.deepEqual(MEMORY_CONDITIONS, ["no-memory", "agent-triggered", "oracle-memory"]);
-  assert.deepEqual(EXPERIMENTAL_MEMORY_CONDITIONS, ["memory-graph"]);
+  assert.deepEqual(EXPERIMENTAL_MEMORY_CONDITIONS, ["memory-graph", "automatic"]);
   assert.deepEqual(
     buildMemoryConditionInputs({
       task: { taskId: "T", prompt: "p", baseRevision: "a", allowedPaths: ["x"], validationCommand: ["true"] },

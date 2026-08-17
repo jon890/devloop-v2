@@ -13,6 +13,7 @@ import { retrievalObservations } from "./memory/retrieval-observation.mjs";
 import { resolveSourceRepositoryRoot } from "./memory/source-repository-root.mjs";
 import { buildGraphContext } from "./memory/graph-context.mjs";
 import { graphEvidenceUsed } from "./memory/graph-evidence.mjs";
+import { assertAutomaticAgentOptions, runAutomaticMemorySearch } from "./memory/automatic-condition.mjs";
 import { cleanupActiveWorkspaceRoot, cleanupLegacyWorkspaceRoot, diffHash, materializeMemoryWorkspace, prepareActiveWorkspaceRoot, writeDiff } from "./memory/workspace.mjs";
 
 const DEFAULT_DATA_DIR = "apps/pipeline/data";
@@ -109,6 +110,12 @@ function parseArgs(argv) {
       agentOptions: { model: args.model, effort: args.effort, permissionMode: args["permission-mode"] },
     });
   }
+  if (conditions.includes("automatic")) {
+    assertAutomaticAgentOptions({
+      agent: args.agent,
+      agentOptions: { model: args.model, effort: args.effort, permissionMode: args["permission-mode"] },
+    });
+  }
   return {
     suitePath: args.suite,
     sourceLockPath: args["source-lock"],
@@ -187,6 +194,7 @@ async function runValidation(command, cwd) {
 
 function buildAgentPrompt(input) {
   const memoryBlock = input.memoryInformation.memory ? `\n\nMemory context:\n${JSON.stringify(input.memoryInformation.memory, null, 2)}` : "";
+  const automaticBlock = input.memoryInformation.automaticContext ? `\n\nAutomatic Memory context:\n${JSON.stringify(input.memoryInformation.automaticContext, null, 2)}` : "";
   const graphBlock = input.memoryInformation.graphContext
     ? `\n\nGraph context:\n${JSON.stringify(input.memoryInformation.graphContext, null, 2)}\nTreat this as source-backed relationship evidence only; current repository files and validation remain authoritative. Do not call Graph APIs.`
     : "";
@@ -204,11 +212,12 @@ function buildAgentPrompt(input) {
     `Validation command: ${input.validationCommand.join(" ")}`,
     searchCommandBlock,
     memoryBlock,
+    automaticBlock,
     graphBlock,
   ].join("\n");
 }
 
-function memorySearchArgv({ query, dataDir, devloopRoot, topK }) {
+function memorySearchArgv({ query, dataDir, devloopRoot, topK, repository, scopePath }) {
   const argv = [
     "pnpm",
     "--dir",
@@ -224,6 +233,8 @@ function memorySearchArgv({ query, dataDir, devloopRoot, topK }) {
     "tc-ocr",
     "--allow-incomplete",
   ];
+  if (repository !== undefined) argv.push("--repository", repository);
+  if (scopePath !== undefined) argv.push("--path", scopePath);
   if (topK !== undefined) argv.push("--top-k", String(topK));
   return argv;
 }
@@ -232,10 +243,10 @@ function memorySearchCommand({ query, dataDir, devloopRoot }) {
   return memorySearchArgv({ query, dataDir, devloopRoot }).map(shellQuote).join(" ");
 }
 
-async function runMemorySearch({ query, dataDir, cwd, topK }) {
+async function runMemorySearch({ query, dataDir, cwd, topK, repository, scopePath }) {
   const result = await runArgvProcess({
     command: "pnpm",
-    args: memorySearchArgv({ query, dataDir, devloopRoot: process.cwd(), topK }).slice(1),
+    args: memorySearchArgv({ query, dataDir, devloopRoot: process.cwd(), topK, repository, scopePath }).slice(1),
     cwd,
     timeoutMs: 180_000,
     maxStdoutBytes: 512 * 1024,
@@ -319,6 +330,13 @@ function triggerOutcome(publicTask, attempt) {
     if ((attempt.graphContextCalls ?? 0) < 1) return "memory_graph_missing";
     if ((attempt.agentMemoryCalls ?? 0) !== 0 || (attempt.agentGraphCalls ?? 0) !== 0) return "memory_graph_contaminated_search";
     return "memory_graph_provided";
+  }
+  if (attempt.condition === "automatic") {
+    if ((attempt.agentMemoryCalls ?? 0) !== 0) return "automatic_contaminated_search";
+    if ((attempt.staleInjectionCount ?? 0) !== 0) return "automatic_stale_injection";
+    if ((attempt.injectedCount ?? 0) > 0) return "automatic_injected";
+    if ((attempt.warnedCount ?? 0) > 0) return "automatic_warned_only";
+    return "automatic_empty";
   }
   if (attempt.condition === "no-memory") return agentMemoryCalls === 0 ? "expected_skip" : "contaminated_search";
   if (attempt.condition === "oracle-memory") {
@@ -512,10 +530,21 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
         return graphBoundaryAttempt({ sourceTask, condition, repetition, error, metrics: error?.metrics });
       }
     }
+    const automaticMemory =
+      condition === "automatic"
+        ? await (options.runAutomaticMemorySearchFn ?? runAutomaticMemorySearch)({
+            task: sourceTask,
+            dataDir: options.dataDir,
+            cwd: rootCwd,
+            runMemorySearchFn: options.runMemorySearchFn ?? runMemorySearch,
+          })
+        : null;
     const input =
       condition === "memory-graph"
         ? buildExperimentalMemoryConditionInput({ task: sourceTask, condition, oracleMemory: oracle.memory, graphContext: graphContextResult.context })
-        : buildMemoryConditionInputs({ task: sourceTask, oracleMemory: oracle.memory }).find((item) => item.condition === condition);
+        : condition === "automatic"
+          ? buildExperimentalMemoryConditionInput({ task: sourceTask, condition, automaticContext: automaticMemory.context })
+          : buildMemoryConditionInputs({ task: sourceTask, oracleMemory: oracle.memory }).find((item) => item.condition === condition);
     const voluntaryMemorySearchCommand =
       condition === "agent-triggered"
         ? memorySearchCommand({ query: sourceTask.oracleQuery, dataDir: options.dataDir, devloopRoot: rootCwd })
@@ -564,7 +593,8 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
     const graphContextCalls = graphContextResult?.metrics.graphContextCalls ?? 0;
     const graphLatencyMs = graphContextResult?.metrics.graphLatencyMs ?? 0;
     const oracleMemoryProvided = oracle.result ? 1 : 0;
-    telemetry.memoryCalls += oracleMemoryProvided;
+    const automaticMetrics = automaticMemory?.metrics ?? {};
+    telemetry.memoryCalls += oracleMemoryProvided + (automaticMetrics.memoryCalls ?? 0);
     telemetry.graphCalls = graphContextCalls + agentGraphCalls;
     telemetry.agentGraphCalls = agentGraphCalls;
     let observedRetrievals = [];
@@ -624,8 +654,26 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
       graphLatencyMs,
       agentMemoryCalls,
       oracleMemoryProvided,
+      ...(condition === "automatic"
+        ? {
+            retrievedCount: automaticMetrics.retrievedCount ?? 0,
+            injectedCount: automaticMetrics.injectedCount ?? 0,
+            warnedCount: automaticMetrics.warnedCount ?? 0,
+            skippedStaleCount: automaticMetrics.skippedStaleCount ?? 0,
+            contextBytes: automaticMetrics.contextBytes ?? 0,
+            staleInjectionCount: automaticMetrics.staleInjectionCount ?? 0,
+          }
+        : {}),
       ...contamination,
-      triggerOutcome: triggerOutcome(options.publicTask, { condition, memoryCalls: telemetry.memoryCalls, agentMemoryCalls, oracleMemoryProvided, graphContextCalls, agentGraphCalls }),
+      triggerOutcome: triggerOutcome(options.publicTask, {
+        condition,
+        memoryCalls: telemetry.memoryCalls,
+        agentMemoryCalls,
+        oracleMemoryProvided,
+        graphContextCalls,
+        agentGraphCalls,
+        ...(condition === "automatic" ? automaticMetrics : {}),
+      }),
       ...(condition === "agent-triggered" ? { retrievalObservations: observedRetrievals } : {}),
       ...(condition === "memory-graph"
         ? {
@@ -647,6 +695,9 @@ async function runMemoryEvaluation(options) {
   }
   if (options.conditions.includes("memory-graph")) {
     assertMemoryGraphAgentOptions({ agent: options.agent, agentOptions: options.agentOptions });
+  }
+  if (options.conditions.includes("automatic")) {
+    assertAutomaticAgentOptions({ agent: options.agent, agentOptions: options.agentOptions });
   }
   const inputs = await loadMemoryEvaluationInputs({ suitePath: options.suitePath, sourceLockPath: options.sourceLockPath });
   const indexHash = await memoryIndexHash(options.dataDir, inputs.suite.project);
@@ -764,6 +815,7 @@ export {
   memorySearchCommand,
   parseArgs,
   runMemoryEvaluation,
+  assertAutomaticAgentOptions,
   assertMemoryGraphAgentOptions,
   usableMemorySearchResult,
   usage,
