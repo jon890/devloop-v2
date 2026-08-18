@@ -257,6 +257,8 @@
         background: var(--blue);
         box-shadow: 0 0 0 2px var(--blue);
         content: "";
+      }
+
       .stage strong {
         display: block;
         margin-bottom: 10px;
@@ -318,6 +320,7 @@
       .progress-grid {
         display: grid;
         grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.55fr);
+        align-items: start;
         gap: 22px;
       }
 
@@ -646,8 +649,8 @@
       <header class="masthead">
         <div class="brand"><span class="brand-mark">D2</span> devloop-v2 evidence ledger</div>
         <div class="status-line" aria-label="보고서 상태">
-          <span class="status-chip">기준 시각 2026-08-13 KST</span>
-          <span class="status-chip live">Plan015 검증 완료 · PR 미리보기 준비</span>
+          <span class="status-chip">기준 시각 2026-08-18 KST</span>
+          <span class="status-chip live">전체 이슈 완료 · PR #17·#18 main 병합</span>
         </div>
       </header>
 
@@ -657,16 +660,16 @@
           <h1 id="report-title">코드가 말하지 않는 <span class="accent">이유</span>를 되찾는 시스템</h1>
           <p class="hero-copy">
             Dooray 업무·댓글·위키와 OCR Git 이력을 하나의 증거 흐름으로 묶고,
-            Coding Agent가 필요한 순간에만 과거 결정과 제약을 한 번의 검색으로 회수하도록 구현하고 있습니다.
+            Coding Agent가 필요한 순간에만 과거 결정과 제약을 한 번의 검색으로 회수하도록 구현했습니다.
             Memory는 원문을 대체하지 않으며 모든 결과는 안정 식별자와 원문 링크로 되돌아갑니다.
           </p>
         </div>
         <aside class="goal-card" aria-labelledby="goal-title">
           <h2 id="goal-title">최종 목표</h2>
           <p>
-            적은 비용으로 재현 가능하고 출처를 검증할 수 있는 Experience Memory를 제공하고,
-            실측 효용이 확인된 검색 방식만 채택합니다. 지식 추출과 LLM 검색은
-            <code>gpt-5.6-luna / low</code>로 고정하며 fallback하지 않습니다.
+            출처를 검증할 수 있는 Experience Memory와 재현 가능한 평가 경로를 완성했습니다.
+            지식 추출과 LLM 검색은 <code>gpt-5.6-luna / low</code>로 고정하고 fallback하지 않습니다.
+            실측 이득이 확인되지 않은 Graph와 automatic retrieval은 production 기본값으로 채택하지 않습니다.
           </p>
         </aside>
       </section>
@@ -677,8 +680,8 @@
           <div>
             <h2 id="architecture-title">현재 아키텍처</h2>
             <p>
-              저장은 계층적이어도 검색 표면은 평평하게 유지합니다.
-              Agent는 그래프 구조를 순회하지 않고 결론·맥락·최소 증거를 함께 받습니다.
+              저장은 계층적이어도 production 검색 표면은 평평하게 유지합니다.
+              Graph와 automatic 경로는 같은 source lock과 task로 분리 측정하며, 채택 전까지 실험 조건으로 남깁니다.
             </p>
           </div>
         </div>
@@ -705,12 +708,12 @@
             <p>LLM 없이 단일 CLI에서 얕고 측정 가능한 기준선을 제공합니다.</p>
           </article>
           <article class="stage">
-            <strong>Agent trigger</strong>
-            <p>Codex와 Claude 지침이 동일한 voluntary search 정책을 사용합니다.</p>
+            <strong>Safe retrieval</strong>
+            <p>voluntary lexical을 기본으로 사용하고 automatic은 active·high·current 결과만 허용합니다.</p>
           </article>
           <article class="stage">
-            <strong>Utility gate</strong>
-            <p>no-memory, triggered, oracle 조건의 성공·비용·오류를 3회씩 비교합니다.</p>
+            <strong>Evaluation gate</strong>
+            <p>no-memory, triggered, oracle, Graph, automatic의 성공·비용·오염을 같은 source lock에서 비교합니다.</p>
           </article>
         </div>
 
@@ -733,8 +736,8 @@
           <div>
             <h2 id="progress-title">구현 진행 상황</h2>
             <p>
-              전체 10개 이슈 중 #3–#9까지 7개를 main에 병합했습니다.
-              #10은 실제 lexical miss 0건을 재검증해 대체 retrieval을 도입하지 않는 결론으로 구현과 독립 검토를 마쳤습니다.
+              등록한 #3–#12 전체 10개 이슈를 main에 병합했습니다.
+              retrieval, Graph, automatic은 구현 가능성만 보지 않고 같은 기준선에서 추가 효용과 오염을 측정해 채택 여부까지 기록했습니다.
             </p>
           </div>
         </div>
@@ -745,7 +748,7 @@
               <span class="issue-number">#4–#8</span>
               <span class="issue-state closed">main merged</span>
               <span class="issue-title">원천 정규화 → Luna 추출 → Wiki → lexical 검색 → Agent 연결<small>PR #14까지 병합, 5개 이슈 종료</small></span>
-              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/4">ISSUES ↗</a>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/4">CLOSED ↗</a>
             </div>
             <div class="ledger-row">
               <span class="issue-number">#3</span>
@@ -761,35 +764,35 @@
             </div>
             <div class="ledger-row">
               <span class="issue-number">#10</span>
-              <span class="issue-state active">verified</span>
+              <span class="issue-state closed">main merged</span>
               <span class="issue-title">lexical miss에서만 대체 retrieval 비교<small>실제 miss 0 · NO_CHANGE · adapter 0 · production 변경 0</small></span>
-              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/10">OPEN ↗</a>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/10">CLOSED ↗</a>
             </div>
             <div class="ledger-row">
               <span class="issue-number">#11</span>
-              <span class="issue-state queued">next gate</span>
-              <span class="issue-title">Graph traversal의 추가 가치 측정<small>flat retrieval을 이길 때만 유지 후보</small></span>
-              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/11">OPEN ↗</a>
+              <span class="issue-state closed">main merged</span>
+              <span class="issue-title">Graph traversal의 추가 가치 측정<small>6/6 task 성공 · 관계 증거 사용 1/6 · NO_ADDED_VALUE</small></span>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/11">CLOSED ↗</a>
             </div>
             <div class="ledger-row">
               <span class="issue-number">#12</span>
-              <span class="issue-state queued">final gate</span>
-              <span class="issue-title">voluntary 기준선 뒤 automatic retrieval 판정<small>정확도 향상이 retrieval tax보다 클 때만 채택</small></span>
-              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/12">OPEN ↗</a>
+              <span class="issue-state closed">main merged</span>
+              <span class="issue-title">voluntary 기준선 뒤 automatic retrieval 판정<small>회수 1 · 불필요 조회 6 · stale 0 · INCONCLUSIVE</small></span>
+              <a class="issue-link" href="https://github.com/jon890/devloop-v2/issues/12">CLOSED ↗</a>
             </div>
           </div>
 
           <aside class="evidence-card" aria-labelledby="evidence-title">
             <h3 id="evidence-title">현재 근거</h3>
             <div class="metric">
-              <span class="metric-label">Implemented</span>
-              <span class="metric-value">7 merged · 8 verified</span>
-              <span class="metric-note">#3–#9 main, #10 독립 검토 완료</span>
+              <span class="metric-label">Issues</span>
+              <span class="metric-value">10 / 10 closed</span>
+              <span class="metric-note">#3–#12 main · open issue 0 · open PR 0</span>
             </div>
             <div class="metric">
-              <span class="metric-label">Evaluation matrix</span>
-              <span class="metric-value">36 / 36</span>
-              <span class="metric-note">4 task × 3 condition × 3 repetition</span>
+              <span class="metric-label">Measured attempts</span>
+              <span class="metric-value">54 runs</span>
+              <span class="metric-note">utility 36 · Graph 6 · automatic 12</span>
             </div>
             <div class="metric">
               <span class="metric-label">Model contract</span>
@@ -797,23 +800,23 @@
               <span class="metric-note">exact match, no fallback</span>
             </div>
             <div class="metric">
-              <span class="metric-label">Memory index</span>
-              <span class="metric-value">9 documents</span>
-              <span class="metric-note">현재 고정된 평가 snapshot</span>
-            </div>
-            <div class="metric">
-              <span class="metric-label">Measured outcome</span>
-              <span class="metric-value">FN 6 · wrong 1</span>
-              <span class="metric-note">lexical miss 0, privacy violation 0</span>
-            </div>
-            <div class="metric">
               <span class="metric-label">Retrieval decision</span>
               <span class="metric-value">NO_CHANGE</span>
-              <span class="metric-note">miss 0 · adapters 0 · production 변경 0</span>
+              <span class="metric-note">lexical miss 0 · adapter 0 · production 변경 0</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Graph decision</span>
+              <span class="metric-value">NO_ADDED_VALUE</span>
+              <span class="metric-note">Graph LLM/direct call 0 · evidence used 1/6</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Automatic decision</span>
+              <span class="metric-value">INCONCLUSIVE</span>
+              <span class="metric-note">recovered 1 · unnecessary 6 · stale 0</span>
             </div>
             <div class="active-run">
-              <strong>Plan015 구현과 독립 검토를 완료했습니다</strong>
-              <p>raw·report·private lock 계보와 privacy를 다시 검증했습니다. PR 등록과 main 병합 뒤 #11 Graph 평가로 이동합니다.</p>
+              <strong>등록한 모든 이슈를 main에 병합했습니다</strong>
+              <p>PR #17과 #18을 병합해 #11·#12를 닫았습니다. kg-eval은 144 pass, 4 private-input skip, fail 0이고 workspace package test는 328 pass, 5 environment-dependent skip, fail 0입니다. 전체 build와 format도 통과했습니다.</p>
             </div>
           </aside>
         </div>
@@ -847,8 +850,8 @@
         <div class="section-head">
           <span class="section-kicker">Decision gates</span>
           <div>
-            <h2 id="gates-title">남은 구현의 판단 순서</h2>
-            <p>#10은 실제 miss가 없어 변경하지 않는 것으로 닫았습니다. 이제 #11 Graph 추가 가치와 #12 automatic retrieval을 순서대로 판정합니다.</p>
+            <h2 id="gates-title">채택 판단 결과</h2>
+            <p>세 후속 경로를 같은 기준선으로 평가했습니다. 기능을 만들 수 있다는 사실만으로 production 기본값을 바꾸지 않았습니다.</p>
           </div>
         </div>
         <div class="next-gates">
@@ -858,14 +861,14 @@
             <p>실제 miss 0건이므로 SQLite, embedding hybrid, vector DB를 만들지 않았습니다.</p>
           </article>
           <article class="gate">
-            <span class="gate-id">GATE B · ISSUE #11</span>
+            <span class="gate-id">GATE B · ISSUE #11 · COMPLETE</span>
             <h3>관계 순회가 더 낫나?</h3>
-            <p>flat 결과가 놓친 다단계 맥락에서 Graph traversal의 순수 추가 가치만 측정합니다.</p>
+            <p>두 task의 성공은 유지됐지만 관계 증거 사용은 1/6에 그쳐 <code>NO_ADDED_VALUE</code>로 닫았습니다.</p>
           </article>
           <article class="gate">
-            <span class="gate-id">GATE C · ISSUE #12</span>
+            <span class="gate-id">GATE C · ISSUE #12 · COMPLETE</span>
             <h3>자동 호출할 가치가 있나?</h3>
-            <p>voluntary trigger의 누락을 줄이는 이득이 추가 latency·token·tool call보다 클 때만 자동화를 선택합니다.</p>
+            <p>한 task를 회수했지만 불필요 조회 6회와 token 표본 공백이 있어 <code>INCONCLUSIVE</code>로 닫고 voluntary 기본값을 유지했습니다.</p>
           </article>
         </div>
       </section>
@@ -885,13 +888,17 @@
           <li><a href="../../tasks/plan014-memory-utility-eval/phase-03.md">Plan014 Phase 03<small>효용·비용·trigger 판정 계약</small></a></li>
           <li><a href="../../tasks/plan015-memory-retrieval-spike/phase-03.md">Plan015 Phase 03<small>lexical miss 0과 NO_CHANGE 판정 계약</small></a></li>
           <li><a href="2026-08-12-plan015-memory-retrieval.md">Plan015 report<small>adapter 미도입과 privacy 검증 근거</small></a></li>
+          <li><a href="../../tasks/plan016-memory-graph-spike/phase-03.md">Plan016 Phase 03<small>Graph 추가 가치 판정 계약</small></a></li>
+          <li><a href="2026-08-12-plan016-memory-graph.md">Plan016 report<small>NO_ADDED_VALUE와 Graph 비용 근거</small></a></li>
+          <li><a href="../../tasks/plan017-memory-automatic-eval/phase-03.md">Plan017 Phase 03<small>automatic 채택 판정 계약</small></a></li>
+          <li><a href="2026-08-12-plan017-memory-automatic.md">Plan017 report<small>회수·불필요 조회와 INCONCLUSIVE 근거</small></a></li>
           <li><a href="2026-08-12-plan013-memory-foundation.md">Plan013 report<small>평가 기반 구현 완료 근거</small></a></li>
           <li><a href="https://github.com/jon890/devloop-v2/issues">GitHub Issues<small>실행 가능한 전체 작업 목록</small></a></li>
         </ul>
       </section>
 
       <footer>
-        <span>devloop-v2 · architecture &amp; progress report</span>
+        <span>devloop-v2 · feature baseline 5180a5e · issues 0 · PR 0</span>
         <span>공개 보고서에는 내부 URL·실제 revision·prompt·transcript를 포함하지 않습니다.</span>
       </footer>
     </main>
