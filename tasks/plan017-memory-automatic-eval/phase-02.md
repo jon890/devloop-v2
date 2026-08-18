@@ -1,7 +1,7 @@
 # Phase 02 — 같은 task에서 automatic 조건을 3회 실행한다
 
 **Execution profile**: standard
-**Status**: pending
+**Status**: completed
 
 ---
 

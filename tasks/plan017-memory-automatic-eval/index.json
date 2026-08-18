@@ -1,7 +1,7 @@
 {
   "name": "plan017-memory-automatic-eval",
   "description": "voluntary 기준선 뒤 automatic Memory retrieval의 추가 회수와 context 오염을 평가한다",
-  "status": "pending",
+  "status": "completed",
   "created_at": "2026-08-12",
   "total_phases": 3,
   "phases": [
@@ -10,21 +10,21 @@
       "file": "phase-01.md",
       "title": "automatic retrieval fail-safe를 구현한다",
       "execution_profile": "deep",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "number": 2,
       "file": "phase-02.md",
       "title": "같은 task에서 automatic 조건을 3회 실행한다",
       "execution_profile": "standard",
-      "status": "pending"
+      "status": "completed"
     },
     {
       "number": 3,
       "file": "phase-03.md",
       "title": "추가 회수와 불필요한 주입으로 채택 여부를 판정한다",
       "execution_profile": "deep",
-      "status": "pending"
+      "status": "completed"
     }
   ]
 }
