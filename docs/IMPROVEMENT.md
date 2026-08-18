@@ -1185,24 +1185,28 @@ Coding Agent Memory를 위해 변경할 부분.
 
 ---
 
-# 21. 전체 Issue 구현 실행 단위
+# 21. 전체 Issue 구현 결과
 
-2026-08-13 기준 #4~#8의 production 기준선과 voluntary Agent 통합은 구현되어 main에 병합됐다.
-#3과 #9의 end-to-end utility 평가는 Plan014에서 36회 수집과 독립 검증을 마쳤으며, main 병합을 앞두고 있다.
-#10~#12는 그 결과가 만든 실제 miss와 비용을 입력으로 사용한다.
-모든 Issue를 닫기 위해 다음 순서를 고정한다.
+2026-08-18 기준 #3부터 #12까지 등록한 Experience Memory Issue를 모두 구현하고 main에 병합했다.
 
-1. source-locked Coding Agent benchmark와 voluntary trigger 계측을 구현한다.
-2. #4~#7의 각 acceptance criterion을 코드·실측 근거로 다시 확인한다.
-3. no-memory, agent-triggered, oracle-memory를 같은 task와 revision에서 3회씩 실행한다.
-4. 실제 miss가 있을 때만 대체 retrieval을 비교한다.
-5. 관계형 task에서만 Graph 추가 가치를 비교한다.
-6. voluntary 결과 뒤 automatic retrieval의 추가 회수와 오염을 비교한다.
+- #3·#9: Plan014에서 no-memory, agent-triggered, oracle-memory를 같은 task와 revision으로 36회 실행하고 end-to-end utility를 측정
+- #4부터 #8: Dooray 업무·댓글·Wiki와 OCR Git의 읽기 전용 정규화, Luna 추출, compact Wiki, lexical 검색, voluntary Agent 연결을 production 기준선으로 구현
+- #10: 실제 lexical miss가 0건이어서 대체 adapter를 추가하지 않고 `NO_CHANGE`로 종료
+- #11: Graph 조건 6회에서 task success는 유지됐지만 관계 증거 사용이 1회에 그쳐 `NO_ADDED_VALUE`로 종료
+- #12: automatic 조건 12회에서 1개 task를 회수했지만 불필요 조회 6회와 token 표본 공백이 있어 `INCONCLUSIVE`로 종료
 
-평가 task 원문, 실제 checkout path, 내부 URL, Agent 전문은 ignored private run에 둔다.
-공개 suite와 report는 안정 task ID, 분류, hash, 집계, 검증 공백만 남긴다.
-task success와 wrong edit가 최우선이며 token은 Agent가 실제 usage를 제공할 때만 기록한다.
+=> production 기본값은 compact Wiki의 flat lexical 검색과 Agent의 voluntary trigger로 유지한다.
+Graph는 실측 추가 효용이 없었고 automatic retrieval은 채택 근거가 충분하지 않아 production 기본값에 넣지 않는다.
 
-현재 아키텍처, 구현 현황, 최종 목표의 사람이 읽는 요약은
+구현 결과는 다음 계약을 지킨다.
+
+1. 지식 추출 LLM과 LLM이 필요한 검색 실험은 `gpt-5.6-luna / low`만 허용하며 사용할 수 없으면 fallback 없이 실패한다.
+2. 정규화, Wiki 생성, lexical 검색은 LLM 없이 결정적으로 실행한다.
+3. 모든 Memory는 안정적인 원천 식별자와 원문 link를 provenance로 보존한다.
+4. 평가 task 원문, 실제 checkout path, 내부 URL, Agent 전문은 Git 비추적 private run에 둔다.
+5. 공개 suite와 report에는 안정 task ID, 분류, hash, 집계, 검증 공백만 남긴다.
+6. task success와 wrong edit를 우선하며 token은 Agent가 실제 usage를 제공할 때만 기록한다.
+
+현재 아키텍처, 구현 현황, 측정 지표와 최종 목표는
 [`eval/reports/2026-08-13-project-status.html`](../eval/reports/2026-08-13-project-status.html)에서 관리한다.
-별도 prompts, research, memory 관리 문서를 만들지 않고 이 원문과 기존 설계 문서·평가 리포트를 갱신한다.
+별도 prompts, research, memory 관리 문서를 만들지 않고 이 원문과 기존 설계 문서·평가 리포트만 유지한다.
