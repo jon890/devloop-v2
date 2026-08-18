@@ -539,6 +539,11 @@ async function executeAttempt({ options, sourceTask, condition, repetition, runK
             runMemorySearchFn: options.runMemorySearchFn ?? runMemorySearch,
           })
         : null;
+    if (condition === "automatic" && automaticMemory && !automaticMemory.ok) {
+      const error = new Error(`automatic memory unavailable: ${JSON.stringify(oracleFailureCounts(automaticMemory))}`);
+      error.failures = oracleFailureCounts(automaticMemory);
+      throw error;
+    }
     const input =
       condition === "memory-graph"
         ? buildExperimentalMemoryConditionInput({ task: sourceTask, condition, oracleMemory: oracle.memory, graphContext: graphContextResult.context })

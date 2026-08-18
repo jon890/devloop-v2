@@ -329,3 +329,48 @@ test("automatic run calls memory search once before Agent and records flat retri
     await rm(fixture.root, { recursive: true, force: true });
   }
 });
+
+test("automatic memory search failures fail closed before Agent execution", async () => {
+  const fixture = await makeFixture();
+  try {
+    let agentCalls = 0;
+    for (const [reason, memory] of [
+      ["process", null],
+      ["json", null],
+      ["missingResults", {}],
+      ["emptyResults", { results: [] }],
+      ["missingHttpSourceRef", { results: [{ title: "memory", sourceRefs: [{ url: "file:///private" }] }] }],
+    ]) {
+      const outPath = path.join(fixture.root, `${reason}-automatic.json`);
+      await assert.rejects(
+        () =>
+          runMemoryEvaluation({
+            suitePath: fixture.suitePath,
+            sourceLockPath: fixture.sourceLockPath,
+            dataDir: fixture.dataDir,
+            outPath,
+            agent: "codex",
+            agentOptions: { model: "gpt-5.6-luna", effort: "low" },
+            taskIds: ["MEM-EXP-001"],
+            conditions: ["automatic"],
+            repeats: 1,
+            timeoutMs: 1000,
+            runMemorySearchFn: async () => ({ ok: false, reason, result: { status: reason === "process" ? 1 : 0 }, memory }),
+            runAgentFn: async () => {
+              agentCalls += 1;
+              throw new Error("automatic failure must stop before Agent execution");
+            },
+          }),
+        (error) => {
+          assert.match(error.message, /automatic memory unavailable/);
+          assert.equal(error.message.includes(fixture.root), false);
+          assert.equal(error.failures[reason], 1);
+          return true;
+        },
+      );
+    }
+    assert.equal(agentCalls, 0);
+  } finally {
+    await rm(fixture.root, { recursive: true, force: true });
+  }
+});

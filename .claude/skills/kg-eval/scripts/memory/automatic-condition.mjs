@@ -33,7 +33,6 @@ async function runAutomaticMemorySearch({ task, dataDir, cwd, runMemorySearchFn 
       ok: false,
       reason: search.reason,
       result: search.result,
-      context: automaticContext({ query, results: [], warnings: [{ title: "Memory unavailable", reason: safeReason(search.reason) }] }),
       metrics: automaticMetrics({ memoryCalls: 1 }),
     };
   }
