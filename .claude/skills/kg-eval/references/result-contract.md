@@ -264,6 +264,11 @@ Memory 원시 실행 결과는 `schemaVersion=memory-eval-run/v1`을 사용하�
 | `sourceLockHash` | string | private source lock canonical hash |
 | `taskInputs` | array | task별 실행 입력 lock. `taskId` 기준 정렬 |
 | `memoryIndexHash` | string | 사용한 Memory index hash |
+| `sourceRepositoryRoot` | string? | opt-in source repository root real path. 있으면 raw run resume 비교 조건에 포함 |
+| `resolvedRepositories` | array? | opt-in source repository root로 검증한 task별 실행 repository resolution |
+| `graphLockPath` | string? | `memory-graph` 조건에서 사용한 private Graph lock 경로 |
+| `graphLockHash` | string? | `memory-graph` 조건에서 사용한 Graph lock byte hash |
+| `graphBaseUrl` | string? | `memory-graph` 조건에서 사용한 Graph API base URL |
 | `agent` | string | 실행한 Agent 종류. 예: `codex`, `claude` |
 | `agentOptions` | object | run-level Agent 옵션 lock. `model`, `effort`, `permissionMode`의 누락 값은 `null`로 정규화 |
 | `attempts` | array | task·condition·repetition별 결과 |
@@ -276,8 +281,20 @@ runner는 `taskId` 기준 canonical order로 저장하고 비교한다.
 task 순서만 바뀐 입력은 같은 조건으로 보지만, task 하나의 `baseRevision` 또는 `validationCommand`가 바뀌면 다른 실행으로 거부한다.
 `agentOptions` 비교는 `model`, `effort`, `permissionMode`만 사용하며 각 값이 없으면 `null`로 비교한다.
 기존 결과 파일에 run-level `agent` 또는 `agentOptions`가 없으면 다른 실행 조건으로 보고 resume을 거부한다.
+`memory-graph` 조건은 `graphLockPath`, `graphLockHash`, `graphBaseUrl`도 resume 비교 조건으로 사용한다.
 저장은 임시 JSON 파일을 파싱해 검증한 뒤 rename한다.
 동시에 같은 결과 파일을 쓰려 하면 `<out>.lock` 충돌로 실패해야 한다.
 
 판정기는 저장 계층이나 Agent process를 직접 호출하지 않는다.
 validation 결과, 허용 경로 밖 변경, 최종 diff와 실행 event를 입력으로 받아 `taskSuccess`, `wrongEditCount`, `reworkCount`를 계산한다.
+
+`memory-graph` attempt는 다음 flat field를 추가로 가진다.
+
+| 필드 | 형식 | 설명 |
+| --- | --- | --- |
+| `graphContextCalls` | number | Agent 실행 전 deterministic Graph context adapter HTTP call 수 |
+| `agentGraphCalls` | number | Agent event에서 관측된 직접 Graph command 수 |
+| `graphCalls` | number | `graphContextCalls + agentGraphCalls` |
+| `graphLlmCalls` | number | Graph LLM call 수. deterministic adapter 조건에서는 항상 0 |
+| `graphLatencyMs` | number | Graph context adapter HTTP call 총 latency |
+| `graphEvidenceUsed` | boolean 또는 null | 제공한 source key나 relationship이 Agent event text에 관측됐는지 여부. 관측 근거가 없으면 null |

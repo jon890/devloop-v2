@@ -117,6 +117,7 @@ function emptyTelemetry() {
     sourceReads: 0,
     memoryCalls: 0,
     graphCalls: 0,
+    agentGraphCalls: 0,
     inputTokens: null,
     outputTokens: null,
     reworkCount: 0,
@@ -134,7 +135,10 @@ function observeCommand(telemetry, command) {
   telemetry.toolCalls += 1;
   if (isSourceReadCommand(command)) telemetry.sourceReads += 1;
   if (isMemoryCommand(command)) telemetry.memoryCalls += 1;
-  if (isGraphCommand(command)) telemetry.graphCalls += 1;
+  if (isGraphCommand(command)) {
+    telemetry.graphCalls += 1;
+    telemetry.agentGraphCalls += 1;
+  }
 }
 
 function observeClaudeContent(telemetry, content) {
@@ -147,7 +151,10 @@ function observeClaudeContent(telemetry, content) {
     const command = input.command ?? input.cmd ?? input;
     if (SOURCE_READ_TOOLS.has(toolName) || (toolName === "Bash" && isSourceReadCommand(command))) telemetry.sourceReads += 1;
     if (toolName === "Bash" && isMemoryCommand(command)) telemetry.memoryCalls += 1;
-    if (toolName === "Bash" && isGraphCommand(command)) telemetry.graphCalls += 1;
+    if (toolName === "Bash" && isGraphCommand(command)) {
+      telemetry.graphCalls += 1;
+      telemetry.agentGraphCalls += 1;
+    }
   }
 }
 

@@ -7,6 +7,7 @@ import { loadSourceLock } from "./source-lock.mjs";
 
 const SECRET_FIELD_NAMES = new Set([
   "repositoryPath",
+  "originalRepositoryPath",
   "repositoryUrl",
   "sourceUrl",
   "baseRevision",
@@ -15,6 +16,20 @@ const SECRET_FIELD_NAMES = new Set([
   "diff",
   "transcript",
   "oracleQuery",
+  "resolvedElementId",
+  "graphBaseUrl",
+  "apiBaseUrl",
+]);
+
+const PRIVATE_INPUT_FIELD_NAMES = new Set([
+  "repositoryPath",
+  "originalRepositoryPath",
+  "repositoryUrl",
+  "sourceUrl",
+  "resolvedElementId",
+  "graphBaseUrl",
+  "apiBaseUrl",
+  "graphFailureReason",
 ]);
 
 function parseArgs(argv) {
@@ -122,12 +137,33 @@ function collectPrivateInputNeedlesFromValue(value, needles, fieldPath = "$") {
   for (const [key, child] of Object.entries(value)) {
     const childPath = `${fieldPath}.${key}`;
     if (key === "query" && hasText(child)) addNeedle(needles, "privateQuery", child);
+    if (PRIVATE_INPUT_FIELD_NAMES.has(key) && hasText(child)) {
+      addNeedle(needles, key, child);
+      if (key.toLowerCase().includes("url")) {
+        for (const domain of internalDomainCandidates(child)) addNeedle(needles, "internalDomain", domain);
+      }
+    }
+    if (key === "id" && hasText(child) && /(?:nodes|relationships)\[\d+\]$/.test(fieldPath)) addNeedle(needles, "graphElementId", child);
+    if (key === "key" && hasText(child)) addNeedle(needles, "graphAnchorKey", child);
+    if (key === "properties" && child && typeof child === "object") collectGraphPropertyNeedles(child, needles);
     if (/memoryids?$/i.test(key) && Array.isArray(child)) {
       for (const item of child) addNeedle(needles, "memoryId", item);
     }
     if (/memoryid$/i.test(key) && hasText(child)) addNeedle(needles, "memoryId", child);
     collectPrivateInputNeedlesFromValue(child, needles, childPath);
   }
+}
+
+function collectGraphPropertyNeedles(value, needles) {
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectGraphPropertyNeedles(item, needles));
+    return;
+  }
+  if (!value || typeof value !== "object") {
+    addNeedle(needles, "graphProperty", typeof value === "string" ? value : "");
+    return;
+  }
+  for (const child of Object.values(value)) collectGraphPropertyNeedles(child, needles);
 }
 
 async function collectPrivateInputNeedles(privateInputPaths) {

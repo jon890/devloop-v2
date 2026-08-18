@@ -1,0 +1,30 @@
+{
+  "name": "plan016-memory-graph-spike",
+  "description": "관계형·일반 Coding Agent task에서 Memory 대비 Graph 이웃 정보의 추가 가치를 측정한다",
+  "status": "completed",
+  "created_at": "2026-08-12",
+  "total_phases": 3,
+  "phases": [
+    {
+      "number": 1,
+      "file": "phase-01.md",
+      "title": "관계형·일반 task와 Graph anchor를 고정한다",
+      "execution_profile": "deep",
+      "status": "completed"
+    },
+    {
+      "number": 2,
+      "file": "phase-02.md",
+      "title": "source-backed Graph context 조건을 반복 실행한다",
+      "execution_profile": "standard",
+      "status": "completed"
+    },
+    {
+      "number": 3,
+      "file": "phase-03.md",
+      "title": "task 유형별 Graph 추가 가치와 비용을 판정한다",
+      "execution_profile": "deep",
+      "status": "completed"
+    }
+  ]
+}
