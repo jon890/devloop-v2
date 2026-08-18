@@ -7,6 +7,7 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { assertOnlyMemoryInformationDiffers, buildMemoryConditionInputs, MEMORY_CONDITIONS } from "../scripts/memory/condition.mjs";
+import { resolveSourceRepositoryRoot } from "../scripts/memory/source-repository-root.mjs";
 import { materializeMemoryWorkspace } from "../scripts/memory/workspace.mjs";
 import { loadMemoryEvaluationInputs } from "../scripts/validate-memory-suite.mjs";
 import { buildAttemptSchedule, runMemoryEvaluation } from "../scripts/run-memory.mjs";
@@ -24,6 +25,15 @@ async function exists(filePath) {
   } catch {
     return false;
   }
+}
+
+async function resolvePrivateSourceTasks(tasks) {
+  if ((await Promise.all(tasks.map((task) => exists(task.repositoryPath)))).every(Boolean)) return tasks;
+
+  const sourceRoots = new Set(tasks.map((task) => path.dirname(task.originalRepositoryPath ?? "")));
+  assert.equal(sourceRoots.size, 1, "Plan014 original repositories must share one source root");
+  const { tasks: resolvedTasks } = await resolveSourceRepositoryRoot({ sourceRepositoryRoot: [...sourceRoots][0], tasks });
+  return resolvedTasks;
 }
 
 function run(command, args, cwd) {
@@ -158,7 +168,8 @@ test("Plan014 private source lock has identical condition inputs and independent
   try {
     const { sourceLock } = await loadMemoryEvaluationInputs({ suitePath: PRIVATE_SUITE, sourceLockPath: PRIVATE_SOURCE_LOCK });
     assert.equal(sourceLock.tasks.length, 4);
-    for (const task of sourceLock.tasks) {
+    const sourceTasks = await resolvePrivateSourceTasks(sourceLock.tasks);
+    for (const task of sourceTasks) {
       const inputs = buildMemoryConditionInputs({ task, oracleMemory: { results: [{ sourceRefs: [{ url: "https://source.example.invalid/ref" }] }] } });
       assert.equal(assertOnlyMemoryInformationDiffers(inputs), true);
       await assertBaseFailsTargetPasses({ task, runsRoot: path.join(root, "workspaces") });

@@ -134,6 +134,14 @@ test("parses help, dry-run, and bounded execution options", () => {
   assert.equal(parsed.requireExpectedTrigger, true);
 });
 
+test("parseArgs enforces automatic execution identity before execution", () => {
+  assert.throws(() => parseArgs(["--suite", "suite.json", "--source-lock", "lock.json", "--conditions", "automatic", "--agent", "claude", "--model", "gpt-5.6-luna", "--effort", "low"]), /agent=codex/);
+  assert.throws(() => parseArgs(["--suite", "suite.json", "--source-lock", "lock.json", "--conditions", "automatic", "--agent", "codex", "--model", "gpt-5.6-terra", "--effort", "low"]), /model=gpt-5.6-luna/);
+  assert.throws(() => parseArgs(["--suite", "suite.json", "--source-lock", "lock.json", "--conditions", "automatic", "--agent", "codex", "--model", "gpt-5.6-luna", "--effort", "medium"]), /effort=low/);
+  const parsed = parseArgs(["--suite", "suite.json", "--source-lock", "lock.json", "--conditions", "automatic", "--agent", "codex", "--model", "gpt-5.6-luna", "--effort", "low"]);
+  assert.deepEqual(parsed.conditions, ["automatic"]);
+});
+
 test("builds deterministic default and interleaved schedules", () => {
   const tasks = [{ id: "T1" }, { id: "T2" }];
   const conditions = ["no-memory", "agent-triggered", "oracle-memory"];

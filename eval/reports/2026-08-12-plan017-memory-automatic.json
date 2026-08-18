@@ -1,0 +1,455 @@
+{
+  "aggregateMetrics": {
+    "automatic": {
+      "contextBytesMedian": 683,
+      "inputTokensMedian": 133641.5,
+      "memoryCallsMedian": 1,
+      "outputTokensMedian": 1440.5,
+      "sourceReadsMedian": 0,
+      "taskSuccessCount": 12,
+      "wallTimeMsMedian": 38196.5,
+      "wrongEditCount": 0
+    },
+    "voluntary": {
+      "contextBytesMedian": null,
+      "inputTokensMedian": 185912,
+      "memoryCallsMedian": 0,
+      "outputTokensMedian": 2040,
+      "sourceReadsMedian": 0,
+      "taskSuccessCount": 10,
+      "wallTimeMsMedian": 57024,
+      "wrongEditCount": 1
+    }
+  },
+  "automaticIntegrity": {
+    "memoryCallMismatchCount": 0,
+    "retrievedBucketMismatchCount": 0,
+    "staleInjectionCount": 0
+  },
+  "costDecisionInput": {
+    "missing": [
+      "MEM-CODE-001.inputTokens",
+      "MEM-CODE-001.outputTokens"
+    ],
+    "overLimit": [],
+    "rows": [
+      {
+        "metrics": {
+          "inputTokens": {
+            "automaticMedian": 98071,
+            "deltaRatio": -0.3180847883073628,
+            "sampleComplete": false,
+            "voluntaryMedian": 143817,
+            "within25Percent": true
+          },
+          "outputTokens": {
+            "automaticMedian": 572,
+            "deltaRatio": -0.46088595664467485,
+            "sampleComplete": false,
+            "voluntaryMedian": 1061,
+            "within25Percent": true
+          },
+          "wallTimeMs": {
+            "automaticMedian": 21020,
+            "deltaRatio": -0.6649505076748968,
+            "sampleComplete": true,
+            "voluntaryMedian": 62737,
+            "within25Percent": true
+          }
+        },
+        "taskId": "MEM-CODE-001"
+      },
+      {
+        "metrics": {
+          "inputTokens": {
+            "automaticMedian": 112180,
+            "deltaRatio": -0.3642679844495574,
+            "sampleComplete": true,
+            "voluntaryMedian": 176458,
+            "within25Percent": true
+          },
+          "outputTokens": {
+            "automaticMedian": 1415,
+            "deltaRatio": -0.32811016144349475,
+            "sampleComplete": true,
+            "voluntaryMedian": 2106,
+            "within25Percent": true
+          },
+          "wallTimeMs": {
+            "automaticMedian": 35202,
+            "deltaRatio": -0.3458944199788171,
+            "sampleComplete": true,
+            "voluntaryMedian": 53817,
+            "within25Percent": true
+          }
+        },
+        "taskId": "MEM-CODE-002"
+      },
+      {
+        "metrics": {
+          "inputTokens": {
+            "automaticMedian": 237915,
+            "deltaRatio": -0.32652160005435044,
+            "sampleComplete": true,
+            "voluntaryMedian": 353263,
+            "within25Percent": true
+          },
+          "outputTokens": {
+            "automaticMedian": 3342,
+            "deltaRatio": 0.0822538860103627,
+            "sampleComplete": true,
+            "voluntaryMedian": 3088,
+            "within25Percent": true
+          },
+          "wallTimeMs": {
+            "automaticMedian": 75681,
+            "deltaRatio": 0.0021451555237754737,
+            "sampleComplete": true,
+            "voluntaryMedian": 75519,
+            "within25Percent": true
+          }
+        },
+        "taskId": "MEM-EXP-001"
+      },
+      {
+        "metrics": {
+          "inputTokens": {
+            "automaticMedian": 155102,
+            "deltaRatio": -0.20550148550353448,
+            "sampleComplete": true,
+            "voluntaryMedian": 195220,
+            "within25Percent": true
+          },
+          "outputTokens": {
+            "automaticMedian": 1529,
+            "deltaRatio": -0.15149833518312986,
+            "sampleComplete": true,
+            "voluntaryMedian": 1802,
+            "within25Percent": true
+          },
+          "wallTimeMs": {
+            "automaticMedian": 43309,
+            "deltaRatio": -0.2344446015696811,
+            "sampleComplete": true,
+            "voluntaryMedian": 56572,
+            "within25Percent": true
+          }
+        },
+        "taskId": "MEM-EXP-002"
+      }
+    ]
+  },
+  "counts": {
+    "automaticAttemptCount": 12,
+    "automaticWrongEditCount": 0,
+    "emptyRetrievalAttemptCount": 0,
+    "recoveredTaskCount": 1,
+    "staleInjectionCount": 0,
+    "taskSuccessRegressionCount": 0,
+    "unnecessaryCodeOnlyAttemptCount": 6,
+    "unnecessaryRetrievalAttemptCount": 6,
+    "voluntaryAttemptCount": 12,
+    "voluntaryWrongEditCount": 1
+  },
+  "decision": {
+    "decision": "INCONCLUSIVE",
+    "priority": 5,
+    "reason": "missing token/cost samples or mixed results prevent deterministic adoption"
+  },
+  "generatedAt": null,
+  "identity": {
+    "comparedAttempts": 24,
+    "matchedPairs": 12,
+    "taskRepetitionValidationModelIndex": true
+  },
+  "recoveredTasks": [
+    {
+      "automaticSuccessCount": 3,
+      "automaticWrongEditCount": 0,
+      "taskId": "MEM-EXP-001",
+      "voluntaryMissEvidenceCount": 3,
+      "voluntarySuccessCount": 2
+    }
+  ],
+  "reportDate": "2026-08-12",
+  "schemaVersion": "memory-automatic-report/v1",
+  "source": {
+    "automaticRunHash": "268a2a240986d997891613f4007717cb6d84e2d110c1676b940947cadf0575d6",
+    "memoryIndexHash": "sha256:8709e0a8f3443eb067f30c9a535ccd489ac4fdc0528278ce1c671e838bac00fd",
+    "sourceLockHash": "a6e5a935f43df18809803a6f461479e41367ddafc211db46ab44dd1c0dc01d44",
+    "suiteHash": "484a42b87cf0c79421ba1db14f74cb561701450bfef1e1bb09686d73d5a09bff",
+    "voluntaryRunHash": "c9f2d325d2e211dc1ef7d3fc324e633eea5f9ca0b59724b612e66d8b0c78fc43"
+  },
+  "taskMetrics": [
+    {
+      "automaticSuccessCount": 3,
+      "automaticWrongEditCount": 0,
+      "category": "code-only",
+      "metrics": {
+        "contextBytes": {
+          "automaticMedian": 832,
+          "automaticSampleCount": 3,
+          "delta": null,
+          "deltaRatio": null,
+          "voluntaryMedian": null,
+          "voluntarySampleCount": 0
+        },
+        "inputTokens": {
+          "automaticMedian": 98071,
+          "automaticSampleCount": 3,
+          "delta": -45746,
+          "deltaRatio": -0.3180847883073628,
+          "voluntaryMedian": 143817,
+          "voluntarySampleCount": 2
+        },
+        "memoryCalls": {
+          "automaticMedian": 1,
+          "automaticSampleCount": 3,
+          "delta": 1,
+          "deltaRatio": null,
+          "voluntaryMedian": 0,
+          "voluntarySampleCount": 3
+        },
+        "outputTokens": {
+          "automaticMedian": 572,
+          "automaticSampleCount": 3,
+          "delta": -489,
+          "deltaRatio": -0.46088595664467485,
+          "voluntaryMedian": 1061,
+          "voluntarySampleCount": 2
+        },
+        "sourceReads": {
+          "automaticMedian": 0,
+          "automaticSampleCount": 3,
+          "delta": 0,
+          "deltaRatio": 0,
+          "voluntaryMedian": 0,
+          "voluntarySampleCount": 3
+        },
+        "wallTimeMs": {
+          "automaticMedian": 21020,
+          "automaticSampleCount": 3,
+          "delta": -41717,
+          "deltaRatio": -0.6649505076748968,
+          "voluntaryMedian": 62737,
+          "voluntarySampleCount": 3
+        }
+      },
+      "taskId": "MEM-CODE-001",
+      "voluntarySuccessCount": 2,
+      "voluntaryWrongEditCount": 0
+    },
+    {
+      "automaticSuccessCount": 3,
+      "automaticWrongEditCount": 0,
+      "category": "code-only",
+      "metrics": {
+        "contextBytes": {
+          "automaticMedian": 499,
+          "automaticSampleCount": 3,
+          "delta": null,
+          "deltaRatio": null,
+          "voluntaryMedian": null,
+          "voluntarySampleCount": 0
+        },
+        "inputTokens": {
+          "automaticMedian": 112180,
+          "automaticSampleCount": 3,
+          "delta": -64278,
+          "deltaRatio": -0.3642679844495574,
+          "voluntaryMedian": 176458,
+          "voluntarySampleCount": 3
+        },
+        "memoryCalls": {
+          "automaticMedian": 1,
+          "automaticSampleCount": 3,
+          "delta": 1,
+          "deltaRatio": null,
+          "voluntaryMedian": 0,
+          "voluntarySampleCount": 3
+        },
+        "outputTokens": {
+          "automaticMedian": 1415,
+          "automaticSampleCount": 3,
+          "delta": -691,
+          "deltaRatio": -0.32811016144349475,
+          "voluntaryMedian": 2106,
+          "voluntarySampleCount": 3
+        },
+        "sourceReads": {
+          "automaticMedian": 0,
+          "automaticSampleCount": 3,
+          "delta": 0,
+          "deltaRatio": 0,
+          "voluntaryMedian": 0,
+          "voluntarySampleCount": 3
+        },
+        "wallTimeMs": {
+          "automaticMedian": 35202,
+          "automaticSampleCount": 3,
+          "delta": -18615,
+          "deltaRatio": -0.3458944199788171,
+          "voluntaryMedian": 53817,
+          "voluntarySampleCount": 3
+        }
+      },
+      "taskId": "MEM-CODE-002",
+      "voluntarySuccessCount": 3,
+      "voluntaryWrongEditCount": 0
+    },
+    {
+      "automaticSuccessCount": 3,
+      "automaticWrongEditCount": 0,
+      "category": "experience-needed",
+      "metrics": {
+        "contextBytes": {
+          "automaticMedian": 2123,
+          "automaticSampleCount": 3,
+          "delta": null,
+          "deltaRatio": null,
+          "voluntaryMedian": null,
+          "voluntarySampleCount": 0
+        },
+        "inputTokens": {
+          "automaticMedian": 237915,
+          "automaticSampleCount": 3,
+          "delta": -115348,
+          "deltaRatio": -0.32652160005435044,
+          "voluntaryMedian": 353263,
+          "voluntarySampleCount": 3
+        },
+        "memoryCalls": {
+          "automaticMedian": 1,
+          "automaticSampleCount": 3,
+          "delta": 1,
+          "deltaRatio": null,
+          "voluntaryMedian": 0,
+          "voluntarySampleCount": 3
+        },
+        "outputTokens": {
+          "automaticMedian": 3342,
+          "automaticSampleCount": 3,
+          "delta": 254,
+          "deltaRatio": 0.0822538860103627,
+          "voluntaryMedian": 3088,
+          "voluntarySampleCount": 3
+        },
+        "sourceReads": {
+          "automaticMedian": 0,
+          "automaticSampleCount": 3,
+          "delta": 0,
+          "deltaRatio": 0,
+          "voluntaryMedian": 0,
+          "voluntarySampleCount": 3
+        },
+        "wallTimeMs": {
+          "automaticMedian": 75681,
+          "automaticSampleCount": 3,
+          "delta": 162,
+          "deltaRatio": 0.0021451555237754737,
+          "voluntaryMedian": 75519,
+          "voluntarySampleCount": 3
+        }
+      },
+      "taskId": "MEM-EXP-001",
+      "voluntarySuccessCount": 2,
+      "voluntaryWrongEditCount": 1
+    },
+    {
+      "automaticSuccessCount": 3,
+      "automaticWrongEditCount": 0,
+      "category": "experience-needed",
+      "metrics": {
+        "contextBytes": {
+          "automaticMedian": 534,
+          "automaticSampleCount": 3,
+          "delta": null,
+          "deltaRatio": null,
+          "voluntaryMedian": null,
+          "voluntarySampleCount": 0
+        },
+        "inputTokens": {
+          "automaticMedian": 155102,
+          "automaticSampleCount": 3,
+          "delta": -40118,
+          "deltaRatio": -0.20550148550353448,
+          "voluntaryMedian": 195220,
+          "voluntarySampleCount": 3
+        },
+        "memoryCalls": {
+          "automaticMedian": 1,
+          "automaticSampleCount": 3,
+          "delta": 1,
+          "deltaRatio": null,
+          "voluntaryMedian": 0,
+          "voluntarySampleCount": 3
+        },
+        "outputTokens": {
+          "automaticMedian": 1529,
+          "automaticSampleCount": 3,
+          "delta": -273,
+          "deltaRatio": -0.15149833518312986,
+          "voluntaryMedian": 1802,
+          "voluntarySampleCount": 3
+        },
+        "sourceReads": {
+          "automaticMedian": 0,
+          "automaticSampleCount": 3,
+          "delta": 0,
+          "deltaRatio": 0,
+          "voluntaryMedian": 0,
+          "voluntarySampleCount": 3
+        },
+        "wallTimeMs": {
+          "automaticMedian": 43309,
+          "automaticSampleCount": 3,
+          "delta": -13263,
+          "deltaRatio": -0.2344446015696811,
+          "voluntaryMedian": 56572,
+          "voluntarySampleCount": 3
+        }
+      },
+      "taskId": "MEM-EXP-002",
+      "voluntarySuccessCount": 3,
+      "voluntaryWrongEditCount": 0
+    }
+  ],
+  "taskRegressions": [],
+  "trigger": {
+    "automatic": {
+      "FN": 0,
+      "FP": 6,
+      "TN": 0,
+      "TP": 6,
+      "precision": 0.5,
+      "recall": 1
+    },
+    "voluntary": {
+      "FN": 6,
+      "FP": 0,
+      "TN": 6,
+      "TP": 0,
+      "precision": null,
+      "recall": 0
+    }
+  },
+  "unnecessaryRetrieval": {
+    "codeOnlyAttemptKeys": [
+      "MEM-CODE-001:1",
+      "MEM-CODE-001:2",
+      "MEM-CODE-001:3",
+      "MEM-CODE-002:1",
+      "MEM-CODE-002:2",
+      "MEM-CODE-002:3"
+    ],
+    "emptyRetrievalAttemptKeys": [],
+    "unionAttemptKeys": [
+      "MEM-CODE-001:1",
+      "MEM-CODE-001:2",
+      "MEM-CODE-001:3",
+      "MEM-CODE-002:1",
+      "MEM-CODE-002:2",
+      "MEM-CODE-002:3"
+    ]
+  }
+}

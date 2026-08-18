@@ -1,5 +1,5 @@
 const MEMORY_CONDITIONS = ["no-memory", "agent-triggered", "oracle-memory"];
-const EXPERIMENTAL_MEMORY_CONDITIONS = ["memory-graph"];
+const EXPERIMENTAL_MEMORY_CONDITIONS = ["memory-graph", "automatic"];
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -54,6 +54,14 @@ function graphMemoryInformation({ oracleMemory, graphContext }) {
   };
 }
 
+function automaticMemoryInformation({ automaticContext }) {
+  return {
+    mode: "automatic",
+    instruction: "Use only the provided automatic Memory context for this condition; do not run additional Memory search.",
+    automaticContext,
+  };
+}
+
 function buildMemoryConditionInputs({ task, oracleMemory = null }) {
   const shared = baseInput(task);
   return MEMORY_CONDITIONS.map((condition) => ({
@@ -63,14 +71,16 @@ function buildMemoryConditionInputs({ task, oracleMemory = null }) {
   }));
 }
 
-function buildExperimentalMemoryConditionInput({ task, condition, oracleMemory = null, graphContext = null }) {
+function buildExperimentalMemoryConditionInput({ task, condition, oracleMemory = null, graphContext = null, automaticContext = null }) {
   if (!EXPERIMENTAL_MEMORY_CONDITIONS.includes(condition)) {
     throw new Error(`unsupported experimental memory condition: ${condition}`);
   }
+  const memoryInformation =
+    condition === "memory-graph" ? graphMemoryInformation({ oracleMemory, graphContext }) : automaticMemoryInformation({ automaticContext });
   return {
     ...clone(baseInput(task)),
     condition,
-    memoryInformation: graphMemoryInformation({ oracleMemory, graphContext }),
+    memoryInformation,
   };
 }
 

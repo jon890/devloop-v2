@@ -298,3 +298,17 @@ validation 결과, 허용 경로 밖 변경, 최종 diff와 실행 event를 입�
 | `graphLlmCalls` | number | Graph LLM call 수. deterministic adapter 조건에서는 항상 0 |
 | `graphLatencyMs` | number | Graph context adapter HTTP call 총 latency |
 | `graphEvidenceUsed` | boolean 또는 null | 제공한 source key나 relationship이 Agent event text에 관측됐는지 여부. 관측 근거가 없으면 null |
+
+`automatic` attempt는 Agent 실행 전 deterministic `memory-search` 조회와 안전 주입 결과를 다음 flat field로 기록한다.
+
+| 필드 | 형식 | 설명 |
+| --- | --- | --- |
+| `memoryCalls` | number | Agent event에서 관측된 Memory command 수와 automatic 사전 조회 수의 합 |
+| `retrievedCount` | number | automatic 사전 조회가 반환한 후보 수 |
+| `injectedCount` | number | `status=active`, `confidence=high`, freshness=`current`로 본문을 주입한 후보 수 |
+| `warnedCount` | number | stale 이외의 후보 중 본문 없이 title과 원문 확인 경고만 제공한 수 |
+| `skippedStaleCount` | number | source lock revision과 충돌해 stale로 차단한 후보 수 |
+| `contextBytes` | number | Agent prompt에 제공한 automatic Memory context JSON byte 수 |
+| `staleInjectionCount` | number | stale 후보가 본문으로 주입된 수. 정상 runner에서는 항상 0이어야 한다 |
+
+`injectedCount`, `warnedCount`, `skippedStaleCount`는 상호 배타적이며 합이 `retrievedCount`와 같아야 한다.

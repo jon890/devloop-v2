@@ -219,6 +219,91 @@ test("private graph inputs add anchor, URL, original path, node id, and property
   }
 });
 
+test("automatic private inputs add repository, revision, prompt, transcript path, URL, and raw context needles", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "memory-privacy-automatic-"));
+  try {
+    const automaticRunPath = path.join(root, "automatic-run.json");
+    const reportPath = path.join(root, "report.md");
+    const automaticRun = {
+      schemaVersion: "memory-run/v1",
+      sourceRepositoryRoot: path.join(root, "OCR"),
+      taskInputs: [
+        {
+          taskId: "MEM-EXP-001",
+          baseRevision: "a".repeat(40),
+          targetRevision: "b".repeat(40),
+          prompt: "private automatic prompt words",
+          oracleQuery: "private automatic oracle query",
+        },
+      ],
+      resolvedRepositories: [
+        {
+          taskId: "MEM-EXP-001",
+          originalRepositoryPath: path.join(root, "OCR", "OCR.API"),
+          originalRepositoryBasename: "OCR.API",
+          resolvedRepositoryPath: path.join(root, "OCR", "OCR.API"),
+          sourceUrl: "https://github.example.internal/team/OCR.API/commit/" + "a".repeat(40),
+        },
+      ],
+      attempts: [
+        {
+          taskId: "MEM-EXP-001",
+          condition: "automatic",
+          repetition: 1,
+          stdoutTranscriptPath: "eval/runs/transcripts/private-automatic.stdout.jsonl",
+          stderrTranscriptPath: "eval/runs/transcripts/private-automatic.stderr.txt",
+          automaticContext: "private automatic raw context",
+          provenance: "private source provenance",
+        },
+      ],
+    };
+    await writeJson(automaticRunPath, automaticRun);
+    const needles = await collectPrivateInputNeedles([automaticRunPath]);
+    const labels = new Set(needles.map((needle) => needle.label));
+    for (const label of [
+      "sourceRepositoryRoot",
+      "originalRepositoryPath",
+      "originalRepositoryBasename",
+      "resolvedRepositoryPath",
+      "sourceUrl",
+      "internalDomain",
+      "baseRevision",
+      "targetRevision",
+      "prompt",
+      "oracleQuery",
+      "stdoutTranscriptPath",
+      "stderrTranscriptPath",
+      "automaticContext",
+      "provenance",
+    ]) {
+      assert.equal(labels.has(label), true, label);
+    }
+
+    await writeFile(reportPath, "Public aggregate only\n", "utf8");
+    assert.equal((await scanPrivacy({ privateInputPaths: [automaticRunPath], paths: [reportPath] })).violations, 0);
+
+    await writeFile(reportPath, `Leak OCR.API ${automaticRun.taskInputs[0].prompt} private automatic raw context ${automaticRun.resolvedRepositories[0].sourceUrl}\n`, "utf8");
+    await assert.rejects(
+      () => scanPrivacy({ privateInputPaths: [automaticRunPath], paths: [reportPath] }),
+      (error) => {
+        assert.match(error.message, /privacy scan failed/);
+        assert.equal(JSON.stringify(error.result).includes(automaticRun.taskInputs[0].prompt), false);
+        assert.deepEqual(error.result.violationLabels, [
+          "report.md:automaticContext",
+          "report.md:baseRevision",
+          "report.md:internalDomain",
+          "report.md:originalRepositoryBasename",
+          "report.md:prompt",
+          "report.md:sourceUrl",
+        ]);
+        return true;
+      },
+    );
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("private input scan fails when every configured input is missing", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "memory-privacy-"));
   try {
