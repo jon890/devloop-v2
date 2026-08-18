@@ -245,7 +245,6 @@ function renderMarkdown(report) {
   for (const task of report.tasks) {
     lines.push(`- ${task.taskId}: ${task.reason}`);
   }
-  lines.push("");
   return `${lines.join("\n")}\n`;
 }
 
