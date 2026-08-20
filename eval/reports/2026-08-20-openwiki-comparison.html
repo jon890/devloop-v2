@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>OpenWiki와 Experience Memory 실측 비교</title>
+    <style>
+      :root {
+        --ink: #122b35;
+        --muted: #56717b;
+        --paper: #f1f7f6;
+        --panel: #ffffff;
+        --navy: #173f54;
+        --blue: #176b8a;
+        --cyan: #45aaa7;
+        --mint: #dff2ec;
+        --line: #bed2d4;
+        --amber: #c9700b;
+        --amber-soft: #fff1db;
+        --red: #a63e2d;
+        --red-soft: #fff0ec;
+        --green: #247558;
+        --shadow: 0 18px 50px rgb(23 63 84 / 11%);
+        --display: "Arial Narrow", "Aptos Display", "Noto Sans KR", sans-serif;
+        --body: "Aptos", "Noto Sans KR", "Apple SD Gothic Neo", sans-serif;
+        --mono: "SFMono-Regular", "Cascadia Code", "D2Coding", monospace;
+      }
+
+      * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        background:
+          linear-gradient(90deg, transparent 47px, rgb(23 107 138 / 7%) 48px, transparent 49px),
+          var(--paper);
+        color: var(--ink);
+        font-family: var(--body);
+        line-height: 1.65;
+      }
+      a { color: var(--blue); text-underline-offset: 0.2em; }
+      a:focus-visible, summary:focus-visible { outline: 3px solid var(--amber); outline-offset: 4px; }
+      code { font-family: var(--mono); font-size: 0.9em; }
+
+      .shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; padding: 26px 0 80px; }
+      .masthead {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 20px;
+        padding-bottom: 16px;
+        border-bottom: 2px solid var(--navy);
+      }
+      .brand { display: flex; align-items: center; gap: 11px; font: 700 0.76rem/1 var(--mono); letter-spacing: 0.12em; }
+      .brand-mark { display: grid; width: 30px; height: 30px; place-items: center; background: var(--navy); color: white; }
+      .date { color: var(--muted); font: 0.75rem/1.3 var(--mono); }
+
+      .hero { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(260px, 0.55fr); gap: 54px; padding: 72px 0 58px; }
+      .eyebrow { margin: 0 0 12px; color: var(--blue); font: 700 0.76rem/1.4 var(--mono); letter-spacing: 0.12em; }
+      h1, h2, h3 { margin-top: 0; font-family: var(--display); line-height: 1.08; }
+      h1 { max-width: 780px; margin-bottom: 24px; font-size: clamp(3rem, 7vw, 6.7rem); letter-spacing: -0.055em; }
+      h1 span { color: var(--blue); }
+      .lede { max-width: 760px; margin: 0; color: var(--muted); font-size: clamp(1.05rem, 1.65vw, 1.28rem); }
+      .verdict {
+        align-self: end;
+        padding: 24px;
+        border-top: 5px solid var(--amber);
+        background: var(--navy);
+        box-shadow: var(--shadow);
+        color: white;
+      }
+      .verdict strong { display: block; margin-bottom: 10px; font: 1.5rem/1.2 var(--display); }
+      .verdict p { margin: 0; color: #d9e8eb; }
+
+      .evidence-line {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 72px;
+        padding: 28px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+      .evidence-line::before { content: ""; position: absolute; top: 50%; left: 28px; right: 28px; height: 2px; background: var(--line); }
+      .rail { position: relative; z-index: 1; padding: 20px; border: 1px solid var(--line); background: white; }
+      .rail::before { content: ""; position: absolute; top: -7px; left: 20px; width: 12px; height: 12px; border: 2px solid white; border-radius: 50%; background: var(--green); box-shadow: 0 0 0 1px var(--green); }
+      .rail.blocked::before { background: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+      .rail h2 { margin-bottom: 8px; font-size: 1.55rem; }
+      .rail p { margin: 0; color: var(--muted); }
+      .rail .state { display: inline-block; margin-top: 14px; padding: 4px 8px; background: var(--mint); color: var(--green); font: 700 0.72rem/1.4 var(--mono); }
+      .rail.blocked .state { background: var(--amber-soft); color: #754000; }
+
+      section { margin: 0 0 72px; }
+      .section-head { display: grid; grid-template-columns: 220px 1fr; gap: 30px; align-items: end; margin-bottom: 24px; border-bottom: 1px solid var(--line); }
+      .section-head .label { padding-bottom: 12px; color: var(--blue); font: 700 0.74rem/1.4 var(--mono); letter-spacing: 0.1em; }
+      .section-head h2 { margin-bottom: 10px; font-size: clamp(2rem, 4vw, 3.7rem); letter-spacing: -0.035em; }
+
+      .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+      .metric { min-height: 150px; padding: 20px; border-top: 4px solid var(--cyan); background: var(--panel); box-shadow: 0 8px 24px rgb(23 63 84 / 7%); }
+      .metric.blocked { border-color: var(--amber); }
+      .metric .value { display: block; margin-bottom: 10px; font: 800 clamp(2.1rem, 4vw, 3.7rem)/1 var(--display); letter-spacing: -0.04em; }
+      .metric .name { color: var(--muted); font-size: 0.9rem; }
+
+      .table-wrap { overflow-x: auto; border: 1px solid var(--line); background: var(--panel); }
+      table { width: 100%; border-collapse: collapse; font-size: 0.94rem; }
+      th, td { padding: 14px 16px; border-bottom: 1px solid #dbe6e7; text-align: left; vertical-align: top; }
+      th { background: #e8f1f1; color: var(--navy); font-size: 0.8rem; }
+      tr:last-child td { border-bottom: 0; }
+      .ok { color: var(--green); font-weight: 700; }
+      .warn { color: #8a4d00; font-weight: 700; }
+      .na { color: var(--red); font-weight: 700; }
+
+      .question-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+      .question { padding: 24px; border-left: 4px solid var(--blue); background: var(--panel); }
+      .question h3 { margin-bottom: 12px; font-size: 1.35rem; }
+      .question p { margin: 0; color: var(--muted); }
+      .question .tag { display: inline-block; margin-top: 16px; padding: 4px 8px; background: var(--mint); color: var(--green); font: 700 0.72rem/1.4 var(--mono); }
+      .question.caution .tag { background: var(--amber-soft); color: #754000; }
+
+      .finding-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+      .finding { padding: 24px; border: 1px solid var(--line); background: var(--panel); }
+      .finding h3 { font-size: 1.38rem; }
+      .finding p { margin-bottom: 0; color: var(--muted); }
+      .finding.alert { border-color: #e4a557; background: var(--amber-soft); }
+
+      .goal {
+        display: grid;
+        grid-template-columns: 0.8fr 1.2fr;
+        gap: 36px;
+        padding: 36px;
+        background: var(--navy);
+        color: white;
+      }
+      .goal h2 { margin-bottom: 0; font-size: clamp(2.2rem, 4.7vw, 4.7rem); letter-spacing: -0.04em; }
+      .goal p { margin-top: 0; color: #d9e8eb; font-size: 1.05rem; }
+      .goal ul { margin: 20px 0 0; padding-left: 20px; color: #d9e8eb; }
+
+      .next { padding: 28px; border: 1px solid var(--line); background: var(--panel); }
+      .next ol { display: grid; gap: 12px; margin: 0; padding-left: 24px; }
+      .note { margin-top: 18px; padding: 16px; border-left: 4px solid var(--amber); background: var(--amber-soft); color: #6e430f; }
+      footer { padding-top: 24px; border-top: 2px solid var(--navy); color: var(--muted); font-size: 0.85rem; }
+
+      @media (max-width: 860px) {
+        .hero, .goal { grid-template-columns: 1fr; }
+        .evidence-line, .question-grid, .finding-grid { grid-template-columns: 1fr; }
+        .evidence-line::before { display: none; }
+        .metric-grid { grid-template-columns: repeat(2, 1fr); }
+        .section-head { grid-template-columns: 1fr; gap: 0; }
+      }
+      @media (max-width: 540px) {
+        .shell { width: min(100% - 24px, 1180px); }
+        .masthead { align-items: flex-start; flex-direction: column; }
+        .hero { padding-top: 50px; }
+        .metric-grid { grid-template-columns: 1fr; }
+        th, td { padding: 11px 12px; }
+      }
+      @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="masthead">
+        <div class="brand"><span class="brand-mark">DV</span> DEVLOOP · 실측 보고</div>
+        <div class="date">2026-08-20 · OCR.API @ 825aa2c7</div>
+      </header>
+
+      <div class="hero">
+        <div>
+          <p class="eyebrow">OPENWIKI × EXPERIENCE MEMORY</p>
+          <h1>운영은 비교했다.<br /><span>품질은 아직이다.</span></h1>
+          <p class="lede">같은 OCR.API 커밋에서 두 지식 경로를 실제 실행했다. Experience Memory는 30개 근거 문서를 생성하고 검색까지 완료했다. OpenWiki는 공식 Codex 인증에 성공했지만 계정 전체 사용량 한도로 생성이 중단됐다.</p>
+        </div>
+        <aside class="verdict">
+          <strong>판정: 부분 완료</strong>
+          <p>운영 특성과 실패 방식은 비교했다. OpenWiki 산출물이 없으므로 답변 정확성 비교는 보류한다.</p>
+        </aside>
+      </div>
+
+      <div class="evidence-line" aria-label="두 실행 경로의 상태">
+        <article class="rail">
+          <h2>Experience Memory</h2>
+          <p>Dooray와 9개 Git 저장소에서 선택한 근거를 Luna로 추출하고 결정적 검색을 수행했다.</p>
+          <span class="state">생성·검색 완료</span>
+        </article>
+        <article class="rail blocked">
+          <h2>OpenWiki</h2>
+          <p>공식 openai-chatgpt 인증은 통과했지만 본 생성 호출이 계정 전체 429로 멈췄다.</p>
+          <span class="state">외부 한도 차단</span>
+        </article>
+      </div>
+
+      <section>
+        <div class="section-head"><span class="label">실행 계기판</span><h2>측정된 값만 남겼다</h2></div>
+        <div class="metric-grid">
+          <div class="metric"><span class="value">5 / 2,739</span><span class="name">이번 추출 / 정규화된 전체 근거 묶음</span></div>
+          <div class="metric"><span class="value">30</span><span class="name">생성된 Experience Memory</span></div>
+          <div class="metric"><span class="value">1ms</span><span class="name">문서 30개 기준 질의별 어휘 검색</span></div>
+          <div class="metric blocked"><span class="value">0</span><span class="name">OpenWiki 생성 파일</span></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><span class="label">동일 조건</span><h2>한 커밋, 네 질문</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>항목</th><th>Experience Memory</th><th>OpenWiki 0.3.3</th></tr></thead>
+            <tbody>
+              <tr><td>입력</td><td>Dooray 업무 490건·댓글 854건·위키 47건, Git 9개</td><td>OCR.API 저장소 1개</td></tr>
+              <tr><td>모델</td><td><code>gpt-5.6-luna</code> 강제</td><td><code>gpt-5.6-sol</code> 본 실행</td></tr>
+              <tr><td>생성</td><td class="ok">문서 30개 29,733바이트, 색인 포함 32개 파일 144,149바이트</td><td class="na">429 종료, 0개 문서</td></tr>
+              <tr><td>시간</td><td>추출 145,524밀리초</td><td>1초 후 실패</td></tr>
+              <tr><td>원문 추적</td><td class="ok">안정 식별자와 직접 링크 보존</td><td>산출물이 없어 측정 불가</td></tr>
+              <tr><td>비용·토큰</td><td>내부 실행 보고로 호출 수 확인</td><td>제공자가 실행별 값을 출력하지 않음</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="note">Experience Memory는 전체 2,739개 중 5개 근거 묶음만 추출한 최소 실측이다. 전체 처리량 비교로 해석하지 않는다.</p>
+      </section>
+
+      <section>
+        <div class="section-head"><span class="label">검색 품질</span><h2>맥락 찾기 네 장면</h2></div>
+        <div class="question-grid">
+          <article class="question"><h3>공개 경로 오류 계약</h3><p>오류 식별자와 헤더 이름을 포함하면 정확한 결정이 검색 1위에 도달했다.</p><span class="tag">핵심 근거 도달</span></article>
+          <article class="question"><h3>진입 경로 관측</h3><p>한국어 질의로 Dooray의 전환 결정과 Git의 관측 제거 조건을 함께 찾았다.</p><span class="tag">이력과 현재 계약 결합</span></article>
+          <article class="question caution"><h3>5MB·20MB 업로드</h3><p>붙여 쓴 단위와 혼합 언어 질의에서는 누락됐다. 숫자 단위를 분리하고 추출 언어를 맞추면 2위로 검색됐다.</p><span class="tag">검색어 민감도</span></article>
+          <article class="question"><h3>내부 요청 판정</h3><p>헤더 우선순위, 직접 주소 검증, 허용 범위, 잘못된 IP, ASCII 검증을 상위 결과에서 복구했다.</p><span class="tag">제약 묶음 복구</span></article>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><span class="label">OpenWiki 관찰</span><h2>생성 전에 드러난 세 가지</h2></div>
+        <div class="finding-grid">
+          <article class="finding"><h3>공식 로그인은 동작한다</h3><p>현재 Codex 로그인 정보를 프로세스 환경으로 전달해 작은 Sol 확인 호출에 성공했다. 비밀값은 저장하지 않았다.</p></article>
+          <article class="finding alert"><h3>한도는 계정 전체다</h3><p>Sol 본 실행과 Terra·5.4-mini 최소 진단이 모두 429였다. Luna로 낮춰 결과를 꾸미지 않았다.</p></article>
+          <article class="finding"><h3>심볼릭 링크 결함이 있다</h3><p>AGENTS.md와 CLAUDE.md가 같은 파일이면 관리 종료 표식이 중복된다. 임시 복제본에서 링크를 일반 파일로 격리해야 한다.</p></article>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><span class="label">역할 분리</span><h2>대체재보다 보완재</h2></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>관심사</th><th>Experience Memory</th><th>OpenWiki</th></tr></thead>
+            <tbody>
+              <tr><td>중심 질문</td><td>왜 결정했고 어떤 제약과 실패가 있었는가</td><td>현재 저장소는 무엇이며 어떻게 동작하는가</td></tr>
+              <tr><td>원천 범위</td><td>Dooray와 OCR Git 저장소 전체</td><td>실행한 Git 저장소</td></tr>
+              <tr><td>저장 단위</td><td>결정·제약·사건·교훈</td><td>저장소 설명 문서</td></tr>
+              <tr><td>강점</td><td>시간축, 저장소 밖 이유, 원문 추적</td><td>현재 코드 구조의 폭넓은 설명 가능성</td></tr>
+              <tr><td>이번 약점</td><td>제목 30개 중 23개가 영어로 추출돼 한국어 검색 민감도 발생</td><td>외부 한도와 링크 처리로 생성 불가</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><span class="label">현재 한계</span><h2>아직 비교하지 못한 것</h2></div>
+        <div class="finding-grid">
+          <article class="finding alert"><h3>Dooray 최신성이 부족하다</h3><p>이번 원본 스냅샷에는 검토 대상인 일부 최신 업무가 없었다. 최신 수집 뒤 같은 추출을 다시 수행해야 한다.</p></article>
+          <article class="finding"><h3>정면 품질 비교는 미완료다</h3><p>OpenWiki 생성물이 없어 답변 정확성, 인용 충실도, 생성 시간과 문서 크기를 같은 조건에서 채점하지 못했다.</p></article>
+          <article class="finding"><h3>비용을 측정할 수 없다</h3><p>OpenWiki 0.3.3의 openai-chatgpt 경로는 실행별 토큰 수와 비용을 출력하지 않는다.</p></article>
+        </div>
+      </section>
+
+      <section class="goal">
+        <h2>최종 목표</h2>
+        <div>
+          <p>코딩 에이전트가 작업 전에 과거 결정, 호환성 제약, 장애 원인, 마이그레이션 맥락을 빠르게 찾고 원문까지 검증할 수 있는 지식 저장소를 구축한다.</p>
+          <ul>
+            <li>Dooray 업무·댓글·위키와 OCR Git 저장소 전체를 사용한다.</li>
+            <li>우리 추출·LLM 검색 경로는 <code>gpt-5.6-luna</code>만 허용하고 실패 시 승격하지 않는다.</li>
+            <li>정규화와 어휘 검색은 결정적으로 유지한다.</li>
+            <li>Memory마다 원천 종류, 식별자, 개정 또는 시각, 직접 링크를 보존한다.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-head"><span class="label">완료 기준</span><h2>다음 실행에서 닫을 것</h2></div>
+        <div class="next">
+          <ol>
+            <li>Codex 계정 한도 회복 뒤 <code>gpt-5.6-sol</code> 최소 호출을 확인한다.</li>
+            <li>임시 복제본에서 AGENTS.md 심볼릭 링크를 일반 파일로 격리한다.</li>
+            <li>OpenWiki 생성 파일 수와 바이트, 시간을 기록한다.</li>
+            <li>Claude가 위키만 사용해 네 질문에 답한다.</li>
+            <li>코드·시험·ADR 정답지와 정확, 부분, 오류, 근거 없음으로 대조한다.</li>
+          </ol>
+        </div>
+      </section>
+
+      <footer>
+        <p>공개 보고서에는 사내 URL과 원문을 포함하지 않았다. 원본 OCR 저장소는 읽기 전용으로 유지했으며 모든 비교 산출물은 격리된 실행 경로에서 만들었다.</p>
+        <p><a href="2026-08-20-openwiki-comparison.md">상세 Markdown 보고서 열기</a></p>
+      </footer>
+    </main>
+  </body>
+</html>
